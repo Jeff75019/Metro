@@ -162,6 +162,7 @@ Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille �
 | « Horaire théorique » | IDFM ne fournit pas de temps réel pour ce passage, c'est l'horaire prévu |
 | RER : « sens 1/2 » mélange des trains vers l'est et l'ouest | Dans la configuration, choisissez les destinations d'un même sens |
 | Le WiFi n'est pas trouvé | La carte ne gère que le WiFi 2,4 GHz |
+| Compilation : « Croquis trop gros » / « text section exceeds available space » | Partition par défaut (1,2 Mo) : **Outils → Flash Size → 16MB**, puis **Partition Scheme → 16M Flash (3MB APP/9.9MB FATFS)** |
 | Écran noir après téléversement | PSRAM mal réglée : choisir **OPI PSRAM** |
 
 Journal de fonctionnement : moniteur série à 115200 bauds.
