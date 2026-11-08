@@ -6,6 +6,7 @@
 #include "lines.h"
 #include "siri.h"
 #include "sncf.h"
+#include "traffic.h"
 
 enum class NetState : uint8_t { Off, Connecting, Online, Failed };
 
@@ -34,6 +35,7 @@ struct UiState {
   // Message quand il n'y a aucun passage (par défaut « Aucun passage prévu »)
   const char* emptyTitle;
   const char* emptySub;
+  uint8_t alert;  // perturbation en cours sur la ligne (TRAFFIC_DISRUPTED / BLOCKING) : ⚠ dans l'en-tête
 };
 
 // Tableau des trains d'une gare SNCF
@@ -52,7 +54,7 @@ struct BoardUi {
 };
 
 // ---- Choix libre sur l'écran tactile : accueil, grilles et listes -----------
-enum class TileKind : uint8_t { Metro, Rer, Tram, Trains, MyStops, MyStations };
+enum class TileKind : uint8_t { Metro, Rer, Tram, Trains, MyStops, MyStations, Traffic };
 struct HubTile {
   TileKind kind;
   const char* label;
@@ -111,6 +113,30 @@ void uiDrawBoard(const BoardUi& s);
 void uiDrawAppTitle(bool trains, const char* credit = nullptr);
 
 void uiDrawHub(const HubUi& s);
+
+// Info trafic : liste des perturbations, puis message détaillé
+#define TRAFFIC_ROWS 4
+struct TrafficUi {
+  const TrafficData* data;  // nullptr : pas encore de données
+  int top;                  // première perturbation visible
+  int64_t now;
+  int battery;
+  bool busy;
+  const char* status;       // erreur (ou nullptr)
+};
+void uiDrawTraffic(const TrafficUi& s);
+int uiHitTraffic(int x, int y);  // ligne touchée (0..TRAFFIC_ROWS-1), -1 sinon
+
+struct TrafficMsgUi {
+  const TrafficItem* item;
+  const char* text;  // message complet
+  int top;           // première ligne de texte visible
+  int64_t now;
+  int battery;
+};
+// Renvoie le nombre de lignes du texte (pour borner le défilement)
+int uiDrawTrafficMsg(const TrafficMsgUi& s);
+#define TRAFFIC_MSG_ROWS 6
 void uiDrawGrid(const GridUi& s);
 void uiDrawList(const ListUi& s);
 

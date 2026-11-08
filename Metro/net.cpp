@@ -7,6 +7,8 @@
 #include <Preferences.h>
 #include <esp_attr.h>
 #include <esp_heap_caps.h>
+
+#include <functional>
 #include <mbedtls/ssl.h>
 #include <psa/crypto.h>
 #include <sys/time.h>
@@ -80,7 +82,126 @@ static void explainFailure(NetworkClientSecure& client, int code, const String& 
 
 const char* httpLastError() { return netDetail; }
 
-int httpGet(const String& url, const HttpAuth& auth, String& body) {
+// Corps d'une réponse HTTP lu directement sur la connexion : morceaux
+// (« Transfer-Encoding: chunked ») reconstitués, attente patiente de chaque
+// paquet. (La lecture intégrée au cœur ESP32 s'arrêtait en route sur les grosses
+// réponses de PRIM, d'où des JSON incomplets.)
+class HttpBody : public Stream {
+ public:
+  HttpBody(Client& c, bool chunked, int length, uint32_t timeoutMs)
+      : c_(c), chunked_(chunked), left_(length), timeout_(timeoutMs) {
+    setTimeout(20);  // délai de Stream : la vraie attente est dans fill()
+  }
+  int available() override { return (int)(n_ - i_) + (eof_ ? 0 : c_.available()); }
+  int read() override {
+    if (i_ >= n_ && !fill()) return -1;
+    return buf_[i_++];
+  }
+  int peek() override {
+    if (i_ >= n_ && !fill()) return -1;
+    return buf_[i_];
+  }
+  size_t readBytes(char* b, size_t len) override {
+    size_t got = 0;
+    while (got < len) {
+      if (i_ >= n_ && !fill()) break;
+      size_t k = n_ - i_;
+      if (k > len - got) k = len - got;
+      memcpy(b + got, buf_ + i_, k);
+      i_ += k;
+      got += k;
+    }
+    return got;
+  }
+  size_t write(uint8_t) override { return 0; }
+  bool failed() const { return failed_; }  // coupure ou délai dépassé avant la fin
+
+ private:
+  // Jusqu'à n octets dès qu'il y en a ; 0 : connexion fermée ou délai dépassé
+  int rawRead(uint8_t* b, size_t n) {
+    const uint32_t t0 = millis();
+    for (;;) {
+      const int a = c_.available();
+      if (a > 0) return c_.read(b, (size_t)a < n ? (size_t)a : n);
+      if (!c_.connected()) return 0;
+      if (millis() - t0 > timeout_) {
+        timedOut_ = true;
+        return 0;
+      }
+      delay(1);
+    }
+  }
+  int rawByte() {
+    uint8_t b;
+    return rawRead(&b, 1) == 1 ? b : -1;
+  }
+  bool fail() {
+    failed_ = true;
+    eof_ = true;
+    return false;
+  }
+  bool fill() {
+    if (eof_) return false;
+    size_t want = sizeof(buf_);
+    if (chunked_) {
+      if (chunkLeft_ == 0) {
+        if (needCrlf_) {  // « \r\n » qui termine le morceau précédent
+          rawByte();
+          rawByte();
+          needCrlf_ = false;
+        }
+        char line[24];
+        int k = 0, ch;
+        while ((ch = rawByte()) >= 0 && ch != '\n')
+          if (k < (int)sizeof(line) - 1 && ch != '\r') line[k++] = (char)ch;
+        if (ch < 0) return fail();
+        line[k] = 0;
+        const long size = strtol(line, nullptr, 16);  // taille en hexadécimal
+        if (size <= 0) {  // dernier morceau
+          eof_ = true;
+          return false;
+        }
+        chunkLeft_ = (size_t)size;
+      }
+      if (chunkLeft_ < want) want = chunkLeft_;
+    } else if (left_ == 0) {
+      eof_ = true;
+      return false;
+    } else if (left_ > 0 && (size_t)left_ < want) {
+      want = (size_t)left_;
+    }
+    const int r = rawRead(buf_, want);
+    if (r <= 0) {
+      // Sans longueur annoncée, la fermeture de la connexion marque la fin
+      if (!chunked_ && left_ < 0 && !timedOut_) {
+        eof_ = true;
+        return false;
+      }
+      return fail();
+    }
+    if (chunked_) {
+      chunkLeft_ -= (size_t)r;
+      if (chunkLeft_ == 0) needCrlf_ = true;
+    } else if (left_ > 0) {
+      left_ -= r;
+    }
+    n_ = (size_t)r;
+    i_ = 0;
+    return true;
+  }
+
+  Client& c_;
+  const bool chunked_;
+  int left_;  // octets restants (longueur annoncée), -1 : inconnue
+  const uint32_t timeout_;
+  size_t chunkLeft_ = 0;
+  bool needCrlf_ = false, eof_ = false, failed_ = false, timedOut_ = false;
+  uint8_t buf_[1024];
+  size_t n_ = 0, i_ = 0;
+};
+
+// Requête GET : onBody lit le corps des réponses 2xx (renvoie false s'il est inutilisable)
+static int httpRequest(const String& url, const HttpAuth& auth, const std::function<bool(HttpBody&)>& onBody) {
   static bool psaReady = false;  // TLS 1.3 (si le cœur l'inclut) a besoin de PSA Crypto
   if (!psaReady) psaReady = psa_crypto_init() == PSA_SUCCESS;
   netDetail[0] = 0;
@@ -99,9 +220,21 @@ int httpGet(const String& url, const HttpAuth& auth, String& body) {
       else if (auth.header) http.addHeader(auth.header, auth.key);
     }
     http.addHeader("Accept", "application/json");
+    const char* keys[] = {"Transfer-Encoding"};
+    http.collectHeaders(keys, 1);
     int code = http.GET();
     if (code > 0) {
-      body = http.getString();
+      if (code >= 200 && code < 300) {
+        const uint32_t t0 = millis();
+        HttpBody in(*http.getStreamPtr(), http.header("Transfer-Encoding").equalsIgnoreCase("chunked"), http.getSize(),
+                    12000);
+        const bool ok = onBody(in);
+        if (!ok || in.failed()) {
+          snprintf(netDetail, sizeof(netDetail), "réponse incomplète (%s)", urlHost(url).c_str());
+          log_w("HTTPS %s : réponse incomplète après %lu ms", urlHost(url).c_str(), (unsigned long)(millis() - t0));
+          code = HTTPC_ERROR_READ_TIMEOUT;
+        }
+      }
       http.end();
       return code;
     }
@@ -113,6 +246,56 @@ int httpGet(const String& url, const HttpAuth& auth, String& body) {
     log_w("Connexion HTTPS refusée, nouvel essai sans vérification du certificat");
   }
   return HTTPC_ERROR_CONNECTION_REFUSED;
+}
+
+int httpGet(const String& url, const HttpAuth& auth, String& body) {
+  body = "";
+  return httpRequest(url, auth, [&](HttpBody& in) {
+    size_t cap = 0;
+    char tmp[1024];
+    for (;;) {
+      const size_t r = in.readBytes(tmp, sizeof(tmp));
+      if (!r) break;
+      if (body.length() + r + 1 > cap) {  // capacité doublée : pas de recopie à chaque paquet
+        cap = cap * 2 > body.length() + r + 4096 ? cap * 2 : body.length() + r + 4096;
+        if (!body.reserve(cap)) {
+          snprintf(netDetail, sizeof(netDetail), "mémoire insuffisante (%u octets)", (unsigned)cap);
+          return false;
+        }
+      }
+      body.concat(tmp, r);
+    }
+    return true;
+  });
+}
+
+int httpGetJson(const String& url, const HttpAuth& auth, JsonDocument& doc, const JsonDocument& filter,
+                DeserializationError* err) {
+  return httpRequest(url, auth, [&](HttpBody& in) {
+    *err = deserializeJson(doc, in, DeserializationOption::Filter(filter), DeserializationOption::NestingLimit(40));
+    return true;  // une coupure en route est signalée par in.failed()
+  });
+}
+
+// ----------------------------------------------------------------------------
+//  Gros documents JSON : en PSRAM (8 Mo) plutôt qu'en RAM interne
+// ----------------------------------------------------------------------------
+class PsramAllocator : public ArduinoJson::Allocator {
+ public:
+  void* allocate(size_t n) override {
+    void* p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    return p ? p : malloc(n);
+  }
+  void deallocate(void* p) override { free(p); }
+  void* reallocate(void* p, size_t n) override {
+    void* q = heap_caps_realloc(p, n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    return q ? q : realloc(p, n);
+  }
+};
+
+ArduinoJson::Allocator* psramAllocator() {
+  static PsramAllocator a;
+  return &a;
 }
 
 void describeHttp(int code, const char* who, char* msg, size_t n) {

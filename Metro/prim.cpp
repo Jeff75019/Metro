@@ -5,8 +5,10 @@
 
 #include "lines.h"
 #include "net.h"
+#include "traffic.h"
 
 static const char* PRIM_URL = "https://prim.iledefrance-mobilites.fr/marketplace/stop-monitoring";
+static const char* PRIM_TRAFFIC_URL = "https://prim.iledefrance-mobilites.fr/marketplace/disruptions_bulk/disruptions/v2";
 static const char* ODS_V1 = "https://data.iledefrance-mobilites.fr/api/records/1.0/search/?dataset=zones-d-arrets&rows=30&q=";
 static const char* ODS_REF =
     "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets/referentiel-des-lignes/records"
@@ -30,13 +32,18 @@ static String stopMonitoringUrl(const char* stopRef, const char* line) {
 FetchResult primFetchStop(const char* stopRef, const char* line, const char* apiKey, StopData& out) {
   FetchResult r;
   memset(&r, 0, sizeof(r));
-  String body;
+  // Réponse lue au fil de l'eau (un RER à une grande gare : près de 100 Ko)
+  JsonDocument filter;
+  siriFilter(filter);
+  JsonDocument doc(psramAllocator());
+  DeserializationError e;
   quotaCount(Api::Prim);
-  r.http = httpGet(stopMonitoringUrl(stopRef, line), primAuth(apiKey), body);
+  r.http = httpGetJson(stopMonitoringUrl(stopRef, line), primAuth(apiKey), doc, filter, &e);
   if (r.http == 400 && line && *line) {
-    // Paramètre LineRef refusé : on demande tout l'arrêt et on filtre nous-mêmes
+    // « Le couple MonitoringRef/LineRef n'existe pas » : tout l'arrêt, filtré ici
     quotaCount(Api::Prim);
-    r.http = httpGet(stopMonitoringUrl(stopRef, nullptr), primAuth(apiKey), body);
+    doc.clear();
+    r.http = httpGetJson(stopMonitoringUrl(stopRef, nullptr), primAuth(apiKey), doc, filter, &e);
   }
   if (r.http != 200) {
     describeHttp(r.http, "PRIM", r.msg, sizeof(r.msg));
@@ -44,7 +51,7 @@ FetchResult primFetchStop(const char* stopRef, const char* line, const char* api
   }
   static StopData tmp;  // évite d'écraser les données affichées en cas d'erreur
   char err[64];
-  SiriStatus st = parseStopMonitoring(body.c_str(), body.length(), line, tmp, err, sizeof(err));
+  SiriStatus st = parseStopMonitoringDoc(doc, e, line, tmp, err, sizeof(err));
   if (st != SiriStatus::Ok) {
     copyStr(r.msg, err, sizeof(r.msg));
     return r;
@@ -56,6 +63,31 @@ FetchResult primFetchStop(const char* stopRef, const char* line, const char* api
   return r;
 }
 
+FetchResult primFetchTraffic(const char* apiKey, int64_t now, TrafficData& out) {
+  FetchResult r;
+  memset(&r, 0, sizeof(r));
+  JsonDocument filter;
+  trafficFilter(filter);
+  JsonDocument doc(psramAllocator());  // plusieurs centaines de Ko même filtré
+  DeserializationError e;
+  r.http = httpGetJson(PRIM_TRAFFIC_URL, primAuth(apiKey), doc, filter, &e);
+  if (r.http != 200) {
+    describeHttp(r.http, "PRIM", r.msg, sizeof(r.msg));
+    if (r.http == 403) copyStr(r.msg, "Info trafic refusée (403) : abonnez la clé à « Info trafic »", sizeof(r.msg));
+    return r;
+  }
+  if (e == DeserializationError::NoMemory) {
+    copyStr(r.msg, "Mémoire insuffisante (PSRAM activée ?)", sizeof(r.msg));
+    return r;
+  }
+  if (parseTraffic(doc, e, now, 12 * 3600, out) < 0) {
+    snprintf(r.msg, sizeof(r.msg), "Info trafic illisible (%s)", e.c_str());
+    return r;
+  }
+  r.ok = true;
+  return r;
+}
+
 FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out) {
   return primFetchStop(fav.stopRef, fav.line, apiKey, out);
 }
@@ -63,9 +95,12 @@ FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out) {
 int primLinesJson(const String& stopRef, const char* apiKey, String& out) {
   JsonDocument doc;
   String ref = normalizeStopRef(stopRef);
-  String body;
+  JsonDocument filter;
+  siriFilter(filter);
+  JsonDocument sdoc(psramAllocator());
+  DeserializationError e;
   quotaCount(Api::Prim);
-  int code = httpGet(stopMonitoringUrl(ref.c_str(), nullptr), primAuth(apiKey), body);
+  int code = httpGetJson(stopMonitoringUrl(ref.c_str(), nullptr), primAuth(apiKey), sdoc, filter, &e);
   if (code != 200) {
     char msg[128];
     describeHttp(code, "PRIM", msg, sizeof(msg));
@@ -75,7 +110,7 @@ int primLinesJson(const String& stopRef, const char* apiKey, String& out) {
   }
   static LineSummary ls[16];
   char stop[TXT_LEN];
-  int n = summarizeLines(body.c_str(), body.length(), ls, 16, stop, sizeof(stop));
+  int n = summarizeLinesDoc(sdoc, e, ls, 16, stop, sizeof(stop));
 
   // Lignes absentes de la table (bus, Noctilien...) : nom et couleurs dans le
   // référentiel des lignes de l'open data IDFM (un seul appel, sans clé)

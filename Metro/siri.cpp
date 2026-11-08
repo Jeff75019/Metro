@@ -327,6 +327,11 @@ static void buildFilter(JsonDocument& f) {
   j["MonitoredCall"] = true;
 }
 
+static SiriStatus checkDoc(JsonDocument& doc, DeserializationError e, JsonObjectConst& smd, int64_t* responseTime,
+                           char* err, size_t errLen);
+
+void siriFilter(JsonDocument& filter) { buildFilter(filter); }
+
 static SiriStatus loadDoc(const char* json, size_t len, JsonDocument& doc, JsonObjectConst& smd,
                           int64_t* responseTime, char* err, size_t errLen) {
   // Avec un filtre, ArduinoJson est tolérant : on vérifie nous-mêmes que
@@ -341,6 +346,12 @@ static SiriStatus loadDoc(const char* json, size_t len, JsonDocument& doc, JsonO
   buildFilter(filter);
   DeserializationError e = deserializeJson(doc, json, len, DeserializationOption::Filter(filter),
                                            DeserializationOption::NestingLimit(40));
+  return checkDoc(doc, e, smd, responseTime, err, errLen);
+}
+
+// Contrôles communs après le décodage (depuis un texte ou au fil de l'eau)
+static SiriStatus checkDoc(JsonDocument& doc, DeserializationError e, JsonObjectConst& smd, int64_t* responseTime,
+                           char* err, size_t errLen) {
   if (e) {
     if (err) snprintf(err, errLen, "JSON invalide (%s)", e.c_str());
     return SiriStatus::BadJson;
@@ -384,18 +395,32 @@ static void insertSorted(StopData& out, const Departure& d) {
   out.count = (uint8_t)(n + 1);
 }
 
+static SiriStatus parseVisits(JsonObjectConst smd, const char* lineFilter, StopData& out);
+
 SiriStatus parseStopMonitoring(const char* json, size_t len, const char* lineFilter, StopData& out,
                                char* err, size_t errLen) {
   memset(&out, 0, sizeof(out));
   if (err && errLen) err[0] = 0;
-
-  char wantLine[16] = "";
-  if (lineFilter && *lineFilter) lineIdFromRef(lineFilter, wantLine, sizeof(wantLine));
-
   JsonDocument doc;
   JsonObjectConst smd;
   SiriStatus st = loadDoc(json, len, doc, smd, &out.responseTime, err, errLen);
   if (st != SiriStatus::Ok) return st;
+  return parseVisits(smd, lineFilter, out);
+}
+
+SiriStatus parseStopMonitoringDoc(JsonDocument& doc, DeserializationError e, const char* lineFilter, StopData& out,
+                                  char* err, size_t errLen) {
+  memset(&out, 0, sizeof(out));
+  if (err && errLen) err[0] = 0;
+  JsonObjectConst smd;
+  SiriStatus st = checkDoc(doc, e, smd, &out.responseTime, err, errLen);
+  if (st != SiriStatus::Ok) return st;
+  return parseVisits(smd, lineFilter, out);
+}
+
+static SiriStatus parseVisits(JsonObjectConst smd, const char* lineFilter, StopData& out) {
+  char wantLine[16] = "";
+  if (lineFilter && *lineFilter) lineIdFromRef(lineFilter, wantLine, sizeof(wantLine));
 
   for (JsonObjectConst visit : smd["MonitoredStopVisit"].as<JsonArrayConst>()) {
     JsonObjectConst mvj = visit["MonitoredVehicleJourney"];
@@ -449,12 +474,28 @@ SiriStatus parseStopMonitoring(const char* json, size_t len, const char* lineFil
   return SiriStatus::Ok;
 }
 
+static int summarizeVisits(JsonObjectConst smd, LineSummary* out, int maxLines, char* stopName,
+                           size_t stopNameLen);
+
 int summarizeLines(const char* json, size_t len, LineSummary* out, int maxLines, char* stopName,
                    size_t stopNameLen) {
   if (stopName && stopNameLen) stopName[0] = 0;
   JsonDocument doc;
   JsonObjectConst smd;
   if (loadDoc(json, len, doc, smd, nullptr, nullptr, 0) != SiriStatus::Ok) return -1;
+  return summarizeVisits(smd, out, maxLines, stopName, stopNameLen);
+}
+
+int summarizeLinesDoc(JsonDocument& doc, DeserializationError e, LineSummary* out, int maxLines, char* stopName,
+                      size_t stopNameLen) {
+  if (stopName && stopNameLen) stopName[0] = 0;
+  JsonObjectConst smd;
+  if (checkDoc(doc, e, smd, nullptr, nullptr, 0) != SiriStatus::Ok) return -1;
+  return summarizeVisits(smd, out, maxLines, stopName, stopNameLen);
+}
+
+static int summarizeVisits(JsonObjectConst smd, LineSummary* out, int maxLines, char* stopName,
+                           size_t stopNameLen) {
   int n = 0;
   for (JsonObjectConst visit : smd["MonitoredStopVisit"].as<JsonArrayConst>()) {
     JsonObjectConst mvj = visit["MonitoredVehicleJourney"];

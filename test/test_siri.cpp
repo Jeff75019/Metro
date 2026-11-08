@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <fstream>
 #include <string>
 
 #include "../Metro/lines.h"
@@ -154,6 +155,31 @@ int main() {
   // filtre à plusieurs destinations (RER A vers l'est)
   CHECK(matchesFilter("Marne-la-Vallée Chessy", "Marne-la-Vallée Chessy|Torcy|Boissy-Saint-Léger"));
   CHECK(!matchesFilter("Saint-Germain-en-Laye", "Marne-la-Vallée Chessy|Torcy|Boissy-Saint-Léger"));
+
+  // Vraie réponse RER E (Haussmann-Saint-Lazare, 86 Ko, 61 passages), décodée au fil
+  // de l'eau comme sur la carte (flux + filtre), puis tronquée : erreur propre
+  {
+    std::ifstream f("data/prim_rerE_haussmann_reel.json", std::ios::binary);
+    JsonDocument filter, doc;
+    siriFilter(filter);
+    DeserializationError e = deserializeJson(doc, f, DeserializationOption::Filter(filter),
+                                             DeserializationOption::NestingLimit(40));
+    static StopData rd;
+    char er[64];
+    CHECK(parseStopMonitoringDoc(doc, e, "C01729", rd, er, sizeof(er)) == SiriStatus::Ok);
+    CHECK(rd.count == MAX_DEPARTURES);
+    CHECK(strstr(rd.stopName, "Haussmann") != nullptr);
+    CHECK(rd.dep[0].when <= rd.dep[1].when && rd.dep[0].platform[0]);
+    printf("RER E Haussmann : %d passages gardés, 1er vers %s voie %s\n", rd.count, rd.dep[0].dest, rd.dep[0].platform);
+    std::string full;
+    std::ifstream g("data/prim_rerE_haussmann_reel.json", std::ios::binary);
+    full.assign(std::istreambuf_iterator<char>(g), std::istreambuf_iterator<char>());
+    JsonDocument d2;
+    DeserializationError e2 = deserializeJson(d2, full.data(), full.size() / 2, DeserializationOption::Filter(filter));
+    CHECK(parseStopMonitoringDoc(d2, e2, "C01729", rd, er, sizeof(er)) == SiriStatus::BadJson);
+    printf("Réponse tronquée : %s\n", er);
+    CHECK(strstr(er, "JSON invalide") != nullptr);
+  }
 
   printf("Tous les tests SIRI passent.\n");
   return 0;

@@ -1,6 +1,7 @@
 // Outils réseau communs : requêtes HTTPS, quotas d'appels quotidiens, horloge.
 #pragma once
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 enum class Api : uint8_t { Prim = 0, Sncf = 1 };
 
@@ -10,8 +11,20 @@ struct HttpAuth {
   bool basic = false;            // true : authentification HTTP Basic (clé = identifiant, API SNCF)
 };
 
-// GET en HTTPS. Renvoie le code HTTP (ou < 0 : erreur réseau) et le corps de la réponse.
+// GET en HTTPS. Renvoie le code HTTP (ou < 0 : erreur réseau) et le corps de la réponse
+// (lu seulement pour un code 2xx). Les réponses envoyées en morceaux (« chunked »)
+// sont reconstituées en attendant chaque paquet : une réponse coupée en route
+// renvoie HTTPC_ERROR_READ_TIMEOUT (« réponse incomplète »).
 int httpGet(const String& url, const HttpAuth& auth, String& body);
+
+// GET en HTTPS avec lecture du JSON au fil de l'eau, sans garder la réponse
+// entière en mémoire (filtre ArduinoJson : seuls les champs utiles sont gardés).
+// *err : résultat du décodage (si le code est 2xx).
+int httpGetJson(const String& url, const HttpAuth& auth, JsonDocument& doc, const JsonDocument& filter,
+                DeserializationError* err);
+
+// Allocateur ArduinoJson en PSRAM (gros documents), à défaut en RAM interne
+ArduinoJson::Allocator* psramAllocator();
 
 // Cause précise du dernier échec réseau de httpGet ("" si aucun) : DNS, serveur
 // injoignable, TLS refusé (code mbedTLS), mémoire insuffisante. Détail complet

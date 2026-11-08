@@ -23,6 +23,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_attr.h>
+#include <esp_heap_caps.h>
 #include <time.h>
 
 #include "board.h"
@@ -32,6 +33,7 @@
 #include "net.h"
 #include "reseau.h"
 #include "prim.h"
+#include "traffic.h"
 #include "settings.h"
 #include "siri.h"
 #include "sncf.h"
@@ -40,7 +42,7 @@
 
 // Écrans : accueil, favoris, et choix libre (lignes -> stations -> passages ;
 // initiales -> gares -> tableau)
-enum class Scr : uint8_t { Hub = 0, MyStops, MyStations, Lines, Stops, Stop, Groups, Gares, Board };
+enum class Scr : uint8_t { Hub = 0, MyStops, MyStations, Lines, Stops, Stop, Groups, Gares, Board, Traffic, TrafficMsg };
 
 // Choix libre : ce que l'utilisateur a choisi (conservé pendant la veille)
 struct Explore {
@@ -53,6 +55,9 @@ struct Explore {
   uint8_t gtop;   // première gare visible dans la liste
   uint8_t page;   // page des destinations (2 par page)
   bool arrivals;  // arrivées plutôt que départs
+  uint8_t ttop;   // info trafic : première perturbation visible
+  uint8_t tsel;   // perturbation ouverte
+  uint8_t mtop;   // première ligne visible de son message
 };
 
 // ---- État conservé pendant la veille profonde (mémoire RTC) -----------------
@@ -222,6 +227,17 @@ static void drawTrains() {
   lastDraw = millis();
 }
 
+// ---- Info trafic (requête globale PRIM, gardée 5 min ; ⚠ affiché 30 min) ------
+static TrafficData traffic;
+static bool trafficValid = false, trafficForce = false;
+static int64_t trafficFetched = 0, trafficNext = 0;
+static const int64_t TRAFFIC_REFRESH_S = 300, TRAFFIC_ALERT_S = 1800;
+
+static uint8_t lineAlert(const char* line) {
+  if (!trafficValid || !line || !*line || nowEpoch() - trafficFetched > TRAFFIC_ALERT_S) return 0;
+  return trafficLevel(traffic, line);
+}
+
 static void drawMyStops() {
   const Favorite& f = settings.fav[curFav];
   const LineInfo* li = findLine(f.line);
@@ -247,6 +263,7 @@ static void drawMyStops() {
   s.favIndex = curFav;
   s.favCount = settings.favCount;
   s.back = true;
+  s.alert = lineAlert(f.line);
   uiDrawMain(s);
   lastDraw = millis();
 }
@@ -257,7 +274,7 @@ static const char* const EX_TITLES[3] = {"Métro", "RER", "Tramway"};
 static const int EX_COLS[3] = {7, 5, 5};
 static const char* const TN_CREDIT = "Données SNCF (ODbL) via Train Nomade";
 
-static HubTile hubTiles[6];
+static HubTile hubTiles[8];
 static int hubCount = 0;
 static int exLines[24], exLineCount = 0;
 static GridItem exItems[32];
@@ -296,6 +313,21 @@ static void buildHub() {
   hubTiles[hubCount++] = {TileKind::Trains, "Trains SNCF", nullptr, 0};
   if (metroReady()) hubTiles[hubCount++] = {TileKind::MyStops, "Mes arrêts", favColors, nfav};
   if (trainsReady()) hubTiles[hubCount++] = {TileKind::MyStations, "Mes gares", nullptr, 0};
+  // Info trafic : bandeau aux couleurs des lignes perturbées (s'il est à jour)
+  static uint32_t alertColors[8];
+  uint8_t na = 0;
+  if (trafficValid && nowEpoch() - trafficFetched <= TRAFFIC_ALERT_S)
+    for (int i = 0; i < traffic.count && na < 8; i++) {
+      const TrafficItem& it = traffic.item[i];
+      const LineInfo* li = findLine(it.line);
+      if (!it.active || it.level < TRAFFIC_DISRUPTED || !li) continue;
+      bool dup = false;
+      for (int k = 0; k < na; k++)
+        if (alertColors[k] == li->color) dup = true;
+      if (!dup) alertColors[na++] = li->color;
+    }
+  hubTiles[hubCount++] = {TileKind::Traffic, "Info trafic", na ? alertColors : nullptr, na};
+  if (hubCount > 6) hubTiles[3].label = "Trains";  // 4 colonnes : cases plus étroites
 }
 
 static void loadLines() {
@@ -443,6 +475,7 @@ static void drawStop() {
   s.busy = busy;
   s.status = lastErr[0] ? lastErr : nullptr;
   s.ageS = exStopValid ? (int)(s.now - exStop.fetchedAt) : -1;
+  s.alert = lineAlert(netLine(ex.line).id);
   // Lignes en construction
   static char openText[48];
   const NetStop& ns = netStop(ex.line, ex.stop);
@@ -525,6 +558,39 @@ static void drawExBoard() {
   uiDrawBoard(s);
 }
 
+static const char* trafficText(const TrafficItem& it) {
+  return it.text != UINT32_MAX && traffic.text && it.text < traffic.textLen ? traffic.text + it.text : "";
+}
+
+static void drawTraffic() {
+  TrafficUi u;
+  memset(&u, 0, sizeof(u));
+  u.data = trafficValid ? &traffic : nullptr;
+  if (trafficValid && ex.ttop >= traffic.count) ex.ttop = 0;
+  u.top = ex.ttop;
+  u.now = nowEpoch();
+  u.battery = battPct;
+  u.busy = busy;
+  u.status = lastErr[0] ? lastErr : nullptr;
+  uiDrawTraffic(u);
+}
+
+static int msgLines = 0;  // lignes du message affiché (pour borner le défilement)
+static void drawTrafficMsg() {
+  if (!trafficValid || ex.tsel >= traffic.count) {
+    drawTraffic();
+    return;
+  }
+  TrafficMsgUi u;
+  memset(&u, 0, sizeof(u));
+  u.item = &traffic.item[ex.tsel];
+  u.text = trafficText(traffic.item[ex.tsel]);
+  u.top = ex.mtop;
+  u.now = nowEpoch();
+  u.battery = battPct;
+  msgLines = uiDrawTrafficMsg(u);
+}
+
 static void draw() {
   if (!screenOn) return;
   switch (scr) {
@@ -536,6 +602,8 @@ static void draw() {
     case Scr::Groups: drawGroups(); break;
     case Scr::Gares: drawGares(); break;
     case Scr::Board: drawExBoard(); break;
+    case Scr::Traffic: drawTraffic(); break;
+    case Scr::TrafficMsg: drawTrafficMsg(); break;
     default: drawHub(); break;
   }
   lastDraw = millis();
@@ -738,11 +806,52 @@ static void maybeFetchExBoard() {
   draw();
 }
 
+// Info trafic : une requête globale (plus d'1 Mo, lue au fil de l'eau), toutes les 5 min
+static void maybeFetchTraffic() {
+  if (!screenOn || net != NetState::Online || busy || scr != Scr::Traffic) return;
+  const int64_t now = nowEpoch();
+  if (now < trafficNext) return;
+  if (!trafficForce && trafficValid && now - trafficFetched < TRAFFIC_REFRESH_S && now >= trafficFetched) return;
+  trafficForce = false;
+  if (!settings.apiKey[0]) {
+    copyStr(lastErr, "Clé API PRIM manquante : appui long 3 s pour la configuration", sizeof(lastErr));
+    trafficNext = now + 60;
+    return;
+  }
+  if (!traffic.text) {  // messages : en PSRAM si elle est là
+    traffic.textCap = 32768;
+    traffic.text = (char*)heap_caps_malloc(traffic.textCap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!traffic.text) {
+      traffic.textCap = 8192;
+      traffic.text = (char*)malloc(traffic.textCap);
+      if (!traffic.text) traffic.textCap = 0;
+    }
+  }
+  busy = true;
+  draw();
+  FetchResult r = primFetchTraffic(settings.apiKey, now, traffic);
+  busy = false;
+  if (r.ok) {
+    trafficValid = true;
+    trafficFetched = nowEpoch();
+    trafficNext = 0;
+    lastErr[0] = 0;
+    if (ex.ttop >= traffic.count) ex.ttop = 0;
+  } else {
+    trafficValid = false;
+    copyStr(lastErr, r.msg, sizeof(lastErr));
+    trafficNext = nowEpoch() + (r.http == 401 || r.http == 403 || r.http == 429 ? 120 : 30);
+    log_w("Échec info trafic : %s", r.msg);
+  }
+  draw();
+}
+
 static void maybeFetch() {
   switch (scr) {
     case Scr::MyStations: return maybeFetchTrains();
     case Scr::Stop: return maybeFetchExStop();
     case Scr::Board: return maybeFetchExBoard();
+    case Scr::Traffic: return maybeFetchTraffic();
     case Scr::MyStops: break;
     default: return;
   }
@@ -814,6 +923,7 @@ static void onBack() {
     case Scr::Stop: goScr(Scr::Stops); break;
     case Scr::Gares: goScr(Scr::Groups); break;
     case Scr::Board: goScr(Scr::Gares); break;
+    case Scr::TrafficMsg: goScr(Scr::Traffic); break;
     case Scr::Hub: break;
     default: goScr(Scr::Hub); break;  // lignes, initiales, favoris
   }
@@ -835,6 +945,7 @@ static void onHubTap(int x, int y) {
     case TileKind::Trains: showTrainsCredit(); goScr(Scr::Groups); break;
     case TileKind::MyStops: goScr(Scr::MyStops); break;
     case TileKind::MyStations: showTrainsCredit(); goScr(Scr::MyStations); break;
+    case TileKind::Traffic: goScr(Scr::Traffic); break;
   }
 }
 
@@ -914,6 +1025,27 @@ static void onTap(int x, int y) {
       lastErr[0] = 0;
       draw();
       break;
+    case Scr::Traffic: {
+      const int r = uiHitTraffic(x, y);
+      if (!trafficValid) {  // nouvel essai tout de suite
+        trafficNext = 0;
+        trafficForce = true;
+        break;
+      }
+      const int i = ex.ttop + r;
+      if (r < 0 || i >= traffic.count) break;
+      ex.tsel = (uint8_t)i;
+      ex.mtop = 0;
+      goScr(Scr::TrafficMsg);
+      break;
+    }
+    case Scr::TrafficMsg:  // message suivant
+      if (trafficValid && traffic.count > 1) {
+        ex.tsel = (uint8_t)((ex.tsel + 1) % traffic.count);
+        ex.mtop = 0;
+        draw();
+      }
+      break;
   }
 }
 
@@ -951,6 +1083,19 @@ static void scrollList(uint8_t& top, int count, int dir) {
 
 static void onVSwipe(int dir) {
   if (scr == Scr::Stops) return scrollList(ex.top, netLine(ex.line).count, dir);
+  if (scr == Scr::Traffic) {
+    if (!trafficValid) return;
+    int t = ex.ttop + dir * (TRAFFIC_ROWS - 1);
+    if (t > traffic.count - TRAFFIC_ROWS) t = traffic.count - TRAFFIC_ROWS;
+    ex.ttop = (uint8_t)(t < 0 ? 0 : t);
+    return draw();
+  }
+  if (scr == Scr::TrafficMsg) {
+    int t = ex.mtop + dir * (TRAFFIC_MSG_ROWS - 1);
+    if (t > msgLines - TRAFFIC_MSG_ROWS) t = msgLines - TRAFFIC_MSG_ROWS;
+    ex.mtop = (uint8_t)(t < 0 ? 0 : t);
+    return draw();
+  }
   if (scr == Scr::Gares) {
     loadGares();
     return scrollList(ex.gtop, exGareCount, dir);
@@ -1095,7 +1240,8 @@ void setup() {
   if (ex.top >= netLine(ex.line).count) ex.top = 0;
   if (ex.group >= sncfGroupCount()) ex.group = 0;
   if (ex.pick != 0xFF && ex.pick >= sncfPickCount()) ex.pick = 0xFF;
-  scr = rtcScr <= (uint8_t)Scr::Board ? (Scr)rtcScr : Scr::Hub;
+  scr = rtcScr <= (uint8_t)Scr::TrafficMsg ? (Scr)rtcScr : Scr::Hub;
+  if (scr == Scr::TrafficMsg) scr = Scr::Traffic;  // l'info trafic n'est pas gardée pendant la veille
   if ((scr == Scr::MyStops && !metroReady()) || (scr == Scr::MyStations && !trainsReady())) scr = Scr::Hub;
   if (scr == Scr::Stop && ex.stop == 0xFF) scr = Scr::Stops;
   if (scr == Scr::Board && ex.pick == 0xFF) scr = Scr::Gares;

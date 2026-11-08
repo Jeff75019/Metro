@@ -30,10 +30,15 @@ LGFX_OBJ := $(patsubst $(LOVYANGFX)/%,$(BUILD)/lgfx/%.o,$(LGFX_SRC) $(LGFX_C))
 
 .PHONY: test ui clean
 
-test: $(BUILD)/test_siri $(BUILD)/test_sncf $(BUILD)/test_reseau
+test: $(BUILD)/test_siri $(BUILD)/test_sncf $(BUILD)/test_reseau $(BUILD)/test_traffic
 	$(BUILD)/test_siri
 	$(BUILD)/test_sncf
 	$(BUILD)/test_reseau
+	$(BUILD)/test_traffic
+
+$(BUILD)/test_traffic: test_traffic.cpp ../Metro/traffic.cpp ../Metro/traffic.h ../Metro/sncf.cpp ../Metro/siri.cpp ../Metro/lines.cpp
+	@mkdir -p $(BUILD)
+	$(CXX) $(CXXFLAGS) $(SAN) -I$(ARDUINOJSON)/src test_traffic.cpp ../Metro/traffic.cpp ../Metro/sncf.cpp ../Metro/siri.cpp ../Metro/lines.cpp -o $@
 
 $(BUILD)/test_reseau: test_reseau.cpp ../Metro/reseau.cpp ../Metro/reseau_data.h ../Metro/sncf_list_data.h ../Metro/siri.cpp ../Metro/lines.cpp
 	@mkdir -p $(BUILD)
@@ -55,9 +60,9 @@ $(BUILD)/lgfx/%.c.o: $(LOVYANGFX)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) -O1 -w -DLGFX_LINUX_FB -I$(LOVYANGFX)/src -c $< -o $@
 
-$(BUILD)/test_ui: test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/sncf.cpp ../Metro/lines.cpp ../Metro/reseau.cpp ../Metro/fonts_metro.h $(LGFX_OBJ)
+$(BUILD)/test_ui: test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/sncf.cpp ../Metro/lines.cpp ../Metro/reseau.cpp ../Metro/traffic.cpp ../Metro/fonts_metro.h $(LGFX_OBJ)
 	$(CXX) $(CXXFLAGS) -DLGFX_LINUX_FB -I$(ARDUINOJSON)/src -I$(LOVYANGFX)/src \
-	  test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/sncf.cpp ../Metro/lines.cpp ../Metro/reseau.cpp $(LGFX_OBJ) -lpthread -o $@
+	  test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/sncf.cpp ../Metro/lines.cpp ../Metro/reseau.cpp ../Metro/traffic.cpp $(LGFX_OBJ) -lpthread -o $@
 
 ui: $(BUILD)/test_ui
 	$(BUILD)/test_ui

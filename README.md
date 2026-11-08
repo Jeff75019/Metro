@@ -4,6 +4,7 @@ Un petit afficheur de poche, qui se commande au doigt :
 
 - **Métro · RER · Tram** : on choisit sur l'écran la ligne, puis la station, et l'afficheur donne l'attente des **prochains passages dans chaque sens**, comme les écrans des quais. Toutes les lignes de métro, de RER et de tramway d'Île-de-France sont intégrées, stations dans l'ordre de la ligne, ainsi que les lignes 16, 17 et 18 du Grand Paris Express en construction (stations à venir avec leur année d'ouverture prévue) ;
 - **Trains SNCF** : on choisit une grande gare (Paris et 138 autres) et l'afficheur donne ses **départs et arrivées**, comme les tableaux des gares ;
+- **Info trafic** : les perturbations en cours sur le métro, le RER et le tram (travaux, trafic interrompu, arrêt non desservi…) et celles des 12 prochaines heures, avec le message complet ; un ⚠ s'affiche à côté de la ligne sur l'écran des passages ;
 - **Mes arrêts / Mes gares** : des favoris réglés depuis le téléphone, pour y accéder en un geste.
 
 Une flèche « ‹ » (ou glisser vers la droite) ramène à l'étape précédente, jusqu'à l'accueil où l'on change de réseau.
@@ -12,6 +13,8 @@ Matériel : **Waveshare ESP32-S3-Touch-LCD-1.9** (écran tactile 1,9" 170×320) 
 Données : **API PRIM d'Île-de-France Mobilités** (gratuite, clé personnelle) pour le métro, et **données SNCF diffusées par [Train Nomade](https://trainnomade.fr/api)** (gratuites, **sans clé**) pour les trains. L'API SNCF officielle reste utilisable en option.
 
 ![Choix sur l'écran tactile : accueil, lignes, stations, passages, gares](docs/choix.png)
+
+![Info trafic : accueil, perturbations, message, alerte sur les passages](docs/info-trafic.png)
 
 ![Aperçu des écrans](docs/apercu.png)
 
@@ -26,6 +29,7 @@ La configuration se fait depuis le téléphone :
 ## Fonctionnalités
 
 - **Choix libre sur l'écran** : accueil → Métro, RER ou Tram → ligne (pastilles aux couleurs officielles) → station (liste dans l'ordre de la ligne, avec le tracé, les terminus et les branches) → prochains passages dans chaque sens (« puis 7 et 12 min »). Trains SNCF → initiale → gare → départs / arrivées.
+- **Info trafic** (API PRIM « Messages Info Trafic », même clé, à ajouter à son abonnement sur le site PRIM) : une case de l'accueil, dont le bandeau prend les couleurs des lignes perturbées ; la liste des perturbations (en cours d'abord, les plus graves en tête, puis à venir avec l'heure de début) ; le message complet en touchant une ligne. Mise à jour toutes les 5 minutes pendant la consultation. La réponse de PRIM (plus d'1 Mo pour toute l'Île-de-France) est lue au fil de l'eau : seules les lignes de l'afficheur sont gardées.
 - Deux prochains passages avec destination et attente en minutes, rafraîchis automatiquement.
 - Mentions « À quai », « À l'approche » (clignotant), « Supprimé », « Retardé », voie (RER), « Horaire théorique » quand l'info n'est pas en temps réel.
 - Pictogrammes de lignes aux couleurs officielles (métro, RER, Transilien, tram) ; bus et autres lignes acceptés.
@@ -146,6 +150,7 @@ Pour revenir plus tard à la configuration : **appui long (3 s) sur l'écran** o
 | Glisser vers le haut / le bas | Listes de stations et de gares : faire défiler · ailleurs : retour à l'accueil |
 | Toucher l'écran des passages | Destinations suivantes (« sens 1/3 »), sinon actualiser |
 | Toucher le tableau d'une gare | Départs ↔ Arrivées |
+| Info trafic : toucher une perturbation | Message complet (glisser haut/bas pour le lire, toucher : perturbation suivante) |
 | Glisser vers la gauche / la droite (Mes arrêts, Mes gares) | Favori suivant / précédent |
 | Appui long sur l'écran (3 s) | Mode configuration |
 | Bouton BOOT (appui court) | Réveiller / mettre en veille |
@@ -180,6 +185,8 @@ Au réveil, l'afficheur reprend l'écran laissé (la station ou la gare choisie,
 | Recherche d'arrêts : « L'afficheur ne répond pas » | Le téléphone a quitté le réseau « Metro-XXXX » (il préfère souvent un WiFi avec Internet) : reconnectez-le, ou ouvrez l'adresse http://192.168.… affichée sur l'écran depuis le WiFi de la maison |
 | « Réseau : TLS refusé par prim.iledefrance-mobilites.fr (-0x…) » | PRIM est servi par Cloudflare ; le cœur Arduino précompilé ne gère que TLS 1.2. Flashez le binaire compilé avec TLS 1.3 (`tools/idf-build`, à l'adresse 0x10000 : les réglages sont conservés) |
 | « Réseau : mémoire insuffisante pour HTTPS » ou étiquette rouge « PSRAM désactivée » | **Outils → PSRAM → OPI PSRAM**, puis téléverser à nouveau |
+| Info trafic : « Info trafic refusée (403) » | Sur le site PRIM, abonnez votre clé à l'API « Messages Info Trafic » (gratuit) |
+| « Réseau : réponse incomplète » | La connexion s'est coupée pendant le téléchargement : nouvel essai automatique ; si cela se répète, rapprochez-vous de la box |
 | Recherche d'arrêts : « Réseau : … » | L'afficheur n'arrive pas à joindre l'open data IDFM : regardez le moniteur série (ligne « Recherche d'arrêts ») |
 | « WiFi : mot de passe refusé » | Cochez « Afficher le mot de passe » pour le vérifier (majuscules, chiffres et symboles comptent) |
 | « WiFi : sécurité non gérée » | Réseau d'entreprise (identifiant + mot de passe) ou WEP : non gérés ; utilisez le WPA2 ou le WPA3 personnel |
@@ -204,6 +211,7 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── reseau_data.h      39 lignes, 969 stations (généré par tools/make_reseau.py)
 ├── sncf_list_data.h    gares proposées sur l'écran (généré par tools/make_sncf_list.py)
 ├── sncf_api.h/.cpp     requêtes Train Nomade / API SNCF, recherche de gares (open data SNCF)
+├── traffic.h/.cpp      info trafic PRIM : perturbations des lignes, texte des messages
 ├── net.h/.cpp          HTTPS, quotas d'appels quotidiens, réglage de l'horloge
 ├── ui.h/.cpp           dessin des écrans (tampon mémoire, sans scintillement)
 ├── lines.h/.cpp        lignes connues : nom, couleurs officielles

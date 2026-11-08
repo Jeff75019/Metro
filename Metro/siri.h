@@ -4,6 +4,7 @@
 // Ce module est du C++ "pur" (pas de dépendance à l'ESP32) : il est compilé et
 // testé aussi sur PC (voir test/).
 #pragma once
+#include <ArduinoJson.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -52,6 +53,14 @@ struct LineSummary {
 };
 int summarizeLines(const char* json, size_t len, LineSummary* out, int maxLines,
                    char* stopName, size_t stopNameLen);
+
+// Mêmes analyses sur un document décodé au fil de l'eau (filtre : siriFilter) ;
+// e : résultat du décodage.
+void siriFilter(JsonDocument& filter);
+SiriStatus parseStopMonitoringDoc(JsonDocument& doc, DeserializationError e, const char* lineFilter,
+                                  StopData& out, char* err, size_t errLen);
+int summarizeLinesDoc(JsonDocument& doc, DeserializationError e, LineSummary* out, int maxLines,
+                      char* stopName, size_t stopNameLen);
 
 // ---------------------------------------------------------------------------
 // Ce qui est affiché à l'écran : les 2 prochains passages d'un "sens".

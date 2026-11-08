@@ -20,6 +20,11 @@ FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out);
 // (stopRef : "STIF:StopArea:SP:…:" ou "STIF:StopPoint:Q:…:").
 FetchResult primFetchStop(const char* stopRef, const char* line, const char* apiKey, StopData& out);
 
+// Info trafic du métro, du RER et du tramway (perturbations en cours ou dans
+// les 12 h). out.text doit être alloué par l'appelant.
+struct TrafficData;
+FetchResult primFetchTraffic(const char* apiKey, int64_t now, TrafficData& out);
+
 // Pour la page de configuration : lignes desservies à un arrêt (JSON).
 int primLinesJson(const String& stopRef, const char* apiKey, String& out);
 

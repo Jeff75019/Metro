@@ -246,6 +246,19 @@ static void drawDots(int xRight, int cy, int index, int count) {
     canvas.fillSmoothCircle(x0 + i * step, cy, i == index ? 3 : 2, i == index ? TEXT : FAINT);
 }
 
+// Triangle d'alerte « ⚠ » (info trafic)
+static void drawWarn(int cx, int cy, int size, uint16_t fill, uint16_t mark) {
+  const int h = size * 7 / 8;
+  canvas.fillTriangle(cx, cy - h / 2 - 1, cx - size / 2, cy + h / 2, cx + size / 2, cy + h / 2, fill);
+  canvas.drawWideLine(cx, cy - h / 4, cx, cy + h / 8, size / 12.0f + 0.6f, mark);
+  canvas.fillSmoothCircle(cx, cy + h / 2 - size / 7 - 1, size / 14 + 1, mark);
+}
+
+static constexpr uint32_t C_INFO = 0x5AA9FF;
+static uint32_t levelColor(uint8_t level) {
+  return level >= TRAFFIC_BLOCKING ? C_RED : level == TRAFFIC_DISRUPTED ? C_ORANGE : C_INFO;
+}
+
 // Flèche de retour « ‹ » (choix libre sur l'écran)
 static int drawBack(int x, int cy, uint16_t color) {
   canvas.drawWideLine(x + 7, cy - 7, x + 1, cy, 1.6f, color);
@@ -399,6 +412,10 @@ void uiDrawMain(const UiState& s) {
   if (s.back) x += drawBack(x, hy, TEXT) + 4;
   x += drawMode(x, hy, s.mode) + 6;
   x += drawBadge(x, hy, s.badge && *s.badge ? s.badge : "?", s.mode, s.badgeColor, s.badgeText) + 10;
+  if (s.alert >= TRAFFIC_DISRUPTED) {  // perturbation en cours sur la ligne
+    drawWarn(x + 9, hy, 20, rgb(levelColor(s.alert)), BG);
+    x += 24;
+  }
   const int titleMax = W - x - (s.battery >= 0 ? (s.battery <= 15 ? 76 : 38) : MARGIN);
   const char* title = s.title ? s.title : "";
   const lgfx::IFont* tf = textW(title, &fMedium) <= titleMax ? &fMedium : &fCond;
@@ -781,15 +798,17 @@ static void drawStar(int cx, int cy, int r, uint16_t color) {
 }
 
 // ---- Accueil -------------------------------------------------------------------
-static constexpr int HUB_TOP = E_TOP + 7, HUB_GAP = 8, HUB_COLS = 3;
-static int hubRows(int count) { return (count + HUB_COLS - 1) / HUB_COLS; }
+static constexpr int HUB_TOP = E_TOP + 7, HUB_GAP = 8;
+static int hubCols(int count) { return count > 6 ? 4 : 3; }
+static int hubRows(int count) { return (count + hubCols(count) - 1) / hubCols(count); }
 
 static void hubCell(int count, int i, int* x, int* y, int* w, int* h) {
+  const int cols = hubCols(count);
   const int rows = hubRows(count);
   *h = (H - 6 - HUB_TOP - (rows - 1) * HUB_GAP) / (rows < 2 ? 2 : rows);
-  *w = (W - 2 * MARGIN - (HUB_COLS - 1) * HUB_GAP) / HUB_COLS;
-  const int row = i / HUB_COLS, col = i % HUB_COLS;
-  const int inRow = (row == rows - 1) ? count - row * HUB_COLS : HUB_COLS;  // dernière ligne centrée
+  *w = (W - 2 * MARGIN - (cols - 1) * HUB_GAP) / cols;
+  const int row = i / cols, col = i % cols;
+  const int inRow = (row == rows - 1) ? count - row * cols : cols;  // dernière ligne centrée
   const int rowW = inRow * *w + (inRow - 1) * HUB_GAP;
   *x = (W - rowW) / 2 + col * (*w + HUB_GAP);
   const int totalH = rows * *h + (rows - 1) * HUB_GAP;
@@ -820,6 +839,7 @@ static uint32_t tileAccent(TileKind k) {
     case TileKind::Tram: return 0x00A092;
     case TileKind::Trains: return 0x1F7DC4;
     case TileKind::MyStops: return 0xA0006E;
+    case TileKind::Traffic: return 0xF08C00;
     default: return 0x2E9E5B;
   }
 }
@@ -861,6 +881,12 @@ void uiDrawHub(const HubUi& s) {
         case TileKind::Tram: bar = TRAM_COLORS; nb = sizeof(TRAM_COLORS) / sizeof(TRAM_COLORS[0]); break;
         case TileKind::Trains: bar = TRAIN_COLORS; nb = 5; break;
         case TileKind::MyStations: bar = MYSTATION_COLORS; nb = 2; break;
+        case TileKind::Traffic: {
+          static const uint32_t ok = 0x34D399;  // pas de données : vert
+          bar = &ok;
+          nb = 1;
+          break;
+        }
         default: bar = &accent; nb = 1; break;
       }
     }
@@ -887,10 +913,14 @@ void uiDrawHub(const HubUi& s) {
       case TileKind::MyStations:
         drawStar(ix, iy, 13, AMBER);
         break;
+      case TileKind::Traffic:
+        drawWarn(ix, iy, 26, TEXT, rgb(mix(C_BG, accent, 78)));
+        break;
     }
     char buf[32];
-    fitText(buf, sizeof(buf), t.label, w - 8, &fSmall);
-    text(buf, ix, cy + 37, &fSmall, TEXT, lgfx::middle_center);
+    const lgfx::IFont* lf = textW(t.label, &fSmall) <= w - 8 ? &fSmall : &fTiny;
+    fitText(buf, sizeof(buf), t.label, w - 6, lf);
+    text(buf, ix, cy + 37, lf, TEXT, lgfx::middle_center);
   }
   present();
 }
@@ -1030,4 +1060,210 @@ void uiDrawList(const ListUi& s) {
     canvas.fillSmoothRoundRect(W - 6, by, 3, bh, 1, MUTED);
   }
   present();
+}
+
+// ============================================================================
+//  Info trafic
+// ============================================================================
+static constexpr int T_ROW = 33;  // hauteur d'une perturbation dans la liste
+
+// « Dès 22:30 », « Demain 05:30 », « Le 12/11 »
+static void whenText(int64_t t, int64_t now, char* out, size_t n) {
+  time_t a = (time_t)t, b = (time_t)now;
+  struct tm la, lb;
+  localtime_r(&a, &la);
+  localtime_r(&b, &lb);
+  char hm[8];
+  localHHMM(t, hm, sizeof(hm));
+  if (la.tm_yday == lb.tm_yday && la.tm_year == lb.tm_year) snprintf(out, n, "Dès %s", hm);
+  else if ((la.tm_yday == lb.tm_yday + 1 && la.tm_year == lb.tm_year) || (la.tm_yday == 0 && lb.tm_mon == 11 && lb.tm_mday == 31))
+    snprintf(out, n, "Demain %s", hm);
+  else snprintf(out, n, "Le %02d/%02d", la.tm_mday, la.tm_mon + 1);
+}
+
+int uiHitTraffic(int x, int y) {
+  (void)x;
+  if (y < E_TOP) return -1;
+  const int r = (y - E_TOP) / T_ROW;
+  return r < TRAFFIC_ROWS ? r : -1;
+}
+
+static void trafficHeader(int64_t now, int battery, const char* title) {
+  int x, right;
+  exHeader(true, now, battery, &x, &right);
+  drawWarn(x + 11, E_HEADER / 2, 22, rgb(0xF08C00), BG);
+  x += 28;
+  exTitle(title, x, right);
+}
+
+void uiDrawTraffic(const TrafficUi& s) {
+  canvas.fillScreen(BG);
+  const TrafficData* d = s.data;
+  trafficHeader(s.now, s.battery, s.busy ? "Info trafic…" : "Info trafic");
+  if (!d) {
+    if (s.status && *s.status) drawBodyMessage(true, s.status, "Nouvel essai dans quelques secondes", C_ORANGE, E_TOP, H - 6);
+    else drawBodyMessage(false, "Chargement de l'info trafic", "Métro, RER et tramway", C_TEXT, E_TOP, H - 6);
+    present();
+    return;
+  }
+  if (d->count == 0) {
+    const int cx = W / 2, cy = 80;
+    canvas.fillSmoothCircle(cx, cy, 18, tint(C_GREEN, 70));
+    canvas.drawWideLine(cx - 8, cy, cx - 2, cy + 6, 2.2f, GREEN);
+    canvas.drawWideLine(cx - 2, cy + 6, cx + 9, cy - 6, 2.2f, GREEN);
+    text("Trafic normal", cx, cy + 36, &fMedium, TEXT, lgfx::middle_center);
+    text("sur le métro, le RER et le tramway", cx, cy + 60, &fSmall, MUTED, lgfx::middle_center);
+    present();
+    return;
+  }
+  for (int r = 0; r < TRAFFIC_ROWS; r++) {
+    const int i = s.top + r;
+    if (i >= d->count) break;
+    const TrafficItem& it = d->item[i];
+    const int y0 = E_TOP + r * T_ROW, cy = y0 + T_ROW / 2;
+    if (r) canvas.drawFastHLine(MARGIN, y0, W - 2 * MARGIN - 6, HAIR);
+    const LineInfo* li = findLine(it.line);
+    int x = MARGIN;
+    if (li) x += drawBadge(x, cy, li->name, li->mode, li->color, li->textColor);
+    x += 8;
+    const int maxW = W - x - 14;
+    // 1re ligne : état (couleur de la gravité), précédé de l'heure pour une perturbation à venir
+    char st[72], buf[96];
+    const uint16_t lc = rgb(levelColor(it.level));
+    int sx = x;
+    if (!it.active) {
+      char w[24];
+      whenText(it.begin, s.now, w, sizeof(w));
+      snprintf(st, sizeof(st), "%s \xC2\xB7 ", w);
+      text(st, sx, cy - 8, &fTiny, MUTED, lgfx::middle_left);
+      sx += textW(st, &fTiny);
+    }
+    canvas.fillSmoothCircle(sx + 3, cy - 8, 3, lc);
+    fitText(buf, sizeof(buf), it.status, x + maxW - sx - 10, &fTiny);
+    text(buf, sx + 10, cy - 8, &fTiny, it.active ? lc : MUTED, lgfx::middle_left);
+    // 2e ligne : titre (en entier sur l'écran du message)
+    fitText(buf, sizeof(buf), it.title, maxW, &fCondS);
+    text(buf, x, cy + 8, &fCondS, it.active ? TEXT : MUTED, lgfx::middle_left);
+  }
+  if (d->count > TRAFFIC_ROWS) {  // barre de défilement
+    const int ty = E_TOP + 4, th = TRAFFIC_ROWS * T_ROW - 8;
+    canvas.fillSmoothRoundRect(W - 6, ty, 3, th, 1, HAIR);
+    int bh = th * TRAFFIC_ROWS / d->count;
+    if (bh < 12) bh = 12;
+    const int by = ty + (th - bh) * s.top / (d->count - TRAFFIC_ROWS);
+    canvas.fillSmoothRoundRect(W - 6, by, 3, bh, 1, MUTED);
+  }
+  present();
+}
+
+// « Jusqu'à 05:00 », « Jusqu'au 29/11 à 05:00 », « Du 12/11 22:30 au 13/11 05:00 »
+static void periodText(const TrafficItem& it, int64_t now, char* out, size_t n) {
+  char hb[8], he[8];
+  localHHMM(it.begin, hb, sizeof(hb));
+  localHHMM(it.end, he, sizeof(he));
+  time_t b = (time_t)it.begin, e = (time_t)it.end, t = (time_t)now;
+  struct tm lb, le, lt;
+  localtime_r(&b, &lb);
+  localtime_r(&e, &le);
+  localtime_r(&t, &lt);
+  const bool endToday = le.tm_yday == lt.tm_yday && le.tm_year == lt.tm_year;
+  if (it.active) {
+    if (it.end <= 0 || it.end - now > 300L * 86400) snprintf(out, n, "En cours");
+    else if (endToday) snprintf(out, n, "En cours, jusqu'à %s", he);
+    else snprintf(out, n, "En cours, jusqu'au %02d/%02d à %s", le.tm_mday, le.tm_mon + 1, he);
+  } else {
+    snprintf(out, n, "Du %02d/%02d %s au %02d/%02d %s", lb.tm_mday, lb.tm_mon + 1, hb, le.tm_mday, le.tm_mon + 1, he);
+  }
+}
+
+int uiDrawTrafficMsg(const TrafficMsgUi& s) {
+  canvas.fillScreen(BG);
+  const TrafficItem& it = *s.item;
+  int x, right;
+  exHeader(true, 0, s.battery, &x, &right);
+  const LineInfo* li = findLine(it.line);
+  if (li) x += drawBadge(x, E_HEADER / 2, li->name, li->mode, li->color, li->textColor) + 8;
+  const uint16_t lc = rgb(levelColor(it.level));
+  char buf[96];
+  const lgfx::IFont* hf = textW(it.status, &fMedium) <= right - x ? &fMedium : &fCond;
+  fitText(buf, sizeof(buf), it.status, right - x, hf);
+  text(buf, x, E_HEADER / 2 + 1, hf, lc, lgfx::middle_left);
+
+  // Texte complet : titre, période, message ; coupé en lignes à la largeur de l'écran
+  static char all[3600];
+  char period[64];
+  periodText(it, s.now, period, sizeof(period));
+  snprintf(all, sizeof(all), "%s\n%s\n\n%s", it.title, period, s.text ? s.text : "");
+  const size_t titleEnd = strlen(it.title), periodEnd = titleEnd + 1 + strlen(period);
+  const lgfx::IFont* f = &fSmall;
+  const int maxW = W - 2 * MARGIN - 8, lineH = 21;
+  static uint16_t starts[200], lens[200];
+  int nl = 0;
+  const char* p = all;
+  while (*p && nl < 200) {
+    if (*p == '\n') {  // ligne vide (paragraphe)
+      starts[nl] = (uint16_t)(p - all);
+      lens[nl++] = 0;
+      p++;
+      continue;
+    }
+    // plus long morceau jusqu'à un espace qui tient dans la largeur
+    const char* best = nullptr;
+    const char* q = p;
+    char tmp[200];
+    for (;;) {
+      const char* e = q;
+      while (*e && *e != ' ' && *e != '\n') e++;
+      size_t k = (size_t)(e - p);
+      if (k >= sizeof(tmp)) k = sizeof(tmp) - 1;
+      memcpy(tmp, p, k);
+      tmp[k] = 0;
+      if (textW(tmp, f) > maxW) break;
+      best = e;
+      if (*e != ' ') break;
+      q = e + 1;
+    }
+    if (!best) {  // mot trop long : coupé au caractère
+      best = p;
+      char t2[200];
+      size_t k = 0;
+      while (best[0] && best[0] != '\n' && k < sizeof(t2) - 4) {
+        size_t cl = 1;
+        while ((best[cl] & 0xC0) == 0x80) cl++;
+        memcpy(t2 + k, best, cl);
+        t2[k + cl] = 0;
+        if (textW(t2, f) > maxW && k) break;
+        k += cl;
+        best += cl;
+      }
+    }
+    starts[nl] = (uint16_t)(p - all);
+    lens[nl++] = (uint16_t)(best - p);
+    p = best;
+    if (*p == ' ') p++;
+    else if (*p == '\n') p++;  // fin du paragraphe : pas de ligne vide en plus
+  }
+  int top = s.top;
+  if (top > nl - TRAFFIC_MSG_ROWS) top = nl - TRAFFIC_MSG_ROWS;
+  if (top < 0) top = 0;
+  for (int r = 0; r < TRAFFIC_MSG_ROWS && top + r < nl; r++) {
+    const int i = top + r;
+    if (!lens[i]) continue;
+    char line[200];
+    size_t k = lens[i] < sizeof(line) - 1 ? lens[i] : sizeof(line) - 1;
+    memcpy(line, all + starts[i], k);
+    line[k] = 0;
+    const uint16_t col = starts[i] < titleEnd ? AMBER : starts[i] <= periodEnd ? MUTED : TEXT;
+    text(line, MARGIN, E_TOP + 6 + r * lineH + lineH / 2, f, col, lgfx::middle_left);
+  }
+  if (nl > TRAFFIC_MSG_ROWS) {
+    const int ty = E_TOP + 4, th = H - E_TOP - 8;
+    canvas.fillSmoothRoundRect(W - 6, ty, 3, th, 1, HAIR);
+    int bh = th * TRAFFIC_MSG_ROWS / nl;
+    if (bh < 12) bh = 12;
+    const int by = ty + (th - bh) * top / (nl - TRAFFIC_MSG_ROWS);
+    canvas.fillSmoothRoundRect(W - 6, by, 3, bh, 1, MUTED);
+  }
+  present();
+  return nl;
 }

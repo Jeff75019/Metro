@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include <fstream>
 #include <string>
 
 #include "../Metro/lines.h"
@@ -448,6 +449,61 @@ int main() {
   bu.count = 0;
   uiDrawBoard(bu);
   dump("30_tableau_gare_choisie");
+
+  // 31-34) Info trafic (vraie réponse PRIM du 8 novembre 2026, 18 h)
+  {
+    std::ifstream tf("data/prim_infotrafic_reel.json", std::ios::binary);
+    JsonDocument filter, doc;
+    trafficFilter(filter);
+    DeserializationError e = deserializeJson(doc, tf, DeserializationOption::Filter(filter));
+    static TrafficData td;
+    static char ttext[32768];
+    td.text = ttext;
+    td.textCap = sizeof(ttext);
+    int64_t tnow;
+    parseNavitiaTime("20261108T180000", &tnow);
+    parseTraffic(doc, e, tnow, 12 * 3600, td);
+    TrafficUi tu;
+    memset(&tu, 0, sizeof(tu));
+    tu.data = &td;
+    tu.now = tnow;
+    tu.battery = 78;
+    uiDrawTraffic(tu);
+    dump("31_info_trafic");
+    tu.top = 9;
+    uiDrawTraffic(tu);
+    dump("31b_info_trafic_a_venir");
+    TrafficMsgUi mu;
+    memset(&mu, 0, sizeof(mu));
+    mu.item = &td.item[1];
+    mu.text = td.text + td.item[1].text;
+    mu.now = tnow;
+    mu.battery = 78;
+    const int nl = uiDrawTrafficMsg(mu);
+    dump("32_info_trafic_message");
+    mu.top = nl - TRAFFIC_MSG_ROWS;
+    uiDrawTrafficMsg(mu);
+    dump("32b_info_trafic_message_fin");
+    static TrafficData none;
+    tu.data = &none;
+    tu.top = 0;
+    uiDrawTraffic(tu);
+    dump("33_trafic_normal");
+    // Accueil à 7 cases, avec les couleurs des lignes perturbées
+    static const uint32_t alertCols[] = {0xA0006E, 0x82DC73, 0xD282BE, 0x5091CB, 0xFFCC30, 0x008B5B};
+    HubTile t7[] = {{TileKind::Metro, "Métro", nullptr, 0},        {TileKind::Rer, "RER", nullptr, 0},
+                    {TileKind::Tram, "Tram", nullptr, 0},          {TileKind::Trains, "Trains", nullptr, 0},
+                    {TileKind::MyStops, "Mes arrêts", favCols, 3}, {TileKind::MyStations, "Mes gares", nullptr, 0},
+                    {TileKind::Traffic, "Info trafic", alertCols, 6}};
+    hu.tiles = t7;
+    hu.count = 7;
+    uiDrawHub(hu);
+    dump("34_accueil_info_trafic");
+    // ⚠ sur l'écran des passages
+    ss.alert = TRAFFIC_DISRUPTED;
+    uiDrawMain(ss);
+    dump("35_passages_alerte");
+  }
 
   // Zones de toucher : cohérentes avec le dessin
   if (uiHitHub(6, 60, 70) != 0 || uiHitHub(6, 160, 140) != 4 || !uiHitBack(12, 18) || uiHitList(100, 40) != 0 ||
