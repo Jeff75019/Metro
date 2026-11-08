@@ -109,7 +109,7 @@ pio device monitor       # journal série (115200 bauds)
 Au premier démarrage, l'écran affiche un **QR code** et le nom d'un WiFi « Metro-XXXX ».
 
 1. Scannez le QR code avec l'appareil photo du téléphone (ou rejoignez « Metro-XXXX » à la main). La page de configuration s'ouvre ; sinon, allez sur **http://192.168.4.1**.
-2. **WiFi** : « Rechercher les réseaux », choisissez le vôtre, entrez le mot de passe, « Ajouter et se connecter ». Attendez « Connecté ✓ ».
+2. **WiFi** : « Rechercher les réseaux », choisissez le vôtre, entrez le mot de passe, « Ajouter et se connecter ». Attendez « Connecté et enregistré ✓ » : le réseau est enregistré dès que la connexion réussit. L'écran de l'afficheur indique aussi le résultat (« WiFi : mot de passe refusé »…). Si le téléphone perd la page à ce moment (l'afficheur change de canal pour rejoindre la box), reconnectez-le à « Metro-XXXX », ou ouvrez l'adresse **http://192.168.…** affichée sur l'écran depuis le WiFi de la maison.
 3. **Clé API PRIM** : collez votre jeton.
 4. **Mes arrêts** : tapez un nom de station (« Bastille »), choisissez-la, puis la ligne et, si vous voulez, les destinations à afficher. Répétez pour 4 arrêts au plus.
    Pour un RER à plusieurs branches, cochez toutes les destinations d'un même sens (ex. RER A vers l'est : Marne-la-Vallée Chessy, Torcy, Boissy-Saint-Léger) : les données « Aller / Retour » du RER ne sont pas fiables.
@@ -161,7 +161,10 @@ Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille �
 | « Aucun passage prévu » | Service terminé, ou temps réel indisponible sur cette ligne |
 | « Horaire théorique » | IDFM ne fournit pas de temps réel pour ce passage, c'est l'horaire prévu |
 | RER : « sens 1/2 » mélange des trains vers l'est et l'ouest | Dans la configuration, choisissez les destinations d'un même sens |
-| Le WiFi n'est pas trouvé | La carte ne gère que le WiFi 2,4 GHz |
+| « WiFi : réseau introuvable » / réseau absent de la liste | La carte ne capte que le WiFi 2,4 GHz : vérifiez que cette bande est active sur la box. Partage de connexion d'iPhone : activez « Maximiser la compatibilité » |
+| « WiFi : mot de passe refusé » | Cochez « Afficher le mot de passe » pour le vérifier (majuscules, chiffres et symboles comptent) |
+| « WiFi : sécurité non gérée » | Réseau d'entreprise (identifiant + mot de passe) ou WEP : non gérés ; utilisez le WPA2 ou le WPA3 personnel |
+| La page de configuration se ferme pendant la connexion WiFi | Normal si l'afficheur change de canal : reconnectez le téléphone à « Metro-XXXX » ; le WiFi est déjà enregistré si l'écran affiche « ou http://… » |
 | Compilation : « Croquis trop gros » / « text section exceeds available space » | Partition par défaut (1,2 Mo) : **Outils → Flash Size → 16MB**, puis **Partition Scheme → 16M Flash (3MB APP/9.9MB FATFS)** |
 | Écran noir après téléversement | PSRAM mal réglée : choisir **OPI PSRAM** |
 

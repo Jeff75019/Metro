@@ -25,3 +25,12 @@ void syncClock(int64_t serverTs);
 uint16_t quotaUsed(Api api);
 bool quotaAvailable(Api api, uint16_t dailyLimit);
 void quotaCount(Api api);
+
+// ---- WiFi : diagnostic des échecs de connexion --------------------------------
+// Mémorise la raison du dernier échec de connexion (codes wifi_err_reason_t de
+// l'ESP-IDF), pour afficher un message précis plutôt que « introuvable ».
+void wifiSetup();                 // pays (canaux 1 à 13) + suivi des échecs ; après WiFi.mode()
+uint8_t wifiLastReason();         // 0 : aucun échec depuis wifiClearReason()
+void wifiClearReason();
+const char* wifiReasonText(uint8_t reason);  // court, sans majuscule : « mot de passe refusé »…
+const char* wifiReasonHint(uint8_t reason);  // conseil détaillé pour la page de configuration

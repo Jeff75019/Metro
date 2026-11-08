@@ -58,7 +58,7 @@ static StopData cache[MAX_FAVORITES];
 static bool cacheValid[MAX_FAVORITES];
 static int64_t nextAttempt[MAX_FAVORITES];  // pas de nouvel essai avant (epoch)
 static bool forceFetch[MAX_FAVORITES];
-static char lastErr[64];
+static char lastErr[96];
 static View lastView;
 static uint8_t curFav = 0;
 static NetState net = NetState::Off;
@@ -81,6 +81,7 @@ static int battPct = -1, battMv = 0;
 
 // ---- WiFi (non bloquant, plusieurs réseaux) ---------------------------------
 static int wifiAttempt = 0, wifiCurIdx = 0;
+static uint8_t wifiFail = 0, wifiFailIdx = 0;  // dernière raison d'échec (mot de passe refusé…)
 static uint32_t wifiStart = 0, wifiTimeout = 0;
 static bool ntpStarted = false;
 
@@ -97,7 +98,11 @@ static void wifiTry() {
   const int total = n + (haveFast ? 1 : 0);
   if (n == 0 || wifiAttempt >= total) {
     net = NetState::Failed;
-    snprintf(lastErr, sizeof(lastErr), "WiFi «\xC2\xA0%s\xC2\xA0» introuvable", n ? settings.wifi[0].ssid : "?");
+    if (wifiFail && wifiFailIdx < n)
+      snprintf(lastErr, sizeof(lastErr), "WiFi «\xC2\xA0%s\xC2\xA0» : %s", settings.wifi[wifiFailIdx].ssid,
+               wifiReasonText(wifiFail));
+    else
+      snprintf(lastErr, sizeof(lastErr), "WiFi «\xC2\xA0%s\xC2\xA0» introuvable", n ? settings.wifi[0].ssid : "?");
     wifiStart = millis();
     return;
   }
@@ -106,6 +111,7 @@ static void wifiTry() {
   wifiCurIdx = fast ? start : (start + wifiAttempt - (haveFast ? 1 : 0)) % n;
   const WifiCred& w = settings.wifi[wifiCurIdx];
   WiFi.disconnect(false, false);
+  wifiClearReason();
   if (fast) WiFi.begin(w.ssid, w.pass, rtcChannel, rtcBssid);
   else WiFi.begin(w.ssid, w.pass);
   wifiStart = millis();
@@ -116,9 +122,11 @@ static void wifiTry() {
 
 static void wifiBegin() {
   WiFi.persistent(false);
-  WiFi.mode(WIFI_STA);
   WiFi.setHostname(MDNS_NAME);
+  WiFi.mode(WIFI_STA);
+  wifiSetup();
   wifiAttempt = 0;
+  wifiFail = 0;
   wifiTry();
 }
 
@@ -132,6 +140,7 @@ static void wifiPoll() {
         rtcChannel = bssid ? WiFi.channel() : 0;
         if (bssid) memcpy(rtcBssid, bssid, 6);
         if (strstr(lastErr, "WiFi")) lastErr[0] = 0;
+        wifiFail = 0;
         if (!ntpStarted) {
           configTzTime(TZ_PARIS, "pool.ntp.org", "time.cloudflare.com");
           ntpStarted = true;
@@ -139,6 +148,10 @@ static void wifiPoll() {
         log_i("WiFi connecté : %s", WiFi.localIP().toString().c_str());
       } else if (millis() - wifiStart > wifiTimeout) {
         if (wifiAttempt == 0) rtcChannel = 0;  // l'accès rapide a échoué : on l'oublie
+        if (wifiLastReason()) {
+          wifiFail = wifiLastReason();
+          wifiFailIdx = (uint8_t)wifiCurIdx;
+        }
         wifiAttempt++;
         wifiTry();
       }

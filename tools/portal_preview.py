@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -40,6 +41,24 @@ CONFIG = {
 STATUS = {"sta": True, "ssid": "Freebox-1A2B3C", "ip": "192.168.1.42", "rssi": -58, "ap": "Metro-3F2A",
           "battery": 87, "quotaUsed": 42, "quota": 1000, "sncfUsed": 118, "sncfQuota": 5000,
           "version": "1.1.0"}
+# Essai de connexion simulé : « motdepasse » réussit, tout autre mot de passe est refusé
+CONNECT = {}
+
+
+def status():
+    st = dict(STATUS)
+    if CONNECT:
+        st.update(staTarget=CONNECT["ssid"], staSaved=False)
+        if time.time() - CONNECT["t"] < 3:
+            st.update(sta=False, ssid=CONNECT["ssid"], staState="connecting")
+        elif CONNECT["pass"] == "motdepasse":
+            st.update(sta=True, ssid=CONNECT["ssid"], staState="connected", staSaved=True)
+        else:
+            st.update(sta=False, ssid=CONNECT["ssid"], staState="failed", staError="mot de passe refusé",
+                      staHint="La box refuse le mot de passe : vérifiez-le (majuscules, chiffres et symboles comptent).")
+    return st
+
+
 SCAN = {"networks": [{"ssid": "Freebox-1A2B3C", "rssi": -48, "secure": True},
                      {"ssid": "Livebox-77F0", "rssi": -67, "secure": True},
                      {"ssid": "iPhone de Jeff", "rssi": -74, "secure": True},
@@ -89,7 +108,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/":
             return self._send(200, load_page(), "text/html; charset=utf-8")
-        routes = {"/api/config": CONFIG, "/api/status": STATUS, "/api/scan": SCAN,
+        routes = {"/api/config": CONFIG, "/api/status": status(), "/api/scan": SCAN,
                   "/api/search": SEARCH, "/api/lines": LINES, "/api/sncf/search": SNCF_SEARCH}
         if path in routes:
             return self._send(200, routes[path])
@@ -101,6 +120,12 @@ class Handler(BaseHTTPRequestHandler):
         if urlparse(self.path).path == "/api/config":
             print("Configuration reçue :", body)
             return self._send(200, {"ok": True, "ready": True, "missing": ""})
+        if urlparse(self.path).path == "/api/connect":
+            req = json.loads(body or "{}")
+            if 0 < len(req.get("pass", "")) < 8:
+                return self._send(400, {"error": "Mot de passe trop court : un WiFi protégé en demande au moins 8 caractères."})
+            CONNECT.update(ssid=req.get("ssid", ""), t=time.time())
+            CONNECT["pass"] = req.get("pass", "")
         self._send(200, {"ok": True})
 
     def log_message(self, *args):

@@ -26,6 +26,7 @@ section{background:var(--card);border:1px solid var(--line);border-radius:var(--
 .num.done{background:rgba(52,211,153,.15);color:var(--ok)}
 h2{font-size:16.5px;margin:0}.desc{color:var(--mut);font-size:13.5px;margin:2px 0 12px 36px}
 label.f{display:block;font-size:12.5px;color:var(--mut);margin:12px 0 6px;font-weight:500}
+label.chk{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:13.5px;color:var(--mut)}label.chk input{width:18px;height:18px;margin:0;padding:0;accent-color:var(--acc)}
 input,select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--txt);font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}
 input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,193,46,.18)}
 input::placeholder{color:var(--faint)}
@@ -75,8 +76,9 @@ svg{display:block}
 <div class="panel">
 <div class="row"><button id="scan" style="width:100%">Rechercher les réseaux à proximité</button></div>
 <div class="list" id="scanres"></div>
-<label class="f">Nom du réseau</label><input id="nssid" autocomplete="off" placeholder="ex. Freebox-1A2B3C">
-<label class="f">Mot de passe</label><input id="npass" type="password" autocomplete="off" placeholder="••••••••">
+<label class="f">Nom du réseau</label><input id="nssid" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ex. Freebox-1A2B3C">
+<label class="f">Mot de passe</label><input id="npass" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="••••••••">
+<label class="chk"><input type="checkbox" id="showp"> Afficher le mot de passe</label>
 <div style="margin-top:12px"><button class="pri" id="addw" style="width:100%">Ajouter et se connecter</button></div>
 <div id="wmsg" class="msg"></div></div>
 </section>
@@ -150,7 +152,8 @@ function modePic(m){const d=MODE[m]||MODE.bus;return h('span',{class:'mode '+d[1
 function badge(l){const m=l.mode||'bus';const cls=m=='metro'?'':(m=='rer'||m=='train')?'sq':'rect';
 return h('span',{class:'badge '+cls,style:`background:${l.color||'#5a6e8c'};color:${l.text||'#fff'}`},l.name||l.badge||l.id||'?')}
 function pics(l){return h('span',{class:'pics'},modePic(l.mode),badge(l))}
-async function status(){const s=await api('/api/status');const T=$('st');T.innerHTML='';
+let AP='';
+async function status(){const s=await api('/api/status');AP=s.ap||AP;const T=$('st');T.innerHTML='';
 T.append(h('span',{class:'tag'},h('span',{class:'dot '+(s.sta?'ok':'err')}),s.sta?h('span',{},'Internet via ',h('b',{},s.ssid)):'Pas encore d\'accès Internet'));
 T.append(h('span',{class:'tag'},'Batterie ',h('b',{},s.battery+' %')));
 T.append(h('span',{class:'tag'},'Appels PRIM ',h('b',{},s.quotaUsed+' / '+s.quota)));
@@ -189,12 +192,18 @@ C.stations=C.stations||[];$('skey').placeholder=C.sncfKeySet?'Enregistrée '+(C.
 $('key').placeholder=C.apiKeySet?'Enregistrée '+(C.apiKeyHint||'')+' (vide = inchangée)':'Collez votre jeton ici';$('n2').classList.toggle('done',!!C.apiKeySet);
 for(const k of['refreshS','awakeS','dailyQuota','brightness'])$(k).value=C[k];$('motionWake').checked=C.motionWake;$('flip').checked=C.flip;setSleep(C.sleepMode||0);
 renderW();renderF();status().catch(()=>{})}
-$('scan').onclick=async()=>{$('scan').disabled=true;$('scan').textContent='Recherche en cours…';const r=await api('/api/scan');$('scan').disabled=false;$('scan').textContent='Rechercher à nouveau';
-const L=$('scanres');L.innerHTML='';(r.networks||[]).forEach(n=>L.append(h('div',{class:'item pick',onclick:()=>{$('nssid').value=n.ssid;$('npass').focus()}},h('span',{html:wifiIcon(n.rssi)}),h('div',{class:'grow name'},n.ssid),n.secure?h('span',{class:'meta',html:ICON.lock}):null)))};
-$('addw').onclick=async()=>{const s=$('nssid').value.trim(),p=$('npass').value;if(!s)return;C.wifi=C.wifi.filter(w=>w.ssid!=s);if(C.wifi.length>=3)C.wifi.pop();
-C.wifi.unshift({ssid:s,pass:p,hasPass:!!p});renderW();msg('wmsg','Connexion à « '+s+' »…');await api('/api/connect',{ssid:s,pass:p});
-for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,1000));const st=await status().catch(()=>({}));if(st.sta&&st.ssid==s){msg('wmsg','Connecté ✓ Vous pouvez chercher vos arrêts.','ok');return}}
-msg('wmsg','Connexion impossible : vérifiez le mot de passe.','err')};
+$('showp').onchange=()=>{$('npass').type=$('showp').checked?'text':'password'};
+$('scan').onclick=async()=>{$('scan').disabled=true;$('scan').textContent='Recherche en cours…';const r=await api('/api/scan').catch(()=>({error:'L\'afficheur ne répond pas.'}));$('scan').disabled=false;$('scan').textContent='Rechercher à nouveau';
+const L=$('scanres');L.innerHTML='';if(r.error){msg('wmsg',r.error,'err');return}msg('wmsg','');(r.networks||[]).forEach(n=>L.append(h('div',{class:'item pick',onclick:()=>{$('nssid').value=n.ssid;$('npass').focus()}},h('span',{html:wifiIcon(n.rssi)}),h('div',{class:'grow name'},n.ssid),n.secure?h('span',{class:'meta',html:ICON.lock}):null)));
+L.append(h('div',{class:'empty'},'Votre réseau n\'apparaît pas ? L\'afficheur ne capte que le WiFi 2,4 GHz (partage de connexion d\'iPhone : activez « Maximiser la compatibilité »).'))};
+$('addw').onclick=async()=>{const s=$('nssid').value.trim(),p=$('npass').value;if(!s)return;$('addw').disabled=true;
+try{msg('wmsg','Connexion à « '+s+' »…');const r=await api('/api/connect',{ssid:s,pass:p}).catch(()=>({error:'L\'afficheur ne répond pas.'}));if(r.error){msg('wmsg',r.error,'err');return}
+C.wifi=C.wifi.filter(w=>w.ssid!=s);if(C.wifi.length>=3)C.wifi.pop();C.wifi.unshift({ssid:s,pass:p,hasPass:!!p});renderW();
+let lost=0;for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,1000));const st=await status().catch(()=>null);
+if(!st){if(++lost>=2)msg('wmsg','Liaison avec l\'afficheur coupée : c\'est normal s\'il change de canal pour rejoindre « '+s+' ». Si besoin, reconnectez ce téléphone au réseau « '+(AP||'Metro-…')+' » : la page se mettra à jour. Le WiFi est enregistré dès que la connexion réussit (l\'écran de l\'afficheur l\'indique).');continue}
+lost=0;if(st.sta&&st.ssid==s){msg('wmsg','Connecté et enregistré ✓ Vous pouvez chercher vos arrêts.','ok');return}
+if(st.staState=='failed'&&st.staTarget==s){msg('wmsg','Connexion impossible : '+st.staError+'. '+(st.staHint||''),'err');return}}
+msg('wmsg','Pas de réponse : regardez l\'écran de l\'afficheur, il indique le résultat de la connexion.','err')}finally{$('addw').disabled=false}};
 $('go').onclick=async()=>{const q=$('q').value.trim();if(!q)return;msg('smsg','Recherche…');$('sres').innerHTML='';$('lsel').style.display='none';
 const r=await api('/api/search?q='+encodeURIComponent(q));if(r.error){msg('smsg',r.error,'err');return}
 msg('smsg',r.stops.length?'Choisissez l\'arrêt :':'Aucun résultat.');

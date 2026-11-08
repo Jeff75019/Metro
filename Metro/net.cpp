@@ -1,6 +1,8 @@
 #include "net.h"
 
 #include <HTTPClient.h>
+#include <WiFi.h>
+#include <esp_wifi.h>
 #include <NetworkClientSecure.h>
 #include <Preferences.h>
 #include <esp_attr.h>
@@ -140,5 +142,92 @@ void quotaCount(Api api) {
     p.putUInt(i ? "day1" : "day", qDay[i]);
     p.putUShort(i ? "n1" : "n", qCount[i]);
     p.end();
+  }
+}
+
+// ----------------------------------------------------------------------------
+//  WiFi : diagnostic des échecs de connexion
+// ----------------------------------------------------------------------------
+static volatile uint8_t wifiReason = 0;
+static bool wifiWatching = false;
+
+void wifiSetup() {
+  // Réglage France : canaux 1 à 13 (par défaut « monde » : 1 à 11 seulement en
+  // recherche active, alors que les box françaises utilisent aussi 12 et 13)
+  esp_wifi_set_country_code("FR", true);
+  if (wifiWatching) return;
+  wifiWatching = true;
+  WiFi.onEvent(
+      [](WiFiEvent_t, WiFiEventInfo_t info) {
+        const uint8_t r = info.wifi_sta_disconnected.reason;
+        if (r != WIFI_REASON_ASSOC_LEAVE) wifiReason = r;  // ASSOC_LEAVE : notre propre déconnexion
+        log_w("WiFi : échec de connexion, raison %u (%s)", r, wifiReasonText(r));
+      },
+      ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+}
+
+uint8_t wifiLastReason() { return wifiReason; }
+void wifiClearReason() { wifiReason = 0; }
+
+enum class WifiFail : uint8_t { None, Password, NotFound, Security, Weak, Other };
+
+static WifiFail wifiFailKind(uint8_t r) {
+  switch (r) {
+    case 0:
+      return WifiFail::None;
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:  // 15
+    case WIFI_REASON_802_1X_AUTH_FAILED:      // 23
+    case WIFI_REASON_AUTH_FAIL:               // 202
+    case WIFI_REASON_HANDSHAKE_TIMEOUT:       // 204
+      return WifiFail::Password;
+    case WIFI_REASON_NO_AP_FOUND:  // 201
+      return WifiFail::NotFound;
+    case 210:  // NO_AP_FOUND_W_COMPATIBLE_SECURITY
+    case 211:  // NO_AP_FOUND_IN_AUTHMODE_THRESHOLD
+      return WifiFail::Security;
+    case 212:  // NO_AP_FOUND_IN_RSSI_THRESHOLD
+      return WifiFail::Weak;
+    default:
+      return WifiFail::Other;
+  }
+}
+
+const char* wifiReasonText(uint8_t r) {
+  static char buf[32];
+  switch (wifiFailKind(r)) {
+    case WifiFail::None:
+      return "";
+    case WifiFail::Password:
+      return "mot de passe refusé";
+    case WifiFail::NotFound:
+      return "réseau introuvable";
+    case WifiFail::Security:
+      return "sécurité non gérée";
+    case WifiFail::Weak:
+      return "signal trop faible";
+    default:
+      snprintf(buf, sizeof(buf), "échec (code %u)", r);
+      return buf;
+  }
+}
+
+const char* wifiReasonHint(uint8_t r) {
+  switch (wifiFailKind(r)) {
+    case WifiFail::Password:
+      return "La box refuse le mot de passe : vérifiez-le (majuscules, chiffres et symboles comptent).";
+    case WifiFail::NotFound:
+      return "L'afficheur ne voit pas ce réseau. Il ne capte que le WiFi 2,4 GHz : vérifiez le nom exact, que "
+             "la bande 2,4 GHz de la box est active, ou rapprochez l'afficheur. Partage de connexion d'un "
+             "iPhone : activez « Maximiser la compatibilité ».";
+    case WifiFail::Security:
+      return "Sécurité du réseau non gérée : l'afficheur accepte le WPA2 et le WPA3 personnels, pas les "
+             "réseaux d'entreprise (identifiant + mot de passe) ni le WEP.";
+    case WifiFail::Weak:
+      return "Signal trop faible : rapprochez l'afficheur de la box.";
+    case WifiFail::Other:
+      return "La box a refusé la connexion. Réessayez ; si cela persiste, redémarrez la box ou essayez le "
+             "partage de connexion d'un téléphone.";
+    default:
+      return "";
   }
 }

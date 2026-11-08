@@ -144,6 +144,8 @@ int main() {
 
   uiDrawPortal("Metro-3F2A", "WIFI:T:nopass;S:Metro-3F2A;;", "192.168.4.1", "ou http://metro.local");
   dump("07_portail");
+  uiDrawPortal("Metro-3F2A", "WIFI:T:nopass;S:Metro-3F2A;;", "192.168.4.1", "WiFi : mot de passe refusé");
+  dump("07b_portail_echec");
 
   uiDrawMessage("WiFi introuvable", "Impossible de joindre «\xC2\xA0" "Freebox-ABC123\xC2\xA0»",
                 "Appui long sur l'écran : configuration", 0xFF9A3C);
