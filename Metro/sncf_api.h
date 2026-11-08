@@ -1,6 +1,7 @@
-// Accès à l'API SNCF (https://api.sncf.com, format Navitia) : tableaux des
-// départs / arrivées des gares, provenance des trains, recherche de gares.
-// Clé gratuite : https://numerique.sncf.com/startup/api/token-developpeur/
+// Tableaux des départs / arrivées des gares, selon la source choisie :
+//   - Train Nomade (par défaut, sans clé) : https://api.trainnomade.fr/gare/{uic}.json
+//   - API SNCF (clé) : https://api.sncf.com, format Navitia, provenance par /vehicle_journeys
+// Recherche de gares : open data SNCF (sans clé) ou API SNCF.
 #pragma once
 #include <Arduino.h>
 
@@ -17,4 +18,5 @@ FetchResult sncfFetchBoard(const Station& st, bool arrivals, Board& out);
 bool sncfResolveOrigins(Board& b, const Station& st, int maxRows);
 
 // Pour la page de configuration : recherche de gares par nom (JSON).
-int sncfSearchJson(const String& query, const char* key, String& out);
+// useSncfApi : API SNCF (clé nécessaire), sinon open data SNCF (sans clé).
+int sncfSearchJson(const String& query, bool useSncfApi, const char* key, String& out);

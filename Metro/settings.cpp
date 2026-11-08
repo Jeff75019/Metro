@@ -10,11 +10,12 @@ Settings settings;
 
 static const char* NS = "metro";
 
+// Codes UIC des grandes gares (plusieurs codes = halls ou niveaux d'une même gare)
 const ParisStation PARIS_STATIONS[] = {
-    {"stop_area:SNCF:87686006", "Gare de Lyon"},  {"stop_area:SNCF:87271007", "Gare du Nord"},
-    {"stop_area:SNCF:87113001", "Gare de l'Est"}, {"stop_area:SNCF:87391003", "Montparnasse"},
-    {"stop_area:SNCF:87384008", "Saint-Lazare"},  {"stop_area:SNCF:87547000", "Austerlitz"},
-    {"stop_area:SNCF:87686667", "Bercy"},
+    {"87686006,87686030", "Gare de Lyon"},          {"87271007,87271031,87271023", "Gare du Nord"},
+    {"87113001", "Gare de l'Est"},                  {"87391003,87391102,87391011", "Montparnasse"},
+    {"87384008", "Saint-Lazare"},                   {"87547000,87547026", "Austerlitz"},
+    {"87686667", "Bercy"},
 };
 const int PARIS_STATION_COUNT = sizeof(PARIS_STATIONS) / sizeof(PARIS_STATIONS[0]);
 
@@ -67,7 +68,9 @@ void settingsErase() {
 }
 
 bool metroReady() { return settings.apiKey[0] && settings.favCount > 0; }
-bool trainsReady() { return settings.sncfKey[0] && settings.stationCount > 0; }
+bool trainsReady() {
+  return settings.stationCount > 0 && (settings.trainSource == TrainSource::TrainNomade || settings.sncfKey[0]);
+}
 bool settingsReady() { return settings.wifi[0].ssid[0] && (metroReady() || trainsReady()); }
 
 String normalizeStopRef(const String& raw) {
@@ -115,6 +118,7 @@ String settingsToJson(const Settings& s, bool hideSecrets) {
     o["name"] = s.stations[i].name;
   }
   doc["mainlineOnly"] = s.mainlineOnly;
+  doc["trainSource"] = s.trainSource == TrainSource::SncfApi ? "sncf" : "trainnomade";
   doc["sncfQuota"] = s.sncfQuota;
   JsonArray f = doc["favorites"].to<JsonArray>();
   for (int i = 0; i < s.favCount; i++) {
@@ -224,6 +228,8 @@ bool settingsFromJson(Settings& s, const char* json, String& err) {
     }
   }
   if (!doc["mainlineOnly"].isNull()) s.mainlineOnly = doc["mainlineOnly"].as<bool>();
+  if (!doc["trainSource"].isNull())
+    s.trainSource = strcmp(doc["trainSource"] | "", "sncf") == 0 ? TrainSource::SncfApi : TrainSource::TrainNomade;
   if (!doc["sncfQuota"].isNull()) s.sncfQuota = clampU16(doc["sncfQuota"].as<long>(), 10, 60000);
   if (!doc["refreshS"].isNull()) s.refreshS = clampU16(doc["refreshS"].as<long>(), 10, 3600);
   if (!doc["awakeS"].isNull()) s.awakeS = clampU16(doc["awakeS"].as<long>(), 10, 3600);

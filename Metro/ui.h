@@ -51,7 +51,7 @@ void uiDrawPortal(const char* apName, const char* qrPayload, const char* url, co
 void uiDrawSplash(const char* version);
 void uiDrawBoard(const BoardUi& s);
 // Carte affichée brièvement quand on passe d'un programme à l'autre
-void uiDrawAppTitle(bool trains);
+void uiDrawAppTitle(bool trains, const char* credit = nullptr);
 
 // Accès au tampon (utilisé par les tests sur PC pour faire des captures)
 LGFX_Sprite& uiCanvas();

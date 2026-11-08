@@ -6,6 +6,11 @@
 #include "net.h"
 
 static const char* SNCF_API = "https://api.sncf.com/v1/coverage/sncf/";
+static const char* TN_API = "https://api.trainnomade.fr/gare/";
+static const char* TN_TIMETABLE = "https://api.trainnomade.fr/gares/horaires/";
+static const char* GARES_SEARCH =
+    "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/gares-de-voyageurs/records"
+    "?limit=12&select=nom,codes_uic&where=";
 
 static HttpAuth sncfAuth(const char* key) {
   HttpAuth a;
@@ -15,11 +20,74 @@ static HttpAuth sncfAuth(const char* key) {
 }
 
 // ----------------------------------------------------------------------------
+// Horaires prévus d'une gare sur 14 jours : téléchargés une fois par jour et
+// gardés en mémoire (quelques dizaines de Ko par gare, en PSRAM)
+struct TimetableCache {
+  char slug[40];
+  uint32_t day;  // AAAAMMJJ du téléchargement
+  String body;
+};
+static TimetableCache ttCache[4];
+static uint8_t ttNext = 0;
+
+static const String* timetableFor(const char* slug) {
+  time_t now = time(nullptr);
+  if (now < 1700000000) return nullptr;  // heure inconnue
+  struct tm lt;
+  localtime_r(&now, &lt);
+  const uint32_t day = (uint32_t)((lt.tm_year + 1900) * 10000 + (lt.tm_mon + 1) * 100 + lt.tm_mday);
+  for (auto& c : ttCache)
+    if (c.day == day && !strcmp(c.slug, slug)) return &c.body;
+  String body;
+  if (httpGet(String(TN_TIMETABLE) + slug + ".json", HttpAuth(), body) != 200) return nullptr;
+  TimetableCache& c = ttCache[ttNext];
+  ttNext = (ttNext + 1) % (sizeof(ttCache) / sizeof(ttCache[0]));
+  copyStr(c.slug, slug, sizeof(c.slug));
+  c.day = day;
+  c.body = body;
+  return &c.body;
+}
+
+// Train Nomade : un appel par gare (jusqu'à 4 codes UIC), sans clé
+static FetchResult trainNomadeFetch(const Station& st, bool arrivals, Board& out) {
+  FetchResult r;
+  memset(&r, 0, sizeof(r));
+  char uic[48];
+  stationUicList(st.id, uic, sizeof(uic));
+  String body;
+  r.http = httpGet(String(TN_API) + uic + ".json", HttpAuth(), body);  // chiffres et virgules seulement
+  if (r.http != 200) {
+    describeHttp(r.http, "Train Nomade", r.msg, sizeof(r.msg));
+    return r;
+  }
+  static Board tmp;
+  char err[64];
+  if (parseTrainNomade(body.c_str(), body.length(), arrivals, settings.mainlineOnly, tmp, err, sizeof(err)) !=
+      SiriStatus::Ok) {
+    copyStr(r.msg, err, sizeof(r.msg));
+    return r;
+  }
+  tmp.fetchedAt = (int64_t)time(nullptr);
+  // Trains pas encore suivis en temps réel (tôt le matin, départs lointains) :
+  // complétés par les horaires prévus, pour les 145 grandes gares
+  const char* slug = timetableSlug(st.id);
+  if (slug && tmp.fetchedAt > 1700000000) {
+    if (const String* tt = timetableFor(slug))
+      mergeTimetable(tt->c_str(), tt->length(), arrivals, tmp.fetchedAt, 3 * 3600, tmp);
+  }
+  out = tmp;
+  r.ok = true;
+  return r;
+}
+
 FetchResult sncfFetchBoard(const Station& st, bool arrivals, Board& out) {
+  if (settings.trainSource == TrainSource::TrainNomade) return trainNomadeFetch(st, arrivals, out);
   FetchResult r;
   memset(&r, 0, sizeof(r));
   // On en demande davantage quand on filtre (beaucoup de RER/Transilien à Paris)
-  String url = String(SNCF_API) + "stop_areas/" + urlEncode(st.id, true) + (arrivals ? "/arrivals" : "/departures") +
+  char area[48];
+  stationStopArea(st.id, area, sizeof(area));
+  String url = String(SNCF_API) + "stop_areas/" + urlEncode(area, true) + (arrivals ? "/arrivals" : "/departures") +
                "?count=" + (settings.mainlineOnly ? "30" : "12") + "&depth=1&data_freshness=realtime";
   String body;
   quotaCount(Api::Sncf);
@@ -111,7 +179,34 @@ bool sncfResolveOrigins(Board& b, const Station& st, int maxRows) {
 }
 
 // ----------------------------------------------------------------------------
-int sncfSearchJson(const String& query, const char* key, String& out) {
+// Recherche sans clé dans le jeu "gares-de-voyageurs" de l'open data SNCF
+static int garesSearchJson(const String& query, String& out) {
+  JsonDocument res;
+  String q = query;
+  q.replace("\"", " ");
+  String body;
+  int code = httpGet(String(GARES_SEARCH) + urlEncode("\"" + q + "\"", false), HttpAuth(), body);
+  if (code != 200) {
+    char msg[64];
+    describeHttp(code, "open data SNCF", msg, sizeof(msg));
+    res["error"] = msg;
+    serializeJson(res, out);
+    return code;
+  }
+  static StationHit hits[12];
+  int n = parseGaresVoyageurs(body.c_str(), body.length(), hits, 12);
+  JsonArray arr = res["stations"].to<JsonArray>();
+  for (int i = 0; i < n; i++) {
+    JsonObject o = arr.add<JsonObject>();
+    o["id"] = hits[i].id;
+    o["name"] = hits[i].name;
+  }
+  serializeJson(res, out);
+  return 200;
+}
+
+int sncfSearchJson(const String& query, bool useSncfApi, const char* key, String& out) {
+  if (!useSncfApi || !key || !*key) return garesSearchJson(query, out);
   JsonDocument res;
   String body;
   quotaCount(Api::Sncf);

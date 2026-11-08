@@ -188,15 +188,16 @@ static void handleLines() {
 static void handleSncfSearch() {
   lastActivity = millis();
   if (!staConnected()) return sendError(503, "Pas d'accès Internet : ajoutez d'abord un réseau WiFi (étape 1).");
+  const bool useApi = server.arg("src") == "sncf";
   String key = server.arg("key");
   key.trim();
   if (key.isEmpty()) key = settings.sncfKey;
-  if (key.isEmpty()) return sendError(400, "Saisissez d'abord votre clé API SNCF.");
+  if (useApi && key.isEmpty()) return sendError(400, "Saisissez d'abord votre clé API SNCF.");
   String q = server.arg("q");
   q.trim();
   if (q.length() < 2) return sendError(400, "Tapez au moins 2 lettres");
   String out;
-  int code = sncfSearchJson(q, key.c_str(), out);
+  int code = sncfSearchJson(q, useApi, key.c_str(), out);
   sendJson(code == 200 ? 200 : 502, out);
 }
 

@@ -240,8 +240,28 @@ int main() {
   uiDrawBoard(bu);
   dump("15_trains_vide");
 
-  uiDrawAppTitle(true);
+  uiDrawAppTitle(true, "Données SNCF (ODbL) via Train Nomade");
   dump("16_titre_trains");
+
+  // 18) Source Train Nomade : voies affichées
+  std::string tnj = readFile("data/trainnomade_gdl.json");
+  static Board bt;
+  parseTrainNomade(tnj.data(), tnj.size(), false, true, bt, err, sizeof(err));
+  bu.board = &bt;
+  bu.station = "Gare de Lyon";
+  bu.arrivals = false;
+  bu.now = bt.serverTime;
+  bu.busy = false;
+  bu.ageS = 30;
+  bu.index = 0;
+  uiDrawBoard(bu);
+  dump("18_trains_voies");
+  static Board ba2;
+  parseTrainNomade(tnj.data(), tnj.size(), true, true, ba2, err, sizeof(err));
+  bu.board = &ba2;
+  bu.arrivals = true;
+  uiDrawBoard(bu);
+  dump("19_trains_voies_arrivees");
   uiDrawAppTitle(false);
   dump("17_titre_metro");
   return 0;

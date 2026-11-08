@@ -8,7 +8,7 @@ Un petit afficheur de poche avec deux programmes :
 On passe de l'un à l'autre en glissant le doigt vers le haut ou le bas.
 
 Matériel : **Waveshare ESP32-S3-Touch-LCD-1.9** (écran tactile 1,9" 170×320) et une batterie LiPo.
-Données : **API PRIM d'Île-de-France Mobilités** et **API SNCF** (gratuites, clé personnelle ; chacune est facultative).
+Données : **API PRIM d'Île-de-France Mobilités** (gratuite, clé personnelle) pour le métro, et **données SNCF diffusées par [Train Nomade](https://trainnomade.fr/api)** (gratuites, **sans clé**) pour les trains. L'API SNCF officielle reste utilisable en option.
 
 ![Aperçu des écrans](docs/apercu.png)
 
@@ -34,8 +34,9 @@ La configuration se fait depuis le téléphone :
 
 **Programme Trains grandes lignes**
 
-- Tableau des 4 prochains départs ou arrivées : heure, destination ou provenance, type de train (TGV INOUI, OUIGO, Intercités, TER, Eurostar, Lyria…) et numéro.
+- Tableau des 4 prochains départs ou arrivées : heure, destination ou provenance, type de train (TGV INOUI, OUIGO, TGV Lyria, Intercités, TER…), numéro et **voie**.
 - Retards (« +12 min », avec la nouvelle heure) et trains supprimés.
+- Les trains pas encore suivis en temps réel (tôt le matin, par exemple) sont ajoutés d'après les horaires prévus, avec la mention « prévu ».
 - Les 7 grandes gares parisiennes proposées d'office (Gare de Lyon, Gare du Nord, Gare de l'Est, Montparnasse, Saint-Lazare, Austerlitz, Bercy), et jusqu'à 10 gares en tout, cherchées par leur nom.
 - Option « grandes lignes uniquement » qui masque RER, Transilien et autocars (activée par défaut).
 
@@ -47,14 +48,13 @@ La configuration se fait depuis le téléphone :
 
 > **Quota :** les comptes récents ont droit à **1000 appels par jour**. En usage « porte-clés » (on regarde l'écran 1 minute, il se rendort), on consomme 2 à 3 appels par consultation : c'est largement suffisant. Si vous voulez un affichage permanent, demandez une augmentation de quota à PRIM puis indiquez le nouveau quota dans les réglages.
 
-### Clé API SNCF (facultative, pour les trains grandes lignes)
+### Trains grandes lignes : aucune clé nécessaire
 
-1. Remplissez le formulaire « API SNCF » sur [numerique.sncf.com/startup/api](https://numerique.sncf.com/startup/api/) (ancienne adresse : digital.sncf.com/startup/api).
-2. Vous recevez un jeton par e-mail : c'est votre **clé API SNCF** (en général de la forme `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`).
+Par défaut, les départs et arrivées viennent de **[Train Nomade](https://trainnomade.fr/api)**, un service indépendant qui rediffuse gratuitement et sans clé le flux temps réel ouvert de la SNCF (relevé toutes les 2 minutes, licence ODbL). Il fournit aussi les **voies** et, pour 145 grandes gares, les horaires prévus sur 14 jours. L'afficheur le consulte au plus une fois par minute, comme demandé, et télécharge les horaires prévus une fois par jour.
 
-> ⚠️ La clé du portail **SNCF Open Data** (data.sncf.com, 56 caractères hexadécimaux) **ne convient pas** : elle sert aux jeux de données statiques, pas aux tableaux de départs. L'API des départs la refuse (« Token absent in the database »).
+**Option : API SNCF officielle.** Pour l'utiliser à la place (sans les voies), demandez une clé via le formulaire « API SNCF » de [numerique.sncf.com/startup/api](https://numerique.sncf.com/startup/api/) (jeton de la forme `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`, 5 000 requêtes par jour), puis choisissez « API SNCF (clé) » dans la configuration.
 
-> **Quota :** 5 000 requêtes par jour, gratuitement. Un tableau coûte 1 requête ; pour les arrivées, la gare de provenance de chaque nouveau train coûte 1 requête de plus (le résultat est mémorisé). Le tableau est rafraîchi au plus une fois par minute.
+> ⚠️ La clé du portail **SNCF Open Data** (ressources.data.sncf.com, 56 caractères hexadécimaux) **ne convient pas** à l'API SNCF : elle sert aux jeux de données statiques. L'API des départs la refuse.
 
 ## 2. Installer le programme
 
@@ -114,7 +114,7 @@ Au premier démarrage, l'écran affiche un **QR code** et le nom d'un WiFi « Me
 4. **Mes arrêts** : tapez un nom de station (« Bastille »), choisissez-la, puis la ligne et, si vous voulez, les destinations à afficher. Répétez pour 4 arrêts au plus.
    Pour un RER à plusieurs branches, cochez toutes les destinations d'un même sens (ex. RER A vers l'est : Marne-la-Vallée Chessy, Torcy, Boissy-Saint-Léger) : les données « Aller / Retour » du RER ne sont pas fiables.
    Les bus et Noctiliens sont reconnus : leur numéro et leur couleur viennent du référentiel des lignes IDFM.
-5. **Trains grandes lignes** (facultatif) : collez la clé SNCF, cochez les gares de Paris voulues ; « Autre gare » permet d'en ajouter d'autres par leur nom.
+5. **Trains grandes lignes** (facultatif) : cochez les gares de Paris voulues ; « Autre gare » permet d'en ajouter d'autres par leur nom (recherche dans l'open data SNCF, sans clé). Rien d'autre à faire avec la source Train Nomade.
 6. **Enregistrer et redémarrer**.
 
 Il suffit de configurer l'un des deux programmes (métro ou trains) pour que l'afficheur démarre.
@@ -153,9 +153,11 @@ Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille �
 | Image à l'envers | Réglages → « Retourner l'écran (180°) » |
 | « Clé API refusée (401/403) » | Vérifiez le jeton et l'abonnement à l'API « Prochains passages (requête unitaire) » |
 | « Quota PRIM dépassé (429) » | Quota du jour épuisé : attendre minuit, ou réduire le rafraîchissement |
-| « Clé SNCF refusée (401) » | Vérifiez le jeton reçu par e-mail de la SNCF |
-| Trains : « … » à la place de la provenance | Recherche en cours (une requête par train, quelques secondes) |
-| Trains : pas de numéro de voie | L'API ouverte de la SNCF ne fournit pas les voies |
+| Trains : « prévu » à droite | Le train n'est pas encore suivi en temps réel : c'est l'horaire prévu |
+| Trains : « Données en direct indisponibles » | La source (flux SNCF ou Train Nomade) n'a pas été mise à jour récemment |
+| Trains, source API SNCF : « Clé SNCF refusée (401) » | Vérifiez le jeton reçu par e-mail (pas la clé SNCF Open Data) |
+| Trains, source API SNCF : « … » à la place de la provenance | Recherche en cours (une requête par train) |
+| Trains, source API SNCF : pas de voie | L'API SNCF ne fournit pas les voies (Train Nomade, si) |
 | « Aucun passage prévu » | Service terminé, ou temps réel indisponible sur cette ligne |
 | « Horaire théorique » | IDFM ne fournit pas de temps réel pour ce passage, c'est l'horaire prévu |
 | RER : « sens 1/2 » mélange des trains vers l'est et l'ouest | Dans la configuration, choisissez les destinations d'un même sens |
@@ -173,8 +175,9 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── board.h/.cpp        écran + tactile (LovyanGFX), batterie, IMU, veille profonde
 ├── siri.h/.cpp         décodage des réponses PRIM (SIRI Lite), choix des 2 passages
 ├── prim.h/.cpp         requêtes PRIM, recherche d'arrêts (open data IDFM)
-├── sncf.h/.cpp         décodage des tableaux SNCF (départs, arrivées, retards, suppressions)
-├── sncf_api.h/.cpp     requêtes API SNCF, provenances (avec cache), recherche de gares
+├── sncf.h/.cpp         décodage des tableaux de gare (Train Nomade et API SNCF), horaires prévus
+├── sncf_stations.h     les 145 grandes gares dont les horaires prévus sont publiés
+├── sncf_api.h/.cpp     requêtes Train Nomade / API SNCF, recherche de gares (open data SNCF)
 ├── net.h/.cpp          HTTPS, quotas d'appels quotidiens, réglage de l'horloge
 ├── ui.h/.cpp           dessin des écrans (tampon mémoire, sans scintillement)
 ├── lines.h/.cpp        lignes connues : nom, couleurs officielles
@@ -220,7 +223,8 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 - Le décodage PRIM et SNCF (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC.
 - L'**API PRIM réelle** a été interrogée le 8 novembre 2026 (La Défense, Bastille) : réponses correctement décodées ; une vraie réponse sert désormais de donnée de test (`test/data/prim_ladefense_reel.json`). La recherche d'arrêts et le référentiel des lignes de l'open data IDFM ont aussi été vérifiés.
 - Le firmware complet **compile sans erreur ni avertissement** (`-Wall -Wextra`) pour l'ESP32-S3 avec ESP-IDF 5.5.6 + cœur Arduino 3.3.12 + LovyanGFX 1.2.36 + ArduinoJson 7.4.3 (binaire d'environ 1,7 Mo, un peu plus de la moitié de la partition). Il **n'a pas encore été essayé sur la carte** : au premier essai, regardez le moniteur série et signalez les erreurs.
-- Les réponses de l'API SNCF utilisées pour les tests sont reconstituées d'après sa documentation (format Navitia) et des clients existants ; je n'ai pas pu interroger l'API réelle. Les suppressions de trains sont repérées via les perturbations « NO_SERVICE » et les mentions « supprimé » : un train supprimé peut aussi simplement disparaître du tableau.
+- **Train Nomade** a été interrogé en vrai le 8 novembre 2026 (Gare de Lyon, Gare du Nord, horaires prévus, recherche de gares dans l'open data SNCF) : réponses correctement décodées, vraies réponses gardées comme données de test. C'est un service indépendant et gratuit, sans garantie de disponibilité ; l'affichage en gare fait foi.
+- L'**API SNCF officielle** n'a pas pu être essayée (pas de clé valide) : ses données de test sont reconstituées d'après sa documentation (format Navitia) et des clients existants.
 - Le **réveil par secousse** est expérimental : la séquence de l'IMU vient de notes de la communauté, et la broche d'interruption n'est pas confirmée. Si l'afficheur se réveille tout seul dans une poche, il suspend ce réveil 30 minutes après 3 réveils sans utilisation.
 - Le sens d'affichage (paysage, USB à gauche ou à droite) dépend du montage : utilisez l'option « Retourner l'écran ».
 - Les connexions HTTPS vérifient les certificats avec le magasin intégré au cœur ESP32 (versions 3.3.x). Si la connexion échoue, l'afficheur refait un essai sans vérification pour ne pas rester bloqué.
@@ -228,6 +232,6 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 ## Licences et sources
 
 - Polices : [Barlow Semi Condensed et Barlow Condensed](https://github.com/jpt/barlow), SIL Open Font License 1.1 (`tools/fonts/OFL.txt`).
-- Données : API PRIM et open data d'Île-de-France Mobilités (couleurs des lignes issues du référentiel IDFM) ; API SNCF (Navitia).
+- Données : API PRIM et open data d'Île-de-France Mobilités (couleurs des lignes issues du référentiel IDFM) ; **données SNCF (ODbL), via Train Nomade** ; open data SNCF (gares de voyageurs) ; API SNCF (Navitia) en option. La mention « Données SNCF (ODbL) via Train Nomade » s'affiche sur l'afficheur à l'ouverture du programme Trains et dans la page de configuration.
 - Bibliothèques : [LovyanGFX](https://github.com/lovyan03/LovyanGFX) (FreeBSD), [ArduinoJson](https://arduinojson.org) (MIT), [cœur Arduino ESP32](https://github.com/espressif/arduino-esp32) (LGPL 2.1).
 - Projet indépendant, sans lien avec la RATP, IDFM, la SNCF ou les fabricants d'afficheurs du commerce.

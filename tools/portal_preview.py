@@ -31,11 +31,11 @@ CONFIG = {
     ],
     "refreshS": 30, "awakeS": 60, "dailyQuota": 1000, "brightness": 180,
     "sleepMode": 0, "motionWake": False, "flip": False,
-    "sncfKeySet": True, "sncfKeyHint": "…b21e", "mainlineOnly": True, "sncfQuota": 5000,
-    "stations": [{"id": "stop_area:SNCF:87686006", "name": "Gare de Lyon"},
-                 {"id": "stop_area:SNCF:87271007", "name": "Gare du Nord"},
+    "sncfKeySet": False, "mainlineOnly": True, "sncfQuota": 5000, "trainSource": "trainnomade",
+    "stations": [{"id": "87686006,87686030", "name": "Gare de Lyon"},
+                 {"id": "87271007,87271031,87271023", "name": "Gare du Nord"},
                  {"id": "stop_area:SNCF:87391003", "name": "Montparnasse"},
-                 {"id": "stop_area:SNCF:87111849", "name": "Marne-la-Vallée Chessy"}],
+                 {"id": "87111849", "name": "Marne-la-Vallée Chessy"}],
 }
 STATUS = {"sta": True, "ssid": "Freebox-1A2B3C", "ip": "192.168.1.42", "rssi": -58, "ap": "Metro-3F2A",
           "battery": 87, "quotaUsed": 42, "quota": 1000, "sncfUsed": 118, "sncfQuota": 5000,
@@ -62,9 +62,9 @@ LINES = {"ref": "STIF:StopArea:SP:71517:", "stopName": "Bastille", "lines": [
      "dests": ["Châtelet", "Gare de Sartrouville"]}]}
 
 
-SNCF_SEARCH = {"stations": [{"id": "stop_area:SNCF:87393009", "name": "Versailles Chantiers"},
-                            {"id": "stop_area:SNCF:87393843", "name": "Versailles Rive Droite"},
-                            {"id": "stop_area:SNCF:87393579", "name": "Versailles Château Rive Gauche"}]}
+SNCF_SEARCH = {"stations": [{"id": "87393009", "name": "Versailles Chantiers"},
+                            {"id": "87382861", "name": "Versailles Rive Droite"},
+                            {"id": "87393157", "name": "Versailles Château Rive Gauche"}]}
 
 
 def load_page():

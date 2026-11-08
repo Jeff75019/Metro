@@ -177,6 +177,8 @@ static void drawTrains() {
   s.net = net;
   s.busy = busy;
   s.status = lastErr[0] ? lastErr : nullptr;
+  if (!s.status && valid && b.validUntil > 0 && s.now > b.validUntil + 60)
+    s.status = "Données en direct indisponibles";  // la source n'est plus à jour
   s.ageS = valid ? (int)(s.now - b.fetchedAt) : -1;
   s.index = curStation;
   s.count = settings.stationCount;
@@ -260,7 +262,7 @@ static uint32_t refreshInterval() {
 
 static void fetchBoardNow(uint8_t st, bool arr) {
   const int64_t now = nowEpoch();
-  if (!quotaAvailable(Api::Sncf, settings.sncfQuota)) {
+  if (settings.trainSource == TrainSource::SncfApi && !quotaAvailable(Api::Sncf, settings.sncfQuota)) {
     snprintf(lastErr, sizeof(lastErr), "Quota SNCF du jour atteint (%u appels)", (unsigned)settings.sncfQuota);
     boardNext[st][arr] = now + 300;
     return;
@@ -381,7 +383,9 @@ static void switchApp() {
   const bool ready = next == App::Trains ? trainsReady() : metroReady();
   if (!ready) {
     if (next == App::Trains)
-      uiDrawMessage("Trains non configurés", "Ajoutez une clé API SNCF et des gares",
+      uiDrawMessage("Trains non configurés",
+                    settings.stationCount ? "Ajoutez la clé de l'API SNCF, ou choisissez Train Nomade"
+                                          : "Choisissez au moins une gare",
                     "Appui long sur l'écran : configuration", 0x1A4CA8);
     else
       uiDrawMessage("Métro non configuré", "Ajoutez une clé API PRIM et un arrêt",
@@ -392,7 +396,9 @@ static void switchApp() {
   }
   app = next;
   lastErr[0] = 0;
-  uiDrawAppTitle(app == App::Trains);
+  uiDrawAppTitle(app == App::Trains, settings.trainSource == TrainSource::TrainNomade
+                                         ? "Données SNCF (ODbL) via Train Nomade"
+                                         : "Données : API SNCF");
   delay(450);
   draw();
 }

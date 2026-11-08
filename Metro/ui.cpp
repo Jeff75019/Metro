@@ -578,6 +578,9 @@ static void drawTrainRow(int y0, const Train& t, int64_t now) {
   } else if (t.flags & TR_REALTIME) {
     text("à l'heure", xr, cy + 1, &fTiny, GREEN, lgfx::middle_right);
     rightW = textW("à l'heure", &fTiny);
+  } else {  // pas encore suivi en temps réel : horaire prévu
+    text("prévu", xr, cy + 1, &fTiny, MUTED, lgfx::middle_right);
+    rightW = textW("prévu", &fTiny);
   }
 
   // Destination / provenance, puis type et numéro du train
@@ -600,7 +603,20 @@ static void drawTrainRow(int y0, const Train& t, int64_t now) {
     text(t.mode, x + cw / 2, cy + 11, &fTiny, TEXT, lgfx::middle_center);
     x += cw + 5;
   }
-  if (t.number[0]) text(t.number, x, cy + 11, &fTiny, MUTED, lgfx::middle_left);
+  if (t.number[0]) {
+    text(t.number, x, cy + 11, &fTiny, MUTED, lgfx::middle_left);
+    x += textW(t.number, &fTiny) + 8;
+  }
+  // Voie (quand elle est connue) : encadrée, comme sur les tableaux des gares
+  if (t.platform[0] && !cancelled) {
+    char v[16];
+    snprintf(v, sizeof(v), "voie %s", t.platform);
+    const int vw = textW(v, &fTiny) + 8;
+    if (x + vw <= tx + maxW) {
+      canvas.fillSmoothRoundRect(x, cy + 4, vw, 13, 3, TEXT);
+      text(v, x + vw / 2, cy + 11, &fTiny, BG, lgfx::middle_center);
+    }
+  }
 }
 
 void uiDrawBoard(const BoardUi& s) {
@@ -675,14 +691,15 @@ void uiDrawBoard(const BoardUi& s) {
   present();
 }
 
-void uiDrawAppTitle(bool trains) {
+void uiDrawAppTitle(bool trains, const char* credit) {
   canvas.fillScreen(BG);
   const int cx = W / 2, cy = 58;
   if (trains) {
     canvas.fillSmoothRoundRect(cx - 44, cy - 20, 88, 40, 10, TEXT);
     text("TRAIN", cx, cy + 1, &fMedium, BG, lgfx::middle_center);
-    text("Trains grandes lignes", cx, 108, &fMedium, TEXT, lgfx::middle_center);
-    text("Départs et arrivées des gares SNCF", cx, 134, &fSmall, MUTED, lgfx::middle_center);
+    text("Trains grandes lignes", cx, 104, &fMedium, TEXT, lgfx::middle_center);
+    text("Départs et arrivées des gares SNCF", cx, 128, &fSmall, MUTED, lgfx::middle_center);
+    if (credit && *credit) text(credit, cx, 151, &fTiny, MUTED, lgfx::middle_center);
   } else {
     canvas.fillSmoothCircle(cx, cy, 26, TEXT);
     text("M", cx, cy + 3, &fLarge, BG, lgfx::middle_center);

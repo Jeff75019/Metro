@@ -1,0 +1,20 @@
+{"source":"SNCF, SIRI Lite estimated timetable (transport.data.gouv.fr, ODbL)",
+ "source_url":"https://transport.data.gouv.fr/datasets/horaires-sncf",
+ "collecte_le":"2026-11-08T15:08:37+01:00","verifie_le":"2026-11-08T15:08:37+01:00",
+ "perime_apres":"2026-11-08T15:23:15+01:00","donnee_du":"2026-11-08T14:08:15.081Z",
+ "jour":"2026-11-08","maintenant_s":54517,"fenetre":{"de":52717,"a":65317},
+ "uics":["87686006","87686030"],"nb_passages":9,
+ "noms":{"87686006":"Paris - Gare de Lyon - Hall 1 & 2","87686030":"Paris - Gare de Lyon - Souterrain",
+         "71718010":"Barcelona-Sants","87682302":"Montereau","83016451":"Milano Porta Garibaldi",
+         "87751008":"Marseille Saint-Charles","87713040":"Dijon","87723197":"Lyon Part Dieu"},
+ "passages":[
+  {"n":"9715","d":52920,"p":1,"pr":"highSpeedRail","o":"87686006","de":"71718010","s":"87686006"},
+  {"n":"152853","d":53100,"rd":60,"v":"L","p":1,"pr":"suburbanRailway","o":"87686006","de":"87682302","s":"87686006"},
+  {"n":"9255","d":53280,"v":"E","p":1,"pr":"highSpeedRail","o":"87686006","de":"83016451","s":"87686006"},
+  {"n":"6102","a":55020,"ra":300,"v":"H","pr":"highSpeedRail","o":"87751008","de":"87686006","s":"87686006"},
+  {"n":"6115","d":54900,"v":"K","pr":"highSpeedRail","o":"87686006","de":"87751008","s":"87686006"},
+  {"n":"6611/2","d":55500,"rd":720,"pr":"highSpeedRail","o":"87686006","de":"87723197","s":"87686006"},
+  {"n":"17775","d":56100,"an":1,"pr":"regionalRail","o":"87686006","de":"87713040","s":"87686006"},
+  {"n":"152857","d":56200,"v":"M","pr":"suburbanRailway","o":"87686030","de":"87682302","s":"87686030"},
+  {"n":"5600","a":56600,"d":57000,"nm":1,"pr":"interregionalRail","o":"87713040","de":"87751008","s":"87686006"}
+ ]}

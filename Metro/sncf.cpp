@@ -6,6 +6,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "sncf_stations.h"
+
 // ============================================================================
 //  Utilitaires
 // ============================================================================
@@ -273,4 +275,277 @@ bool parseNavitiaOrigin(const char* json, size_t len, const char* stationName, c
     cleanStationName(out);
   }
   return out[0] != 0;
+}
+
+// ============================================================================
+//  Train Nomade : https://api.trainnomade.fr/gare/{uic}.json
+// ============================================================================
+const char* trainCategoryLabel(const char* pr) {
+  if (!pr) return "Train";
+  if (!strcmp(pr, "highSpeedRail")) return "TGV";
+  if (!strcmp(pr, "interregionalRail")) return "Intercités";
+  if (!strcmp(pr, "regionalRail") || !strcmp(pr, "local")) return "TER";
+  if (!strcmp(pr, "suburbanRailway")) return "Transilien";
+  if (!strcmp(pr, "tramTrain")) return "Tram-train";
+  if (!strcmp(pr, "railShuttle")) return "Navette";
+  if (!strcmp(pr, "longDistance")) return "Grande ligne";
+  return "Train";
+}
+
+void stationUicList(const char* id, char* out, size_t n) {
+  if (!out || !n) return;
+  out[0] = 0;
+  if (!id) return;
+  const char* p = strncmp(id, "stop_area:SNCF:", 15) == 0 ? id + 15 : id;
+  size_t k = 0;
+  for (; *p && k + 1 < n; p++) {
+    if (isdigit((unsigned char)*p)) out[k++] = *p;
+    else if ((*p == ',' || *p == ';') && k && out[k - 1] != ',') out[k++] = ',';
+    else if (*p == ':') break;
+  }
+  if (k && out[k - 1] == ',') k--;
+  out[k] = 0;
+}
+
+void stationStopArea(const char* id, char* out, size_t n) {
+  if (!out || !n) return;
+  if (id && strncmp(id, "stop_area:", 10) == 0) {
+    copyStr(out, id, n);
+    return;
+  }
+  char uic[16] = "";
+  size_t k = 0;
+  for (const char* p = id ? id : ""; *p && isdigit((unsigned char)*p) && k + 1 < sizeof(uic); p++) uic[k++] = *p;
+  uic[k] = 0;
+  snprintf(out, n, "stop_area:SNCF:%s", uic);
+}
+
+// Heure "secondes depuis minuit du jour" (heure de Paris, au-delà de 86 400 après minuit)
+static bool dayTime(const char* jour, long s, int64_t* out) {
+  int y, m, d;
+  if (!jour || sscanf(jour, "%4d-%2d-%2d", &y, &m, &d) != 3) return false;
+  struct tm t;
+  memset(&t, 0, sizeof(t));
+  t.tm_year = y - 1900;
+  t.tm_mon = m - 1;
+  t.tm_mday = d;
+  t.tm_hour = (int)(s / 3600);
+  t.tm_min = (int)(s / 60 % 60);
+  t.tm_sec = (int)(s % 60);
+  t.tm_isdst = -1;  // mktime normalise (heures > 23) et choisit l'heure d'été / d'hiver
+  time_t r = mktime(&t);
+  if (r == (time_t)-1) return false;
+  *out = (int64_t)r;
+  return true;
+}
+
+SiriStatus parseTrainNomade(const char* json, size_t len, bool arrivals, bool mainlineOnly, Board& out,
+                            char* err, size_t errLen) {
+  memset(&out, 0, sizeof(out));
+  out.arrivals = arrivals;
+  if (err && errLen) err[0] = 0;
+  size_t i = 0;
+  while (i < len && isspace((unsigned char)json[i])) i++;
+  if (i >= len || json[i] != '{') {
+    if (err) copyStr(err, "Réponse non JSON", errLen);
+    return SiriStatus::BadJson;
+  }
+  JsonDocument filter;
+  filter["jour"] = true;
+  filter["maintenant_s"] = true;
+  filter["perime_apres"] = true;
+  filter["noms"] = true;
+  filter["erreur"] = true;
+  for (const char* k : {"n", "a", "d", "ra", "rd", "v", "p", "x", "an", "nm", "pr", "o", "de", "j"})
+    filter["passages"][0][k] = true;
+  JsonDocument doc;
+  DeserializationError e = deserializeJson(doc, json, len, DeserializationOption::Filter(filter));
+  if (e) {
+    if (err) snprintf(err, errLen, "JSON invalide (%s)", e.c_str());
+    return SiriStatus::BadJson;
+  }
+  JsonArrayConst passages = doc["passages"];
+  if (passages.isNull()) {
+    if (err) copyStr(err, (doc["erreur"] | "") [0] ? "Gare inconnue" : "Réponse inattendue", errLen);
+    return SiriStatus::ServerError;
+  }
+  const char* jour = doc["jour"] | "";
+  dayTime(jour, doc["maintenant_s"] | 0L, &out.serverTime);
+  parseIsoTime(doc["perime_apres"] | "", &out.validUntil);
+  JsonObjectConst noms = doc["noms"];
+
+  for (JsonObjectConst p : passages) {
+    if (out.count >= BOARD_MAX) break;
+    JsonVariantConst tv = p[arrivals ? "a" : "d"];
+    if (!tv.is<long>()) continue;              // pas d'heure d'arrivée / de départ ici
+    if (p["p"] | 0) continue;                  // déjà parti / arrivé
+    const char* pr = p["pr"] | "";
+    if (mainlineOnly && (!strcmp(pr, "suburbanRailway") || !strcmp(pr, "tramTrain") || !strcmp(pr, "railShuttle")))
+      continue;
+
+    Train t;
+    memset(&t, 0, sizeof(t));
+    const char* day = p["j"] | jour;           // train parti la veille
+    if (!dayTime(day, tv.as<long>(), &t.base)) continue;
+    t.real = t.base + (long)(p[arrivals ? "ra" : "rd"] | 0L);
+    if (!(p["nm"] | 0)) t.flags |= TR_REALTIME;
+    if ((p["an"] | 0) || (p["x"] | 0)) t.flags |= TR_CANCELLED;
+
+    // un même train peut apparaître deux fois (codes UIC différents d'une même gare)
+    char num[12];
+    copyStr(num, p["n"] | "", sizeof(num));
+    num[strcspn(num, "/-")] = 0;  // "6611/2" ou "129600-129601" : premier numéro
+    bool dup = false;
+    for (int k = 0; k < out.count; k++)
+      if (!strcmp(out.t[k].number, num)) dup = true;
+    if (dup) continue;
+    copyStr(t.number, num, sizeof(t.number));
+
+    const char* code = p[arrivals ? "o" : "de"] | "";
+    copyStr(t.place, noms[code] | code, sizeof(t.place));
+    cleanStationName(t.place);
+    copyStr(t.platform, p["v"] | "", sizeof(t.platform));
+    copyStr(t.mode, trainCategoryLabel(pr), sizeof(t.mode));
+    t.color = trainModeColor(t.mode, "");
+    out.t[out.count++] = t;
+  }
+  return SiriStatus::Ok;
+}
+
+int parseGaresVoyageurs(const char* json, size_t len, StationHit* out, int maxN) {
+  JsonDocument filter;
+  filter["results"][0]["nom"] = true;
+  filter["results"][0]["codes_uic"] = true;
+  JsonDocument doc;
+  if (deserializeJson(doc, json, len, DeserializationOption::Filter(filter))) return -1;
+  int n = 0;
+  JsonArrayConst results = doc["results"];
+  for (JsonObjectConst r : results) {
+    if (n >= maxN) break;
+    StationHit& h = out[n];
+    stationUicList(r["codes_uic"] | "", h.id, sizeof(h.id));
+    if (!h.id[0]) continue;
+    copyStr(h.name, r["nom"] | "", sizeof(h.name));
+    fixText(h.name);
+    n++;
+  }
+  return n;
+}
+
+// ============================================================================
+//  Train Nomade : horaires prévus sur 14 jours (gares/horaires/{slug}.json)
+// ============================================================================
+const char* timetableSlug(const char* stationId) {
+  char uic[48];
+  stationUicList(stationId, uic, sizeof(uic));
+  const char* p = uic;
+  while (*p) {  // le premier code connu de la liste
+    char code[12];
+    size_t k = 0;
+    while (p[k] && p[k] != ',' && k + 1 < sizeof(code)) {
+      code[k] = p[k];
+      k++;
+    }
+    code[k] = 0;
+    for (const auto& s : TIMETABLE_STATIONS)
+      if (!strcmp(s.uic, code)) return s.slug;
+    p += k;
+    if (*p == ',') p++;
+  }
+  return nullptr;
+}
+
+static int64_t daysFromDate(const char* s) {  // "AAAA-MM-JJ" -> numéro de jour
+  int y, m, d;
+  if (!s || sscanf(s, "%4d-%2d-%2d", &y, &m, &d) != 3) return INT64_MIN;
+  y -= m <= 2;
+  const int era = (y >= 0 ? y : y - 399) / 400;
+  const unsigned yoe = (unsigned)(y - era * 400);
+  const unsigned doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;
+  return (int64_t)era * 146097 + (int64_t)(yoe * 365 + yoe / 4 - yoe / 100 + doy);
+}
+
+static void sortBoard(Board& b) {
+  for (int i = 1; i < b.count; i++)
+    for (int k = i; k > 0 && b.t[k - 1].real > b.t[k].real; k--) {
+      Train tmp = b.t[k];
+      b.t[k] = b.t[k - 1];
+      b.t[k - 1] = tmp;
+    }
+}
+
+int mergeTimetable(const char* json, size_t len, bool arrivals, int64_t now, int horizonS, Board& b) {
+  JsonDocument filter;
+  filter["du"] = true;
+  filter["produits"] = true;
+  filter["trains"] = true;
+  JsonDocument doc;
+  if (deserializeJson(doc, json, len, DeserializationOption::Filter(filter))) return -1;
+  const int64_t du = daysFromDate(doc["du"] | "");
+  if (du == INT64_MIN) return -1;
+  JsonArrayConst produits = doc["produits"];
+  JsonArrayConst trains = doc["trains"];
+
+  // Jour d'aujourd'hui (heure de Paris), et la veille pour les trains après minuit
+  time_t nt = (time_t)now;
+  struct tm lt;
+  localtime_r(&nt, &lt);
+  char today[40];
+  snprintf(today, sizeof(today), "%04d-%02d-%02d", lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
+  const int64_t todayN = daysFromDate(today);
+
+  // On rassemble les candidats dans un tableau plus grand, puis on garde les premiers
+  static Board all;
+  all = b;
+  int added = 0;
+  for (int dayOff = -1; dayOff <= 0; dayOff++) {
+    const int rank = (int)(todayN + dayOff - du);
+    if (rank < 0 || rank > 30) continue;
+    struct tm mid = lt;
+    mid.tm_mday += dayOff;
+    mid.tm_hour = mid.tm_min = mid.tm_sec = 0;
+    mid.tm_isdst = -1;
+    for (JsonArrayConst t : trains) {
+      if (t.size() < 7) continue;
+      const uint32_t mask = t[6] | 0u;
+      if (!((mask >> rank) & 1u)) continue;
+      JsonVariantConst minutes = t[arrivals ? 4 : 5];
+      if (!minutes.is<long>()) continue;  // le train part d'ici (arrivées) ou y finit (départs)
+      struct tm tt = mid;
+      tt.tm_min = (int)minutes.as<long>();  // mktime normalise (après minuit : > 1 440)
+      const time_t when = mktime(&tt);
+      if (when < now - 60 || when > now + horizonS) continue;
+
+      char num[12];
+      copyStr(num, t[0] | "", sizeof(num));
+      const char* product = produits[t[1] | 0] | "";
+      int found = -1;
+      for (int k = 0; k < all.count; k++)
+        if (!strcmp(all.t[k].number, num)) found = k;
+      if (found >= 0) {  // déjà en temps réel : on précise seulement la marque
+        if (*product && strlen(product) < sizeof(all.t[found].mode)) {
+          copyStr(all.t[found].mode, product, sizeof(all.t[found].mode));
+          all.t[found].color = trainModeColor(product, "");
+        }
+        continue;
+      }
+      if (all.count >= BOARD_MAX) {  // plein : on remplace le plus tardif s'il est plus tard
+        sortBoard(all);
+        if (all.t[all.count - 1].real <= when) continue;
+        all.count--;
+      }
+      Train& n = all.t[all.count++];
+      memset(&n, 0, sizeof(n));
+      n.base = n.real = (int64_t)when;
+      copyStr(n.number, num, sizeof(n.number));
+      copyStr(n.place, t[arrivals ? 2 : 3] | "", sizeof(n.place));
+      cleanStationName(n.place);
+      copyStr(n.mode, *product ? product : "Train", sizeof(n.mode));
+      n.color = trainModeColor(n.mode, "");
+      added++;
+    }
+  }
+  sortBoard(all);
+  b = all;
+  return added;
 }

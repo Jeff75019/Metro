@@ -18,8 +18,13 @@ struct Favorite {
 };
 
 struct Station {
-  char id[40];    // ex. "stop_area:SNCF:87686006"
+  char id[40];    // codes UIC "87271007,87271031" (ou ancien format "stop_area:SNCF:87271007")
   char name[32];  // nom court affiché, ex. "Gare de Lyon"
+};
+
+enum class TrainSource : uint8_t {
+  TrainNomade = 0,  // https://trainnomade.fr/api : sans clé, avec les voies (par défaut)
+  SncfApi = 1,      // https://api.sncf.com : clé nécessaire
 };
 
 struct WifiCred {
@@ -45,8 +50,9 @@ struct Settings {
   SleepMode sleepMode;
   bool motionWake;      // réveil par secousse (IMU)
   bool flip;            // écran retourné de 180°
-  // Trains grandes lignes (API SNCF)
-  char sncfKey[64];
+  // Trains grandes lignes
+  TrainSource trainSource;
+  char sncfKey[64];       // seulement pour l'API SNCF
   Station stations[MAX_STATIONS];
   uint8_t stationCount;
   bool mainlineOnly;    // écarter Transilien, RER et autocars
@@ -60,7 +66,7 @@ void settingsLoad();
 bool settingsSave();
 void settingsErase();
 bool metroReady();     // clé PRIM + au moins un arrêt
-bool trainsReady();    // clé SNCF + au moins une gare
+bool trainsReady();    // au moins une gare (+ clé si l'API SNCF est choisie)
 bool settingsReady();  // WiFi + (métro ou trains) configurés
 
 // Gares parisiennes proposées par défaut
