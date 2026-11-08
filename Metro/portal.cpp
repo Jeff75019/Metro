@@ -218,11 +218,6 @@ static void handlePostConfig() {
   d["ready"] = settingsReady();
   String missing;
   if (!settings.wifi[0].ssid[0]) missing += "un réseau WiFi, ";
-  if (!metroReady() && !trainsReady()) {
-    if (settings.sncfKey[0] && !settings.stationCount) missing += "au moins une gare, ";
-    else if (settings.apiKey[0] && !settings.favCount) missing += "au moins un arrêt, ";
-    else missing += "une clé API (PRIM pour le métro ou SNCF pour les trains), ";
-  }
   if (missing.length()) missing.remove(missing.length() - 2);
   d["missing"] = missing;
   String out;

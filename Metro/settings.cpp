@@ -71,7 +71,7 @@ bool metroReady() { return settings.apiKey[0] && settings.favCount > 0; }
 bool trainsReady() {
   return settings.stationCount > 0 && (settings.trainSource == TrainSource::TrainNomade || settings.sncfKey[0]);
 }
-bool settingsReady() { return settings.wifi[0].ssid[0] && (metroReady() || trainsReady()); }
+bool settingsReady() { return settings.wifi[0].ssid[0] != 0; }  // le reste se choisit sur l'écran
 
 String normalizeStopRef(const String& raw) {
   String s = raw;

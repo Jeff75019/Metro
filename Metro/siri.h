@@ -77,6 +77,20 @@ void buildView(const StopData& d, const char* dirFilter, const char* selectedKey
                View& v);
 
 // ---------------------------------------------------------------------------
+// Station choisie sur l'afficheur : prochains passages regroupés par destination
+// (jusqu'à 3 par destination), rangés par nom de destination (ordre stable
+// d'une mise à jour à l'autre).
+#define DIR_TIMES 3
+struct DirGroup {
+  char dest[TXT_LEN];
+  char platform[6];  // voie du premier passage (RER), souvent vide
+  uint8_t n;         // nombre de passages (1..DIR_TIMES)
+  int64_t when[DIR_TIMES];
+  uint8_t flags[DIR_TIMES];
+};
+int buildDirections(const StopData& d, int64_t now, DirGroup* out, int maxN);
+
+// ---------------------------------------------------------------------------
 // Utilitaires (exposés pour les tests)
 bool parseIsoTime(const char* s, int64_t* out);
 void fixText(char* s);  // répare l'encodage cassé (Ã©...) et les espaces

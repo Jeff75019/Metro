@@ -1,10 +1,12 @@
 #include "ui.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 #include "fonts_metro.h"
+#include "network.h"
 
 // ============================================================================
 //  Palette
@@ -244,6 +246,13 @@ static void drawDots(int xRight, int cy, int index, int count) {
     canvas.fillSmoothCircle(x0 + i * step, cy, i == index ? 3 : 2, i == index ? TEXT : FAINT);
 }
 
+// Flèche de retour « ‹ » (choix libre sur l'écran)
+static int drawBack(int x, int cy, uint16_t color) {
+  canvas.drawWideLine(x + 7, cy - 7, x + 1, cy, 1.6f, color);
+  canvas.drawWideLine(x + 1, cy, x + 7, cy + 7, 1.6f, color);
+  return 14;
+}
+
 // Liseré aux couleurs des lignes de métro
 static void drawSignature(int y, int h) {
   const int n = sizeof(METRO_COLORS) / sizeof(METRO_COLORS[0]);
@@ -279,7 +288,7 @@ static void localHHMM(int64_t t, char* out, size_t n) {
 //  Écran principal
 // ============================================================================
 // Une ligne de départ : liseré couleur de ligne, destination, attente.
-static void drawRow(int y0, const Row* r, int64_t now, uint32_t lineColor) {
+static void drawRow(int y0, const Row* r, int64_t now, uint32_t lineColor, const char* subOverride = nullptr) {
   const int cy = y0 + ROW_H / 2;
   const int xr = W - MARGIN;
   const bool cancelled = r->flags & DEP_CANCELLED;
@@ -316,9 +325,11 @@ static void drawRow(int y0, const Row* r, int64_t now, uint32_t lineColor) {
   // --- à gauche : destination (+ mention)
   const int tx = MARGIN + 14;
   const int maxW = xr - rightW - 14 - tx;
-  char sub[24] = "";
+  char sub[48] = "";
   uint16_t subCol = MUTED;
-  if (cancelled) {
+  if (subOverride && *subOverride && !cancelled) {
+    fitText(sub, sizeof(sub), subOverride, maxW, &fTiny);
+  } else if (cancelled) {
   } else if (r->flags & DEP_DELAYED) {
     copyStr(sub, "Retardé", sizeof(sub));
     subCol = ORANGE;
@@ -385,6 +396,7 @@ void uiDrawMain(const UiState& s) {
   // --- En-tête : mode + ligne + arrêt ............................ batterie
   const int hy = HEADER_H / 2;
   int x = MARGIN;
+  if (s.back) x += drawBack(x, hy, TEXT) + 4;
   x += drawMode(x, hy, s.mode) + 6;
   x += drawBadge(x, hy, s.badge && *s.badge ? s.badge : "?", s.mode, s.badgeColor, s.badgeText) + 10;
   const int titleMax = W - x - (s.battery >= 0 ? (s.battery <= 15 ? 76 : 38) : MARGIN);
@@ -399,9 +411,9 @@ void uiDrawMain(const UiState& s) {
   // --- Corps : deux prochains passages
   const View* v = s.view;
   if (v && v->rows > 0) {
-    drawRow(ROW1_Y, &v->row[0], s.now, s.badgeColor);
+    drawRow(ROW1_Y, &v->row[0], s.now, s.badgeColor, s.sub[0]);
     canvas.drawFastHLine(MARGIN + 14, ROW2_Y - 1, W - 2 * MARGIN - 14, HAIR);
-    if (v->rows > 1) drawRow(ROW2_Y, &v->row[1], s.now, s.badgeColor);
+    if (v->rows > 1) drawRow(ROW2_Y, &v->row[1], s.now, s.badgeColor, s.sub[1]);
   } else if (!s.hasData && s.status && *s.status) {
     drawBodyMessage(true, s.status, "Nouvel essai dans quelques secondes", C_ORANGE);
   } else if (!s.hasData) {
@@ -627,8 +639,10 @@ void uiDrawBoard(const BoardUi& s) {
   canvas.fillRect(0, 0, W, B_HEADER, rgb(band));
   const int hy = B_HEADER / 2;
   const char* title = s.arrivals ? "Arrivées" : "Départs";
-  text(title, MARGIN, hy + 1, &fMedium, TEXT, lgfx::middle_left);
-  int x = MARGIN + textW(title, &fMedium) + 8;
+  int x = MARGIN;
+  if (s.back) x += drawBack(x, hy, TEXT) + 4;
+  text(title, x, hy + 1, &fMedium, TEXT, lgfx::middle_left);
+  x += textW(title, &fMedium) + 8;
   canvas.fillSmoothCircle(x, hy + 1, 2, rgb(mix(band, C_TEXT, 150)));
   x += 8;
 
@@ -707,5 +721,258 @@ void uiDrawAppTitle(bool trains, const char* credit) {
     text("Prochains passages à vos arrêts", cx, 134, &fSmall, MUTED, lgfx::middle_center);
   }
   drawSignature(H - 3, 3);
+  present();
+}
+
+// ============================================================================
+//  Choix libre sur l'écran tactile : accueil, grilles (lignes, initiales) et
+//  listes (stations, gares)
+// ============================================================================
+static constexpr uint32_t C_CARD = 0x141E36;
+static constexpr int E_HEADER = 36;  // en-tête 0..35, filet en 36
+static constexpr int E_ROW = 26;     // hauteur d'une ligne de liste
+static constexpr int E_TOP = E_HEADER + 1;
+
+// En-tête commun : flèche de retour (si back) ...... heure, batterie.
+// *x0 / *right : place laissée au pictogramme et au titre.
+static void exHeader(bool back, int64_t now, int battery, int* x0, int* rightOut) {
+  const int hy = E_HEADER / 2;
+  int x = MARGIN;
+  if (back) x += drawBack(x, hy, TEXT) + 6;
+  int right = W - MARGIN;
+  if (battery >= 0) {
+    drawBattery(right, hy, battery);
+    right -= battery <= 15 ? 70 : 32;
+  }
+  if (now > 1700000000) {
+    char clock[16];
+    localHHMM(now, clock, sizeof(clock));
+    text(clock, right, hy + 1, &fSmall, MUTED, lgfx::middle_right);
+    right -= textW(clock, &fSmall) + 10;
+  }
+  canvas.drawFastHLine(0, E_HEADER, W, HAIR);
+  *x0 = x;
+  *rightOut = right;
+}
+
+static void exTitle(const char* title, int x, int right) {
+  char buf[96];
+  const lgfx::IFont* tf = textW(title, &fMedium) <= right - x ? &fMedium : &fCond;
+  fitText(buf, sizeof(buf), title, right - x, tf);
+  text(buf, x, E_HEADER / 2 + 1, tf, TEXT, lgfx::middle_left);
+}
+
+bool uiHitBack(int x, int y) { return x < 56 && y < E_HEADER + 8; }
+
+// Étoile pleine (favoris)
+static void drawStar(int cx, int cy, int r, uint16_t color) {
+  float px[10], py[10];
+  for (int i = 0; i < 10; i++) {
+    const float a = -1.5708f + i * 0.6283f;
+    const float rr = (i & 1) ? r * 0.45f : r;
+    px[i] = cx + rr * cosf(a);
+    py[i] = cy + rr * sinf(a);
+  }
+  for (int i = 0; i < 10; i++) {
+    const int j = (i + 1) % 10;
+    canvas.fillTriangle(cx, cy, (int)px[i], (int)py[i], (int)px[j], (int)py[j], color);
+  }
+}
+
+// ---- Accueil -------------------------------------------------------------------
+static constexpr int HUB_TOP = E_TOP + 7, HUB_GAP = 8, HUB_COLS = 3;
+static int hubRows(int count) { return (count + HUB_COLS - 1) / HUB_COLS; }
+
+static void hubCell(int count, int i, int* x, int* y, int* w, int* h) {
+  const int rows = hubRows(count);
+  *h = (H - 6 - HUB_TOP - (rows - 1) * HUB_GAP) / (rows < 2 ? 2 : rows);
+  *w = (W - 2 * MARGIN - (HUB_COLS - 1) * HUB_GAP) / HUB_COLS;
+  const int row = i / HUB_COLS, col = i % HUB_COLS;
+  const int inRow = (row == rows - 1) ? count - row * HUB_COLS : HUB_COLS;  // dernière ligne centrée
+  const int rowW = inRow * *w + (inRow - 1) * HUB_GAP;
+  *x = (W - rowW) / 2 + col * (*w + HUB_GAP);
+  const int totalH = rows * *h + (rows - 1) * HUB_GAP;
+  *y = HUB_TOP + (H - 6 - HUB_TOP - totalH) / 2 + row * (*h + HUB_GAP);
+}
+
+int uiHitHub(int count, int x, int y) {
+  for (int i = 0; i < count; i++) {
+    int cx, cy, w, h;
+    hubCell(count, i, &cx, &cy, &w, &h);
+    if (x >= cx - HUB_GAP / 2 && x < cx + w + HUB_GAP / 2 && y >= cy - HUB_GAP / 2 && y < cy + h + HUB_GAP / 2)
+      return i;
+  }
+  return -1;
+}
+
+void uiDrawHub(const HubUi& s) {
+  canvas.fillScreen(BG);
+  int x, right;
+  exHeader(false, s.now, s.battery, &x, &right);
+  canvas.fillSmoothCircle(x + 11, E_HEADER / 2, 11, TEXT);
+  text("M", x + 11, E_HEADER / 2 + 1, &fSmall, BG, lgfx::middle_center);
+  x += 30;
+  exTitle(s.net == NetState::Connecting ? "Connexion au WiFi…" : "Prochains passages", x, right);
+
+  for (int i = 0; i < s.count; i++) {
+    int cx, cy, w, h;
+    hubCell(s.count, i, &cx, &cy, &w, &h);
+    canvas.fillSmoothRoundRect(cx, cy, w, h, 10, rgb(C_CARD));
+    const int ix = cx + w / 2, iy = cy + h / 2 - 9;
+    switch (s.tiles[i].kind) {
+      case TileKind::Metro:
+        canvas.fillSmoothCircle(ix, iy, 13, TEXT);
+        text("M", ix, iy + 1, &fMedium, BG, lgfx::middle_center);
+        break;
+      case TileKind::Tram:
+        canvas.fillSmoothCircle(ix, iy, 13, TEXT);
+        text("T", ix, iy + 1, &fMedium, BG, lgfx::middle_center);
+        break;
+      case TileKind::Rer:
+      case TileKind::Trains: {
+        const char* l = s.tiles[i].kind == TileKind::Rer ? "RER" : "TRAIN";
+        const int bw = textW(l, &fSmall) + 12;
+        canvas.fillSmoothRoundRect(ix - bw / 2, iy - 12, bw, 24, 6, TEXT);
+        text(l, ix, iy + 1, &fSmall, BG, lgfx::middle_center);
+        break;
+      }
+      case TileKind::MyStops:
+      case TileKind::MyStations:
+        drawStar(ix, iy, 13, AMBER);
+        break;
+    }
+    char buf[32];
+    fitText(buf, sizeof(buf), s.tiles[i].label, w - 8, &fSmall);
+    text(buf, ix, cy + h - 13, &fSmall, TEXT, lgfx::middle_center);
+  }
+  present();
+}
+
+// ---- Grilles (lignes d'un mode, initiales des gares) -----------------------------
+static constexpr int GRID_TOP = E_TOP + 3, GRID_BOTTOM = H - 4;
+
+static void gridCell(int count, int cols, int i, int* x, int* y, int* w, int* h) {
+  const int rows = (count + cols - 1) / cols;
+  *w = (W - 2 * MARGIN) / cols;
+  *h = (GRID_BOTTOM - GRID_TOP) / (rows < 2 ? 2 : rows);
+  if (*h > 64) *h = 64;
+  const int totalH = rows * *h;
+  *x = MARGIN + (i % cols) * *w;
+  *y = GRID_TOP + (GRID_BOTTOM - GRID_TOP - totalH) / 2 + (i / cols) * *h;
+}
+
+int uiHitGrid(int count, int cols, int x, int y) {
+  for (int i = 0; i < count; i++) {
+    int cx, cy, w, h;
+    gridCell(count, cols, i, &cx, &cy, &w, &h);
+    if (x >= cx && x < cx + w && y >= cy && y < cy + h) return i;
+  }
+  return -1;
+}
+
+// Grand pictogramme de ligne, centré
+static void bigBadge(int cx, int cy, int cw, int ch, const GridItem& it) {
+  const uint16_t bg = rgb(it.color), fg = rgb(it.textColor);
+  int sz = (cw < ch ? cw : ch) - 8;
+  if (sz > 40) sz = 40;
+  const lgfx::IFont* f = sz >= 30 ? &fMedium : &fSmall;
+  switch (it.mode) {
+    case LineMode::Metro: {
+      canvas.fillSmoothCircle(cx, cy, sz / 2, bg);
+      if (textW(it.label, f) > sz - 6) f = &fSmall;
+      break;
+    }
+    case LineMode::Rer:
+    case LineMode::Train:
+      canvas.fillSmoothRoundRect(cx - sz / 2, cy - sz / 2, sz, sz, sz / 5, bg);
+      if (sz >= 34) f = &fLarge;
+      break;
+    default: {
+      const int bw = cw - 10, bh = sz * 3 / 4;
+      canvas.fillSmoothRoundRect(cx - bw / 2, cy - bh / 2, bw, bh, 5, bg);
+      if (textW(it.label, f) > bw - 6) f = &fSmall;
+      break;
+    }
+  }
+  text(it.label, cx, cy + 1, f, fg, lgfx::middle_center);
+}
+
+void uiDrawGrid(const GridUi& s) {
+  canvas.fillScreen(BG);
+  int x, right;
+  exHeader(true, 0, s.battery, &x, &right);
+  x += drawMode(x, E_HEADER / 2, s.titleMode) + 8;
+  exTitle(s.title, x, right);
+  for (int i = 0; i < s.count; i++) {
+    int cx, cy, w, h;
+    gridCell(s.count, s.cols, i, &cx, &cy, &w, &h);
+    const GridItem& it = s.items[i];
+    if (it.badge) {
+      bigBadge(cx + w / 2, cy + h / 2, w, h, it);
+    } else {
+      canvas.fillSmoothRoundRect(cx + 3, cy + 3, w - 6, h - 6, 8, rgb(C_CARD));
+      const lgfx::IFont* f = textW(it.label, &fLarge) <= w - 10 ? &fLarge : &fSmall;
+      if (f == &fSmall && textW(it.label, f) > w - 8) f = &fTiny;
+      text(it.label, cx + w / 2, cy + h / 2 + 1, f, TEXT, lgfx::middle_center);
+    }
+  }
+  present();
+}
+
+// ---- Listes ----------------------------------------------------------------------
+int uiHitList(int x, int y) {
+  (void)x;
+  if (y < E_TOP) return -1;
+  const int r = (y - E_TOP) / E_ROW;
+  return r < LIST_ROWS ? r : -1;
+}
+
+void uiDrawList(const ListUi& s) {
+  canvas.fillScreen(BG);
+  int x, right;
+  exHeader(true, 0, s.battery, &x, &right);
+  if (s.badge) x += drawBadge(x, E_HEADER / 2, s.badge, s.mode, s.color, s.textColor) + 8;
+  else x += drawMode(x, E_HEADER / 2, s.mode) + 8;
+  exTitle(s.title, x, right);
+
+  const uint16_t lc = rgb(s.color);
+  const int LX = MARGIN + 14;  // axe du trait de la ligne
+  const int nameX = s.lineGraphic ? LX + 16 : MARGIN + 4;
+  const int nameMax = W - nameX - 14;
+  for (int r = 0; r < LIST_ROWS; r++) {
+    const int i = s.top + r;
+    if (i >= s.count) break;
+    const int y0 = E_TOP + r * E_ROW, cy = y0 + E_ROW / 2;
+    if (i == s.highlight) canvas.fillSmoothRoundRect(nameX - 6, y0 + 2, W - nameX - 8, E_ROW - 4, 6, tint(s.color, 55));
+    if (s.lineGraphic) {
+      const uint8_t f = s.flags ? s.flags(i, s.ctx) : 0;
+      const bool startsHere = i == 0 || (f & NET_BRANCH);
+      const bool endsHere = i == s.count - 1 || (s.flags && (s.flags(i + 1, s.ctx) & NET_BRANCH));
+      const int ya = startsHere ? cy : y0, yb = endsHere ? cy : y0 + E_ROW;
+      if (yb > ya) canvas.fillRect(LX - 3, ya, 6, yb - ya, lc);
+      if (f & NET_BRANCH) {  // début d'une branche : petit raccord en pointillés
+        for (int yy = y0; yy < cy - 4; yy += 4) canvas.fillRect(LX - 1, yy, 2, 2, lc);
+      }
+      const bool term = f & NET_TERMINUS;
+      canvas.fillSmoothCircle(LX, cy, term ? 8 : 6, BG);
+      canvas.fillSmoothCircle(LX, cy, term ? 6 : 4, TEXT);
+    } else if (r > 0) {
+      canvas.drawFastHLine(MARGIN, y0, W - 2 * MARGIN - 6, HAIR);
+    }
+    char buf[96];
+    const char* name = s.name(i, s.ctx);
+    const lgfx::IFont* f = textW(name, &fCondS) <= nameMax ? &fCondS : &fTiny;
+    fitText(buf, sizeof(buf), name, nameMax, f);
+    text(buf, nameX, cy + 1, f, TEXT, lgfx::middle_left);
+  }
+  // Barre de défilement
+  if (s.count > LIST_ROWS) {
+    const int ty = E_TOP + 4, th = LIST_ROWS * E_ROW - 8;
+    canvas.fillSmoothRoundRect(W - 6, ty, 3, th, 1, HAIR);
+    int bh = th * LIST_ROWS / s.count;
+    if (bh < 12) bh = 12;
+    const int by = ty + (th - bh) * s.top / (s.count - LIST_ROWS);
+    canvas.fillSmoothRoundRect(W - 6, by, 3, bh, 1, MUTED);
+  }
   present();
 }

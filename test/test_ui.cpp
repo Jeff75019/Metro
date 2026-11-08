@@ -8,6 +8,7 @@
 #include <string>
 
 #include "../Metro/lines.h"
+#include "../Metro/network.h"
 #include "../Metro/siri.h"
 #include "../Metro/sncf.h"
 #include "../Metro/ui.h"
@@ -266,5 +267,173 @@ int main() {
   dump("19_trains_voies_arrivees");
   uiDrawAppTitle(false);
   dump("17_titre_metro");
+
+  // ===== Choix libre sur l'écran tactile =====
+  // 20) Accueil
+  HubTile tiles[] = {{TileKind::Metro, "Métro"},         {TileKind::Rer, "RER"},
+                     {TileKind::Tram, "Tram"},           {TileKind::Trains, "Trains SNCF"},
+                     {TileKind::MyStops, "Mes arrêts"},  {TileKind::MyStations, "Mes gares"}};
+  HubUi hu;
+  memset(&hu, 0, sizeof(hu));
+  hu.tiles = tiles;
+  hu.count = 6;
+  hu.now = 1794130800;  // 8 nov. 2026, 11:20 à Paris
+  hu.battery = 78;
+  hu.net = NetState::Online;
+  uiDrawHub(hu);
+  dump("20_accueil");
+  hu.count = 4;
+  uiDrawHub(hu);
+  dump("20b_accueil_sans_favoris");
+
+  // 21-23) Lignes d'un mode
+  static GridItem items[32];
+  const LineMode modes[3] = {LineMode::Metro, LineMode::Rer, LineMode::Tram};
+  const char* titles[3] = {"Métro", "RER", "Tramway"};
+  const int cols[3] = {8, 5, 5};
+  const char* names[3] = {"21_lignes_metro", "22_lignes_rer", "23_lignes_tram"};
+  for (int m = 0; m < 3; m++) {
+    int idx[32];
+    const int n = netLinesOfMode(modes[m], idx, 32);
+    for (int i = 0; i < n; i++) {
+      const LineInfo* li = netLineInfo(idx[i]);
+      items[i] = {li->name, modes[m], li->color, li->textColor, true};
+    }
+    GridUi g;
+    memset(&g, 0, sizeof(g));
+    g.title = titles[m];
+    g.titleMode = modes[m];
+    g.items = items;
+    g.count = n;
+    g.cols = cols[m];
+    g.battery = 78;
+    uiDrawGrid(g);
+    dump(names[m]);
+  }
+
+  // 24-26) Stations d'une ligne
+  struct Ctx {
+    int line;
+  } ctx;
+  auto lineIdx = [](const char* name) {
+    for (int i = 0; i < netLineCount(); i++)
+      if (!strcmp(netLineInfo(i)->name, name)) return i;
+    return 0;
+  };
+  ListUi l;
+  memset(&l, 0, sizeof(l));
+  l.title = "Choisissez la station";
+  l.lineGraphic = true;
+  l.name = [](int i, void* c) { return netStopName(((Ctx*)c)->line, i); };
+  l.flags = [](int i, void* c) -> uint8_t {
+    const int line = ((Ctx*)c)->line;
+    return i < netLine(line).count ? netStop(line, i).flags : 0;
+  };
+  l.ctx = &ctx;
+  l.battery = 78;
+  const char* lists[][3] = {{"1", "0", "24_stations_ligne1"}, {"7", "31", "25_stations_ligne7_branche"},
+                            {"A", "8", "26_stations_rerA"},  {"T3b", "26", "26b_stations_T3b"}};
+  for (auto& e : lists) {
+    ctx.line = lineIdx(e[0]);
+    const LineInfo* li = netLineInfo(ctx.line);
+    l.badge = li->name;
+    l.mode = li->mode;
+    l.color = li->color;
+    l.textColor = li->textColor;
+    l.count = netLine(ctx.line).count;
+    l.top = atoi(e[1]);
+    l.highlight = l.top + 2;
+    uiDrawList(l);
+    dump(e[2]);
+  }
+
+  // 27) Passages à une station choisie, dans chaque sens (RER A à La Défense)
+  std::string ldj = readFile("data/prim_ladefense_reel.json");
+  static StopData sd;
+  parseStopMonitoring(ldj.data(), ldj.size(), "C01742", sd, err, sizeof(err));
+  DirGroup gr[8];
+  const int ng = buildDirections(sd, sd.responseTime, gr, 8);
+  const LineInfo* rerA = findLine("C01742");
+  UiState ss = base(rerA, "La Défense");
+  ss.now = sd.responseTime;
+  ss.back = true;
+  ss.favCount = 0;
+  static View vv;
+  memset(&vv, 0, sizeof(vv));
+  vv.groupCount = (uint8_t)((ng + 1) / 2);
+  vv.groupIndex = 0;
+  static char subs[2][48];
+  for (int r = 0; r < 2 && r < ng; r++) {
+    Row& row = vv.row[vv.rows++];
+    row.when = gr[r].when[0];
+    row.flags = gr[r].flags[0];
+    copyStr(row.dest, gr[r].dest, sizeof(row.dest));
+    subs[r][0] = 0;  // même texte que le firmware (Metro.ino, groupSub)
+    if (gr[r].n >= 3)
+      snprintf(subs[r], sizeof(subs[r]), "puis %d et %d min", (int)((gr[r].when[1] - ss.now) / 60),
+               (int)((gr[r].when[2] - ss.now) / 60));
+    else if (gr[r].n == 2)
+      snprintf(subs[r], sizeof(subs[r]), "puis %d min", (int)((gr[r].when[1] - ss.now) / 60));
+    ss.sub[r] = subs[r];
+  }
+  ss.view = &vv;
+  ss.hasData = true;
+  uiDrawMain(ss);
+  dump("27_passages_station");
+
+  // 28-29) Gares SNCF : initiales, puis gares
+  static char lab[32][2];
+  const int ngr = sncfGroupCount();
+  for (int i = 0; i < ngr; i++) {
+    const char* t = sncfGroupLabel(i);
+    if (i > 0) {
+      lab[i][0] = t[0];
+      lab[i][1] = 0;
+      t = lab[i];
+    }
+    items[i] = {t, LineMode::Train, 0, 0, false};
+  }
+  GridUi gg;
+  memset(&gg, 0, sizeof(gg));
+  gg.title = "Gares SNCF";
+  gg.titleMode = LineMode::Train;
+  gg.items = items;
+  gg.count = ngr;
+  gg.cols = 7;
+  gg.battery = 78;
+  uiDrawGrid(gg);
+  dump("28_gares_initiales");
+  static int gidx[48];
+  static int gcount;
+  gcount = sncfGroupStations(1, gidx, 48);
+  ListUi gl;
+  memset(&gl, 0, sizeof(gl));
+  gl.title = "Gares \xC2\xB7 A";
+  gl.mode = LineMode::Train;
+  gl.color = 0x1A4CA8;
+  gl.textColor = 0xFFFFFF;
+  gl.count = gcount;
+  gl.top = 0;
+  gl.highlight = 1;
+  gl.name = [](int i, void*) { return sncfPick(gidx[i]).name; };
+  gl.battery = 78;
+  uiDrawList(gl);
+  dump("29_gares_A");
+
+  // 30) Tableau d'une gare choisie (avec flèche de retour)
+  bu.board = &bt;
+  bu.station = "Paris Gare de Lyon";
+  bu.arrivals = false;
+  bu.back = true;
+  bu.count = 0;
+  uiDrawBoard(bu);
+  dump("30_tableau_gare_choisie");
+
+  // Zones de toucher : cohérentes avec le dessin
+  if (uiHitHub(6, 60, 70) != 0 || uiHitHub(6, 160, 140) != 4 || !uiHitBack(12, 18) || uiHitList(100, 40) != 0 ||
+      uiHitList(100, 165) != 4 || uiHitGrid(16, 8, 15, 70) != 0) {
+    printf("ÉCHEC : zones de toucher incohérentes\n");
+    return 1;
+  }
   return 0;
 }

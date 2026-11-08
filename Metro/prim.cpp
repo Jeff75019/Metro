@@ -27,16 +27,16 @@ static String stopMonitoringUrl(const char* stopRef, const char* line) {
   return url;
 }
 
-FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out) {
+FetchResult primFetchStop(const char* stopRef, const char* line, const char* apiKey, StopData& out) {
   FetchResult r;
   memset(&r, 0, sizeof(r));
   String body;
   quotaCount(Api::Prim);
-  r.http = httpGet(stopMonitoringUrl(fav.stopRef, fav.line), primAuth(apiKey), body);
-  if (r.http == 400 && fav.line[0]) {
+  r.http = httpGet(stopMonitoringUrl(stopRef, line), primAuth(apiKey), body);
+  if (r.http == 400 && line && *line) {
     // Paramètre LineRef refusé : on demande tout l'arrêt et on filtre nous-mêmes
     quotaCount(Api::Prim);
-    r.http = httpGet(stopMonitoringUrl(fav.stopRef, nullptr), primAuth(apiKey), body);
+    r.http = httpGet(stopMonitoringUrl(stopRef, nullptr), primAuth(apiKey), body);
   }
   if (r.http != 200) {
     describeHttp(r.http, "PRIM", r.msg, sizeof(r.msg));
@@ -44,7 +44,7 @@ FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out) {
   }
   static StopData tmp;  // évite d'écraser les données affichées en cas d'erreur
   char err[64];
-  SiriStatus st = parseStopMonitoring(body.c_str(), body.length(), fav.line, tmp, err, sizeof(err));
+  SiriStatus st = parseStopMonitoring(body.c_str(), body.length(), line, tmp, err, sizeof(err));
   if (st != SiriStatus::Ok) {
     copyStr(r.msg, err, sizeof(r.msg));
     return r;
@@ -54,6 +54,10 @@ FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out) {
   out = tmp;
   r.ok = true;
   return r;
+}
+
+FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out) {
+  return primFetchStop(fav.stopRef, fav.line, apiKey, out);
 }
 
 int primLinesJson(const String& stopRef, const char* apiKey, String& out) {

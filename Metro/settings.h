@@ -67,7 +67,7 @@ bool settingsSave();
 void settingsErase();
 bool metroReady();     // clé PRIM + au moins un arrêt
 bool trainsReady();    // au moins une gare (+ clé si l'API SNCF est choisie)
-bool settingsReady();  // WiFi + (métro ou trains) configurés
+bool settingsReady();  // WiFi configuré (lignes et gares se choisissent sur l'écran)
 
 // Gares parisiennes proposées par défaut
 struct ParisStation {

@@ -89,7 +89,7 @@ svg{display:block}
 </section>
 
 <section><div class="sh"><span class="num" id="n3">3</span><h2>Mes arrêts</h2></div>
-<div class="desc">Métro, RER, tram ou bus. Glissez le doigt vers la gauche ou la droite sur l'afficheur pour passer de l'un à l'autre (4 au maximum).</div>
+<div class="desc">Facultatif : sur l'afficheur, vous pouvez aussi choisir n'importe quelle ligne et station (accueil → Métro, RER ou Tram). Les arrêts ajoutés ici forment « Mes arrêts » : métro, RER, tram ou bus, 4 au maximum, passez de l'un à l'autre en glissant le doigt vers la gauche ou la droite.</div>
 <div class="list" id="fl"></div>
 <div class="panel">
 <div class="row"><input id="q" placeholder="Station ou arrêt, ex. Bastille" autocomplete="off"><button class="pri" id="go" aria-label="Chercher"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button></div>
@@ -109,7 +109,7 @@ svg{display:block}
 </section>
 
 <section><div class="sh"><span class="num" id="n4">4</span><h2>Trains grandes lignes <span class="meta">· facultatif</span></h2></div>
-<div class="desc">Départs et arrivées des gares SNCF (TGV, Intercités, TER…), avec les voies : glissez le doigt vers le haut ou le bas sur l'afficheur pour passer du métro aux trains.</div>
+<div class="desc">Départs et arrivées des gares SNCF (TGV, Intercités, TER…), avec les voies. Sur l'afficheur, « Trains SNCF » permet de choisir n'importe quelle grande gare ; les gares cochées ici forment « Mes gares ».</div>
 <label class="f">Source des données</label>
 <div class="seg" id="srcSeg"><button data-v="trainnomade">Train Nomade</button><button data-v="sncf">API SNCF (clé)</button></div>
 <div class="msg" id="srcHelp"></div>

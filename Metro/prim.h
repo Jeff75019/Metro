@@ -16,6 +16,10 @@ struct FetchResult {
 // elle n'est pas encore réglée (ou dérive de plus de 15 s).
 FetchResult primFetch(const Favorite& fav, const char* apiKey, StopData& out);
 
+// Prochains passages d'une ligne (line : "C01371", ou "" pour toutes) à un arrêt
+// (stopRef : "STIF:StopArea:SP:…:" ou "STIF:StopPoint:Q:…:").
+FetchResult primFetchStop(const char* stopRef, const char* line, const char* apiKey, StopData& out);
+
 // Pour la page de configuration : lignes desservies à un arrêt (JSON).
 int primLinesJson(const String& stopRef, const char* apiKey, String& out);
 

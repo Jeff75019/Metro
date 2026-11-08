@@ -549,3 +549,42 @@ void buildView(const StopData& d, const char* dirFilter, const char* selectedKey
     copyStr(r.platform, cand[i]->platform, sizeof(r.platform));
   }
 }
+
+int buildDirections(const StopData& d, int64_t now, DirGroup* out, int maxN) {
+  int n = 0;
+  for (int i = 0; i < d.count; i++) {
+    const Departure& e = d.dep[i];
+    const int64_t late = now - e.when;
+    if (late > 30 && !((e.flags & DEP_AT_STOP) && late < 90)) continue;  // déjà parti
+    int g = 0;
+    while (g < n && strcmp(out[g].dest, e.dest) != 0) g++;
+    if (g == n) {
+      if (n >= maxN) continue;
+      memset(&out[n], 0, sizeof(out[n]));
+      copyStr(out[n].dest, e.dest, sizeof(out[n].dest));
+      copyStr(out[n].platform, e.platform, sizeof(out[n].platform));
+      n++;
+    }
+    DirGroup& gr = out[g];
+    if (gr.n < DIR_TIMES) {
+      gr.when[gr.n] = e.when;
+      gr.flags[gr.n] = e.flags;
+      gr.n++;
+    }
+  }
+  // Tri par destination (sans accents) : ordre stable d'une mise à jour à l'autre.
+  // (Le sens « Aller / Retour » n'est pas fiable sur le RER : l'appelant peut
+  // ensuite ranger les destinations selon leur place sur la ligne.)
+  for (int a = 0; a < n; a++)
+    for (int b = a + 1; b < n; b++) {
+      char da[TXT_LEN * 2], db[TXT_LEN * 2];
+      normalizeAscii(out[a].dest, da, sizeof(da));
+      normalizeAscii(out[b].dest, db, sizeof(db));
+      if (strcmp(da, db) > 0) {
+        DirGroup tmp = out[a];
+        out[a] = out[b];
+        out[b] = tmp;
+      }
+    }
+  return n;
+}

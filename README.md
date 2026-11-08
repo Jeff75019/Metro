@@ -1,14 +1,17 @@
 # Afficheur Métro
 
-Un petit afficheur de poche avec deux programmes :
+Un petit afficheur de poche, qui se commande au doigt :
 
-- **Métro · RER · Tram** : l'attente des **deux prochains passages** à vos arrêts en Île-de-France, comme les écrans des quais ;
-- **Trains grandes lignes** : les **départs et arrivées** des gares SNCF (toutes les gares de Paris, et d'autres au choix), comme les tableaux des gares.
+- **Métro · RER · Tram** : on choisit sur l'écran la ligne, puis la station, et l'afficheur donne l'attente des **prochains passages dans chaque sens**, comme les écrans des quais. Toutes les lignes de métro, de RER et de tramway d'Île-de-France sont intégrées, stations dans l'ordre de la ligne ;
+- **Trains SNCF** : on choisit une grande gare (Paris et 138 autres) et l'afficheur donne ses **départs et arrivées**, comme les tableaux des gares ;
+- **Mes arrêts / Mes gares** : des favoris réglés depuis le téléphone, pour y accéder en un geste.
 
-On passe de l'un à l'autre en glissant le doigt vers le haut ou le bas.
+Une flèche « ‹ » (ou glisser vers la droite) ramène à l'étape précédente, jusqu'à l'accueil où l'on change de réseau.
 
 Matériel : **Waveshare ESP32-S3-Touch-LCD-1.9** (écran tactile 1,9" 170×320) et une batterie LiPo.
 Données : **API PRIM d'Île-de-France Mobilités** (gratuite, clé personnelle) pour le métro, et **données SNCF diffusées par [Train Nomade](https://trainnomade.fr/api)** (gratuites, **sans clé**) pour les trains. L'API SNCF officielle reste utilisable en option.
+
+![Choix sur l'écran tactile : accueil, lignes, stations, passages, gares](docs/choix.png)
 
 ![Aperçu des écrans](docs/apercu.png)
 
@@ -22,6 +25,7 @@ La configuration se fait depuis le téléphone :
 
 ## Fonctionnalités
 
+- **Choix libre sur l'écran** : accueil → Métro, RER ou Tram → ligne (pastilles aux couleurs officielles) → station (liste dans l'ordre de la ligne, avec le tracé, les terminus et les branches) → prochains passages dans chaque sens (« puis 7 et 12 min »). Trains SNCF → initiale → gare → départs / arrivées.
 - Deux prochains passages avec destination et attente en minutes, rafraîchis automatiquement.
 - Mentions « À quai », « À l'approche » (clignotant), « Supprimé », « Retardé », voie (RER), « Horaire théorique » quand l'info n'est pas en temps réel.
 - Pictogrammes de lignes aux couleurs officielles (métro, RER, Transilien, tram) ; bus et autres lignes acceptés.
@@ -84,7 +88,14 @@ Par défaut, les départs et arrivées viennent de **[Train Nomade](https://trai
 
 ### Sans rien installer : binaire précompilé
 
-Si vous avez le fichier `metro-merged.bin` (image complète : chargeur de démarrage + table de partitions + programme) :
+**Mise à jour d'un afficheur déjà installé** (réglages conservés) : le dossier [`firmware/`](firmware/) contient le programme compilé avec TLS 1.3 (nécessaire pour PRIM, voir « État et limites »).
+
+1. Téléchargez `firmware/metro-1.2.0-tls13-0x10000.bin` (bouton « Download raw file » sur GitHub).
+2. Ouvrez [espressif.github.io/esptool-js](https://espressif.github.io/esptool-js/) dans Chrome ou Edge, branchez la carte, **Connect**.
+3. Adresse **0x10000** (pas 0x0), choisissez le fichier, **Program** — sans « Erase Flash », qui effacerait les réglages.
+4. Appuyez sur **RESET**.
+
+**Installation complète** : si vous avez le fichier `metro-merged.bin` (image complète : chargeur de démarrage + table de partitions + programme) :
 
 1. Ouvrez [espressif.github.io/esptool-js](https://espressif.github.io/esptool-js/) dans Chrome ou Edge.
 2. Branchez la carte, cliquez sur **Connect** et choisissez le port USB (si rien n'apparaît : maintenez **BOOT**, appuyez sur **RESET**, relâchez BOOT).
@@ -110,14 +121,14 @@ Au premier démarrage, l'écran affiche un **QR code** et le nom d'un WiFi « Me
 
 1. Scannez le QR code avec l'appareil photo du téléphone (ou rejoignez « Metro-XXXX » à la main). La page de configuration s'ouvre ; sinon, allez sur **http://192.168.4.1**.
 2. **WiFi** : « Rechercher les réseaux », choisissez le vôtre, entrez le mot de passe, « Ajouter et se connecter ». Attendez « Connecté et enregistré ✓ » : le réseau est enregistré dès que la connexion réussit. L'écran de l'afficheur indique aussi le résultat (« WiFi : mot de passe refusé »…). Si le téléphone perd la page à ce moment (l'afficheur change de canal pour rejoindre la box), reconnectez-le à « Metro-XXXX », ou ouvrez l'adresse **http://192.168.…** affichée sur l'écran depuis le WiFi de la maison.
-3. **Clé API PRIM** : collez votre jeton.
-4. **Mes arrêts** : tapez un nom de station (« Bastille ») : la liste des arrêts apparaît au bout d'une seconde (la recherche passe par l'afficheur, qui doit donc être connecté au WiFi : étape 1). Touchez l'arrêt, puis la ligne et, si vous voulez, les destinations à afficher, puis « Ajouter » : l'arrêt est enregistré aussitôt. Répétez pour 4 arrêts au plus.
+3. **Clé API PRIM** : collez votre jeton (nécessaire pour le métro, le RER et le tram ; pas pour les trains SNCF).
+4. **Mes arrêts** (facultatif : toutes les lignes et stations se choisissent aussi sur l'afficheur) : tapez un nom de station (« Bastille ») : la liste des arrêts apparaît au bout d'une seconde (la recherche passe par l'afficheur, qui doit donc être connecté au WiFi : étape 1). Touchez l'arrêt, puis la ligne et, si vous voulez, les destinations à afficher, puis « Ajouter » : l'arrêt est enregistré aussitôt. Répétez pour 4 arrêts au plus.
    Pour un RER à plusieurs branches, cochez toutes les destinations d'un même sens (ex. RER A vers l'est : Marne-la-Vallée Chessy, Torcy, Boissy-Saint-Léger) : les données « Aller / Retour » du RER ne sont pas fiables.
    Les bus et Noctiliens sont reconnus : leur numéro et leur couleur viennent du référentiel des lignes IDFM.
 5. **Trains grandes lignes** (facultatif) : cochez les gares de Paris voulues ; « Autre gare » permet d'en ajouter d'autres par leur nom (recherche dans l'open data SNCF, sans clé). Rien d'autre à faire avec la source Train Nomade.
 6. **Enregistrer et redémarrer**.
 
-Il suffit de configurer l'un des deux programmes (métro ou trains) pour que l'afficheur démarre.
+Le WiFi suffit pour que l'afficheur démarre : le reste se choisit sur l'écran.
 
 ![Configuration des trains](docs/configuration-trains.png)
 
@@ -130,15 +141,19 @@ Pour revenir plus tard à la configuration : **appui long (3 s) sur l'écran** o
 
 | Geste | Effet |
 |---|---|
-| Glisser vers le haut / le bas | Changer de programme : Métro ↔ Trains |
-| Glisser vers la gauche / la droite | Arrêt favori, ou gare, suivant / précédent |
-| Toucher l'écran | Métro : changer de sens (si l'arrêt en a plusieurs), sinon actualiser · Trains : Départs ↔ Arrivées |
+| Toucher une case, une ligne, une station, une gare | La choisir |
+| Toucher la flèche « ‹ » en haut à gauche, ou glisser vers la droite | Retour à l'étape précédente (jusqu'à l'accueil) |
+| Glisser vers le haut / le bas | Listes de stations et de gares : faire défiler · ailleurs : retour à l'accueil |
+| Toucher l'écran des passages | Destinations suivantes (« sens 1/3 »), sinon actualiser |
+| Toucher le tableau d'une gare | Départs ↔ Arrivées |
+| Glisser vers la gauche / la droite (Mes arrêts, Mes gares) | Favori suivant / précédent |
 | Appui long sur l'écran (3 s) | Mode configuration |
 | Bouton BOOT (appui court) | Réveiller / mettre en veille |
 | Bouton BOOT maintenu 3 s | Mode configuration (ou en sortir) |
 
-Métro : le pied d'écran indique l'âge des données (« Il y a 12 s »), le sens affiché (« sens 1/2 ») et l'arrêt courant (points).
-Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille à côté de l'heure est verte quand le tableau est à jour, et les points en bas indiquent la gare affichée. L'afficheur se rallume sur le dernier programme utilisé.
+Passages : les destinations sont rangées d'un bout à l'autre de la ligne (deux par écran) ; sous chacune, les passages suivants. Le pied d'écran indique l'âge des données (« Il y a 12 s ») et la page de destinations (« sens 1/3 »).
+Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille à côté de l'heure est verte quand le tableau est à jour. Les gares de Paris sont regroupées sous « Paris », les autres par initiale.
+Au réveil, l'afficheur reprend l'écran laissé (la station ou la gare choisie, avec ses derniers horaires pendant la reconnexion).
 
 ### Modes de veille (page de configuration)
 
@@ -185,6 +200,9 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── prim.h/.cpp         requêtes PRIM, recherche d'arrêts (open data IDFM)
 ├── sncf.h/.cpp         décodage des tableaux de gare (Train Nomade et API SNCF), horaires prévus
 ├── sncf_stations.h     les 145 grandes gares dont les horaires prévus sont publiés
+├── network.h/.cpp      réseau embarqué : lignes, stations dans l'ordre, gares (choix sur l'écran)
+├── network_data.h      36 lignes, 940 stations (généré par tools/make_network.py)
+├── sncf_list_data.h    gares proposées sur l'écran (généré par tools/make_sncf_list.py)
 ├── sncf_api.h/.cpp     requêtes Train Nomade / API SNCF, recherche de gares (open data SNCF)
 ├── net.h/.cpp          HTTPS, quotas d'appels quotidiens, réglage de l'horloge
 ├── ui.h/.cpp           dessin des écrans (tampon mémoire, sans scintillement)
@@ -194,6 +212,8 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── portal_html.h       la page de configuration
 └── fonts_metro.h       polices générées (ne pas modifier à la main)
 tools/make_fonts.py     génère fonts_metro.h à partir de tools/fonts/
+tools/make_network.py   génère network_data.h (open data IDFM : gares et tracés des lignes)
+tools/make_sncf_list.py génère sncf_list_data.h
 tools/portal_preview.py aperçu de la page de configuration sur PC (données fictives)
 tools/idf-build/        compilation de vérification avec ESP-IDF
 test/                   tests sur PC (décodage + rendu des écrans en images)
@@ -230,9 +250,12 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 
 - Le décodage PRIM et SNCF (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC.
 - L'**API PRIM réelle** a été interrogée le 8 novembre 2026 (La Défense, Bastille) : réponses correctement décodées ; une vraie réponse sert désormais de donnée de test (`test/data/prim_ladefense_reel.json`). La recherche d'arrêts et le référentiel des lignes de l'open data IDFM ont aussi été vérifiés.
-- Le firmware complet **compile sans erreur ni avertissement** (`-Wall -Wextra`) pour l'ESP32-S3 avec ESP-IDF 5.5.6 + cœur Arduino 3.3.12 + LovyanGFX 1.2.36 + ArduinoJson 7.4.3 (binaire d'environ 1,7 Mo, un peu plus de la moitié de la partition). Il **n'a pas encore été essayé sur la carte** : au premier essai, regardez le moniteur série et signalez les erreurs.
+- Le firmware complet **compile sans erreur ni avertissement** (`-Wall -Wextra`) pour l'ESP32-S3 avec ESP-IDF 5.5.6 + cœur Arduino 3.3.12 + LovyanGFX 1.2.36 + ArduinoJson 7.4.3 (binaire d'environ 1,8 Mo, 58 % de la partition de 3 Mo). Il démarre sur la carte (WiFi, page de configuration et recherche d'arrêts essayés) ; au moindre souci, regardez le moniteur série et signalez les erreurs.
 - **Train Nomade** a été interrogé en vrai le 8 novembre 2026 (Gare de Lyon, Gare du Nord, horaires prévus, recherche de gares dans l'open data SNCF) : réponses correctement décodées, vraies réponses gardées comme données de test. C'est un service indépendant et gratuit, sans garantie de disponibilité ; l'affichage en gare fait foi.
 - L'**API SNCF officielle** n'a pas pu être essayée (pas de clé valide) : ses données de test sont reconstituées d'après sa documentation (format Navitia) et des clients existants.
+- Le **choix sur l'écran tactile** (zones de toucher) a été vérifié sur les rendus PC, pas encore sur la carte : si un toucher choisit la mauvaise case, le moniteur série affiche ses coordonnées (« Toucher (x, y) »).
+- L'**ordre des stations** est reconstitué à partir des tracés de l'open data IDFM ; quelques lignes à boucle ou à branches (10, RER C et D) gardent un ordre approximatif. Pour mettre à jour la liste des lignes et des stations : `python3 tools/make_network.py`.
+- **PRIM est désormais servi par Cloudflare** et refuse la connexion du cœur Arduino précompilé (« TLS refusé (-0x7780) ») : il faut un firmware compilé avec TLS 1.3. Le binaire `firmware/metro-…-tls13-0x10000.bin` (compilé avec `tools/idf-build`) se flashe à l'adresse 0x10000 avec [esptool-js](https://espressif.github.io/esptool-js/), sans effacer les réglages.
 - Le **réveil par secousse** est expérimental : la séquence de l'IMU vient de notes de la communauté, et la broche d'interruption n'est pas confirmée. Si l'afficheur se réveille tout seul dans une poche, il suspend ce réveil 30 minutes après 3 réveils sans utilisation.
 - Le sens d'affichage (paysage, USB à gauche ou à droite) dépend du montage : utilisez l'option « Retourner l'écran ».
 - Les connexions HTTPS vérifient les certificats avec le magasin intégré au cœur ESP32 (versions 3.3.x). Si la connexion échoue, l'afficheur refait un essai sans vérification pour ne pas rester bloqué.
