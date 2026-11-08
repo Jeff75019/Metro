@@ -5,6 +5,7 @@
 #include <ESPmDNS.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <esp_heap_caps.h>
 
 #include "board.h"
 #include "lines.h"
@@ -250,6 +251,8 @@ static void handleStatus() {
   d["sncfUsed"] = quotaUsed(Api::Sncf);
   d["sncfQuota"] = settings.sncfQuota;
   d["version"] = FW_VERSION;
+  d["psram"] = ESP.getPsramSize();  // 0 : PSRAM non activée dans l'IDE
+  d["heap"] = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
   String out;
   serializeJson(d, out);
   sendJson(200, out);

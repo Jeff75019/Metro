@@ -6,6 +6,9 @@
 #include <NetworkClientSecure.h>
 #include <Preferences.h>
 #include <esp_attr.h>
+#include <esp_heap_caps.h>
+#include <mbedtls/ssl.h>
+#include <psa/crypto.h>
 #include <sys/time.h>
 #include <time.h>
 
@@ -42,11 +45,50 @@ String urlEncode(const String& s, bool keepColon) {
   return o;
 }
 
+// Cause précise du dernier échec réseau (DNS, serveur injoignable, TLS refusé…)
+static char netDetail[80];
+
+static String urlHost(const String& url) {
+  int s = url.indexOf("://");
+  s = s < 0 ? 0 : s + 3;
+  int e = url.indexOf('/', s);
+  String h = url.substring(s, e < 0 ? url.length() : e);
+  const int c = h.indexOf(':');
+  return c < 0 ? h : h.substring(0, c);
+}
+
+static void explainFailure(NetworkClientSecure& client, int code, const String& url) {
+  const String host = urlHost(url);
+  char tls[80] = "";
+  const int e = client.lastError(tls, sizeof(tls));
+  const unsigned heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  const unsigned block = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  IPAddress ip;
+  if (code != HTTPC_ERROR_CONNECTION_REFUSED)
+    snprintf(netDetail, sizeof(netDetail), "%s (%s)", HTTPClient::errorToString(code).c_str(), host.c_str());
+  else if (!WiFi.hostByName(host.c_str(), ip))
+    snprintf(netDetail, sizeof(netDetail), "adresse de %s introuvable (DNS)", host.c_str());
+  else if (e == MBEDTLS_ERR_SSL_ALLOC_FAILED || strstr(tls, "allocation"))
+    snprintf(netDetail, sizeof(netDetail), "mémoire insuffisante pour HTTPS (PSRAM activée ?)");
+  else if (e < -0x1000)
+    snprintf(netDetail, sizeof(netDetail), "TLS refusé par %s (-0x%04X)", host.c_str(), (unsigned)-e);
+  else
+    snprintf(netDetail, sizeof(netDetail), "%s injoignable", host.c_str());
+  log_w("HTTPS %s : échec %d, TLS %d (%s), RAM interne libre %u o (bloc %u o)", host.c_str(), code, e, tls, heap,
+        block);
+}
+
+const char* httpLastError() { return netDetail; }
+
 int httpGet(const String& url, const HttpAuth& auth, String& body) {
+  static bool psaReady = false;  // TLS 1.3 (si le cœur l'inclut) a besoin de PSA Crypto
+  if (!psaReady) psaReady = psa_crypto_init() == PSA_SUCCESS;
+  netDetail[0] = 0;
   for (int attempt = 0; attempt < 2; attempt++) {
     NetworkClientSecure client;
     if (attempt == 0) tlsSetup(client, 0);
     else client.setInsecure();
+    client.setHandshakeTimeout(15);  // secondes (2 min par défaut)
     HTTPClient http;
     http.setConnectTimeout(8000);
     http.setTimeout(12000);
@@ -63,6 +105,7 @@ int httpGet(const String& url, const HttpAuth& auth, String& body) {
       http.end();
       return code;
     }
+    explainFailure(client, code, url);
     http.end();
     // Échec de connexion (souvent la négociation TLS) : un second essai sans
     // vérification de certificat, pour ne pas bloquer l'afficheur.
@@ -77,6 +120,7 @@ void describeHttp(int code, const char* who, char* msg, size_t n) {
   else if (code == 404) snprintf(msg, n, "Arrêt ou gare introuvable (404)");
   else if (code == 429) snprintf(msg, n, "Quota %s dépassé (429)", who);
   else if (code >= 500) snprintf(msg, n, "Serveur %s indisponible (%d)", who, code);
+  else if (code < 0 && netDetail[0]) snprintf(msg, n, "Réseau : %s", netDetail);
   else if (code < 0) snprintf(msg, n, "Réseau : %s", HTTPClient::errorToString(code).c_str());
   else snprintf(msg, n, "Erreur HTTP %d", code);
 }

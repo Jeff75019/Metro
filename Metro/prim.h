@@ -9,7 +9,7 @@
 struct FetchResult {
   int http;          // code HTTP (ou < 0 : erreur réseau)
   bool ok;           // données valides dans StopData
-  char msg[64];      // message d'erreur lisible (vide si ok)
+  char msg[96];      // message d'erreur lisible (vide si ok)
 };
 
 // Prochains passages pour un favori. Met l'horloge à l'heure du serveur si

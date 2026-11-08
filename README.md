@@ -163,6 +163,8 @@ Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille �
 | RER : « sens 1/2 » mélange des trains vers l'est et l'ouest | Dans la configuration, choisissez les destinations d'un même sens |
 | « WiFi : réseau introuvable » / réseau absent de la liste | La carte ne capte que le WiFi 2,4 GHz : vérifiez que cette bande est active sur la box. Partage de connexion d'iPhone : activez « Maximiser la compatibilité » |
 | Recherche d'arrêts : « L'afficheur ne répond pas » | Le téléphone a quitté le réseau « Metro-XXXX » (il préfère souvent un WiFi avec Internet) : reconnectez-le, ou ouvrez l'adresse http://192.168.… affichée sur l'écran depuis le WiFi de la maison |
+| « Réseau : TLS refusé par prim.iledefrance-mobilites.fr (-0x…) » | PRIM est servi par Cloudflare ; le cœur Arduino précompilé ne gère que TLS 1.2. Flashez le binaire compilé avec TLS 1.3 (`tools/idf-build`, à l'adresse 0x10000 : les réglages sont conservés) |
+| « Réseau : mémoire insuffisante pour HTTPS » ou étiquette rouge « PSRAM désactivée » | **Outils → PSRAM → OPI PSRAM**, puis téléverser à nouveau |
 | Recherche d'arrêts : « Réseau : … » | L'afficheur n'arrive pas à joindre l'open data IDFM : regardez le moniteur série (ligne « Recherche d'arrêts ») |
 | « WiFi : mot de passe refusé » | Cochez « Afficher le mot de passe » pour le vérifier (majuscules, chiffres et symboles comptent) |
 | « WiFi : sécurité non gérée » | Réseau d'entreprise (identifiant + mot de passe) ou WEP : non gérés ; utilisez le WPA2 ou le WPA3 personnel |

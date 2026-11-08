@@ -187,7 +187,7 @@ static int garesSearchJson(const String& query, String& out) {
   String body;
   int code = httpGet(String(GARES_SEARCH) + urlEncode("\"" + q + "\"", false), HttpAuth(), body);
   if (code != 200) {
-    char msg[64];
+    char msg[128];
     describeHttp(code, "open data SNCF", msg, sizeof(msg));
     res["error"] = msg;
     serializeJson(res, out);
@@ -213,7 +213,7 @@ int sncfSearchJson(const String& query, bool useSncfApi, const char* key, String
   int code = httpGet(String(SNCF_API) + "places?type%5B%5D=stop_area&count=12&q=" + urlEncode(query, false),
                      sncfAuth(key), body);
   if (code != 200) {
-    char msg[64];
+    char msg[128];
     describeHttp(code, "SNCF", msg, sizeof(msg));
     res["error"] = msg;
     serializeJson(res, out);

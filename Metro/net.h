@@ -13,6 +13,11 @@ struct HttpAuth {
 // GET en HTTPS. Renvoie le code HTTP (ou < 0 : erreur réseau) et le corps de la réponse.
 int httpGet(const String& url, const HttpAuth& auth, String& body);
 
+// Cause précise du dernier échec réseau de httpGet ("" si aucun) : DNS, serveur
+// injoignable, TLS refusé (code mbedTLS), mémoire insuffisante. Détail complet
+// dans le journal série.
+const char* httpLastError();
+
 String urlEncode(const String& s, bool keepColon);
 
 // Message lisible pour un code HTTP (who = "PRIM" ou "SNCF")

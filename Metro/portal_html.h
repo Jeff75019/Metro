@@ -160,7 +160,7 @@ T.append(h('span',{class:'tag'},h('span',{class:'dot '+(s.sta?'ok':'err')}),s.st
 T.append(h('span',{class:'tag'},'Batterie ',h('b',{},s.battery+' %')));
 T.append(h('span',{class:'tag'},'Appels PRIM ',h('b',{},s.quotaUsed+' / '+s.quota)));
 if(C.sncfKeySet||s.sncfUsed)T.append(h('span',{class:'tag'},'Appels SNCF ',h('b',{},s.sncfUsed+' / '+s.sncfQuota)));
-T.append(h('span',{class:'tag'},'v'+s.version));$('n1').classList.toggle('done',!!s.sta);return s}
+T.append(h('span',{class:'tag'},'v'+s.version));if(s.psram===0)T.append(h('span',{class:'tag',style:'color:var(--err);border-color:var(--err)'},'PSRAM désactivée : Outils → PSRAM → OPI PSRAM, puis téléverser'));$('n1').classList.toggle('done',!!s.sta);return s}
 function renderW(){const L=$('wl');L.innerHTML='';C.wifi.forEach((w,i)=>L.append(h('div',{class:'item'},h('span',{html:wifiIcon(-50)}),h('div',{class:'grow'},h('div',{class:'name'},w.ssid),h('div',{class:'meta'},w.pass?'Nouveau mot de passe':(w.hasPass?'Mot de passe enregistré':'Réseau ouvert'))),
 h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.wifi.splice(i,1);renderW()}}))));if(!C.wifi.length)L.append(h('div',{class:'empty'},'Aucun réseau enregistré pour l\'instant.'))}
 function renderF(){const L=$('fl');L.innerHTML='';C.favorites.forEach((f,i)=>{const li=f._line||{name:f.badge||f.line||'Tout',mode:'bus'};

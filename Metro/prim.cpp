@@ -63,7 +63,7 @@ int primLinesJson(const String& stopRef, const char* apiKey, String& out) {
   quotaCount(Api::Prim);
   int code = httpGet(stopMonitoringUrl(ref.c_str(), nullptr), primAuth(apiKey), body);
   if (code != 200) {
-    char msg[64];
+    char msg[128];
     describeHttp(code, "PRIM", msg, sizeof(msg));
     doc["error"] = msg;
     serializeJson(doc, out);
@@ -138,7 +138,7 @@ int searchStopsJson(const String& query, String& out) {
         (unsigned long)(millis() - t0));
   JsonDocument res;
   if (code != 200) {
-    char msg[64];
+    char msg[128];
     describeHttp(code, "open data IDFM", msg, sizeof(msg));
     res["error"] = msg;
     serializeJson(res, out);
