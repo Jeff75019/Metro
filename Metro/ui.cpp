@@ -806,10 +806,39 @@ int uiHitHub(int count, int x, int y) {
   return -1;
 }
 
+// Couleurs de chaque case de l'accueil : teinte du fond, bandeau des lignes
+static const uint32_t RER_COLORS[] = {0xEB2132, 0x5091CB, 0xFFCC30, 0x008B5B, 0xB94E9A};
+static const uint32_t TRAM_COLORS[] = {0x0055C8, 0xA0006E, 0xFF5A00, 0x00643C, 0xDC9600, 0x640082, 0xFF0000,
+                                       0x6E491E, 0x6E6E00, 0x3C91DC, 0xA50034, 0x8D653D, 0x00A092};
+static const uint32_t TRAIN_COLORS[] = {0xA3195B, 0xE2007A, 0xC8102E, 0x1F7DC4, 0x4A6283};
+static const uint32_t MYSTATION_COLORS[] = {0x1A4CA8, 0x0E7A4B};
+
+static uint32_t tileAccent(TileKind k) {
+  switch (k) {
+    case TileKind::Metro: return 0xFFBE00;
+    case TileKind::Rer: return 0xEB2132;
+    case TileKind::Tram: return 0x00A092;
+    case TileKind::Trains: return 0x1F7DC4;
+    case TileKind::MyStops: return 0xA0006E;
+    default: return 0x2E9E5B;
+  }
+}
+
+// Bandeau de couleurs de lignes (bas d'une case)
+static void colorBar(int x, int y, int w, int h, const uint32_t* c, int n) {
+  if (n <= 0) return;
+  const int gap = n > 8 ? 1 : 2;
+  for (int i = 0; i < n; i++) {
+    const int x0 = x + (w + gap) * i / n, x1 = x + (w + gap) * (i + 1) / n - gap;
+    if (x1 > x0) canvas.fillSmoothRoundRect(x0, y, x1 - x0, h, h / 2, rgb(c[i]));
+  }
+}
+
 void uiDrawHub(const HubUi& s) {
   canvas.fillScreen(BG);
   int x, right;
   exHeader(false, s.now, s.battery, &x, &right);
+  drawSignature(E_HEADER - 1, 3);  // liseré aux couleurs du métro sous l'en-tête
   canvas.fillSmoothCircle(x + 11, E_HEADER / 2, 11, TEXT);
   text("M", x + 11, E_HEADER / 2 + 1, &fSmall, BG, lgfx::middle_center);
   x += 30;
@@ -818,8 +847,25 @@ void uiDrawHub(const HubUi& s) {
   for (int i = 0; i < s.count; i++) {
     int cx, cy, w, h;
     hubCell(s.count, i, &cx, &cy, &w, &h);
-    canvas.fillSmoothRoundRect(cx, cy, w, h, 10, rgb(C_CARD));
-    const int ix = cx + w / 2, iy = cy + h / 2 - 9;
+    const HubTile& t = s.tiles[i];
+    const uint32_t accent = tileAccent(t.kind);
+    canvas.fillSmoothRoundRect(cx, cy, w, h, 10, rgb(mix(C_BG, accent, 78)));
+    canvas.drawRoundRect(cx, cy, w, h, 10, rgb(mix(C_BG, accent, 120)));
+    // Bandeau des couleurs du réseau (ou des favoris)
+    const uint32_t* bar = t.colors;
+    int nb = t.ncolors;
+    if (!bar || !nb) {
+      switch (t.kind) {
+        case TileKind::Metro: bar = METRO_COLORS; nb = sizeof(METRO_COLORS) / sizeof(METRO_COLORS[0]); break;
+        case TileKind::Rer: bar = RER_COLORS; nb = 5; break;
+        case TileKind::Tram: bar = TRAM_COLORS; nb = sizeof(TRAM_COLORS) / sizeof(TRAM_COLORS[0]); break;
+        case TileKind::Trains: bar = TRAIN_COLORS; nb = 5; break;
+        case TileKind::MyStations: bar = MYSTATION_COLORS; nb = 2; break;
+        default: bar = &accent; nb = 1; break;
+      }
+    }
+    colorBar(cx + 10, cy + h - 9, w - 20, 4, bar, nb);
+    const int ix = cx + w / 2, iy = cy + 17;
     switch (s.tiles[i].kind) {
       case TileKind::Metro:
         canvas.fillSmoothCircle(ix, iy, 13, TEXT);
@@ -843,8 +889,8 @@ void uiDrawHub(const HubUi& s) {
         break;
     }
     char buf[32];
-    fitText(buf, sizeof(buf), s.tiles[i].label, w - 8, &fSmall);
-    text(buf, ix, cy + h - 13, &fSmall, TEXT, lgfx::middle_center);
+    fitText(buf, sizeof(buf), t.label, w - 8, &fSmall);
+    text(buf, ix, cy + 37, &fSmall, TEXT, lgfx::middle_center);
   }
   present();
 }

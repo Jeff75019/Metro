@@ -56,6 +56,8 @@ enum class TileKind : uint8_t { Metro, Rer, Tram, Trains, MyStops, MyStations };
 struct HubTile {
   TileKind kind;
   const char* label;
+  const uint32_t* colors;  // bandeau de couleurs (nullptr : celles du réseau)
+  uint8_t ncolors;
 };
 struct HubUi {
   const HubTile* tiles;

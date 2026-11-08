@@ -284,12 +284,18 @@ static uint16_t exKey() { return (uint16_t)(ex.line << 8 | ex.stop); }
 
 static void buildHub() {
   hubCount = 0;
-  hubTiles[hubCount++] = {TileKind::Metro, "Métro"};
-  hubTiles[hubCount++] = {TileKind::Rer, "RER"};
-  hubTiles[hubCount++] = {TileKind::Tram, "Tram"};
-  hubTiles[hubCount++] = {TileKind::Trains, "Trains SNCF"};
-  if (metroReady()) hubTiles[hubCount++] = {TileKind::MyStops, "Mes arrêts"};
-  if (trainsReady()) hubTiles[hubCount++] = {TileKind::MyStations, "Mes gares"};
+  static uint32_t favColors[MAX_FAVORITES];  // couleurs des lignes des favoris
+  uint8_t nfav = 0;
+  for (int i = 0; i < settings.favCount && nfav < MAX_FAVORITES; i++) {
+    const LineInfo* li = findLine(settings.fav[i].line);
+    favColors[nfav++] = li ? li->color : (settings.fav[i].badge[0] ? settings.fav[i].color : 0x5A6E8C);
+  }
+  hubTiles[hubCount++] = {TileKind::Metro, "Métro", nullptr, 0};
+  hubTiles[hubCount++] = {TileKind::Rer, "RER", nullptr, 0};
+  hubTiles[hubCount++] = {TileKind::Tram, "Tram", nullptr, 0};
+  hubTiles[hubCount++] = {TileKind::Trains, "Trains SNCF", nullptr, 0};
+  if (metroReady()) hubTiles[hubCount++] = {TileKind::MyStops, "Mes arrêts", favColors, nfav};
+  if (trainsReady()) hubTiles[hubCount++] = {TileKind::MyStations, "Mes gares", nullptr, 0};
 }
 
 static void loadLines() {

@@ -270,9 +270,10 @@ int main() {
 
   // ===== Choix libre sur l'écran tactile =====
   // 20) Accueil
-  HubTile tiles[] = {{TileKind::Metro, "Métro"},         {TileKind::Rer, "RER"},
-                     {TileKind::Tram, "Tram"},           {TileKind::Trains, "Trains SNCF"},
-                     {TileKind::MyStops, "Mes arrêts"},  {TileKind::MyStations, "Mes gares"}};
+  static const uint32_t favCols[] = {0xFFBE00, 0xEB2132, 0x82C8E6};
+  HubTile tiles[] = {{TileKind::Metro, "Métro", nullptr, 0},         {TileKind::Rer, "RER", nullptr, 0},
+                     {TileKind::Tram, "Tram", nullptr, 0},           {TileKind::Trains, "Trains SNCF", nullptr, 0},
+                     {TileKind::MyStops, "Mes arrêts", favCols, 3},  {TileKind::MyStations, "Mes gares", nullptr, 0}};
   HubUi hu;
   memset(&hu, 0, sizeof(hu));
   hu.tiles = tiles;
