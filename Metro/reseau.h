@@ -19,12 +19,14 @@ struct NetStop {
   uint16_t name;   // position du nom dans la table des noms
   uint8_t flags;
   int16_t pos;     // place le long de la ligne (sert à ranger les destinations)
+  uint16_t year;   // 0 : en service ; sinon année d'ouverture prévue (zda 0 : pas encore référencée)
 };
 
 struct NetLine {
   const char* id;  // identifiant IDFM, ex. "C01371"
   uint16_t first;  // première station dans la table
   uint8_t count;   // nombre de stations
+  uint16_t year;   // 0 : en service ; sinon ligne en construction, ouverture prévue cette année
 };
 
 struct SncfPick {

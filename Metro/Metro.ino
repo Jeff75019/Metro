@@ -254,7 +254,7 @@ static void drawMyStops() {
 // ---- Choix libre : accueil, lignes, stations, passages, gares ------------------
 static const LineMode EX_MODES[3] = {LineMode::Metro, LineMode::Rer, LineMode::Tram};
 static const char* const EX_TITLES[3] = {"Métro", "RER", "Tramway"};
-static const int EX_COLS[3] = {8, 5, 5};
+static const int EX_COLS[3] = {7, 5, 5};
 static const char* const TN_CREDIT = "Données SNCF (ODbL) via Train Nomade";
 
 static HubTile hubTiles[6];
@@ -302,6 +302,13 @@ static void loadGares() { exGareCount = sncfGroupStations(ex.group, exGares, 48)
 static const char* stopNameCb(int i, void*) { return netStopName(ex.line, i); }
 static uint8_t stopFlagsCb(int i, void*) { return i < netLine(ex.line).count ? netStop(ex.line, i).flags : 0; }
 static const char* gareNameCb(int i, void*) { return sncfPick(exGares[i]).name; }
+static const char* stopNoteCb(int i, void*) {  // année d'ouverture des stations en construction
+  static char y[8];
+  const uint16_t year = i < netLine(ex.line).count ? netStop(ex.line, i).year : 0;
+  if (!year) return nullptr;
+  snprintf(y, sizeof(y), "%u", (unsigned)year);
+  return y;
+}
 
 static void drawHub() {
   buildHub();
@@ -320,7 +327,7 @@ static void drawLines() {
   for (int i = 0; i < exLineCount; i++) {
     const LineInfo* li = netLineInfo(exLines[i]);
     exItems[i] = {li ? li->name : "?", EX_MODES[ex.mode], li ? li->color : 0x5A6E8C, li ? li->textColor : 0xFFFFFF,
-                  true};
+                  true, netLine(exLines[i]).year != 0};
   }
   GridUi g;
   memset(&g, 0, sizeof(g));
@@ -348,6 +355,7 @@ static void drawStops() {
   l.highlight = ex.stop < l.count ? ex.stop : -1;
   l.name = stopNameCb;
   l.flags = stopFlagsCb;
+  l.note = stopNoteCb;
   l.battery = battPct;
   uiDrawList(l);
 }
@@ -429,6 +437,22 @@ static void drawStop() {
   s.busy = busy;
   s.status = lastErr[0] ? lastErr : nullptr;
   s.ageS = exStopValid ? (int)(s.now - exStop.fetchedAt) : -1;
+  // Lignes en construction
+  static char openText[48];
+  const NetStop& ns = netStop(ex.line, ex.stop);
+  const uint16_t lineYear = netLine(ex.line).year;
+  if (ns.zda == 0) {  // station pas encore référencée : rien à demander
+    snprintf(openText, sizeof(openText), "Ouverture prévue en %u", (unsigned)(ns.year ? ns.year : lineYear));
+    s.view = nullptr;
+    s.hasData = true;
+    s.status = nullptr;
+    s.ageS = -1;
+    s.emptyTitle = "Pas encore en service";
+    s.emptySub = openText;
+  } else if (lineYear) {
+    snprintf(openText, sizeof(openText), "Ouverture de la ligne prévue en %u", (unsigned)lineYear);
+    s.emptySub = openText;
+  }
   uiDrawMain(s);
 }
 
@@ -441,7 +465,7 @@ static void drawGroups() {
       exGroupLabels[i][1] = 0;
       lab = exGroupLabels[i];
     }
-    exItems[i] = {lab, LineMode::Train, 0, 0, false};
+    exItems[i] = {lab, LineMode::Train, 0, 0, false, false};
   }
   GridUi g;
   memset(&g, 0, sizeof(g));
@@ -619,6 +643,7 @@ static void maybeFetchTrains() {
 // Station choisie sur l'écran : une requête PRIM (arrêt + ligne) par mise à jour
 static void maybeFetchExStop() {
   if (!screenOn || net != NetState::Online || busy) return;
+  if (netStop(ex.line, ex.stop).zda == 0) return;  // station pas encore en service
   if (!settings.apiKey[0]) {
     copyStr(lastErr, "Clé API PRIM manquante : appui long 3 s pour la configuration", sizeof(lastErr));
     return;

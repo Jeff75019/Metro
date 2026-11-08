@@ -21,6 +21,10 @@ static const LineInfo LINES[] = {
     {"C01382", "12", LineMode::Metro, 0x00643C, 0xFFFFFF},
     {"C01383", "13", LineMode::Metro, 0x82C8E6, 0x000000},
     {"C01384", "14", LineMode::Metro, 0x640082, 0xFFFFFF},
+    // Grand Paris Express, en construction (16 et 17 : identifiants provisoires)
+    {"M16", "16", LineMode::Metro, 0xFF82B4, 0x000000},
+    {"M17", "17", LineMode::Metro, 0xD2D200, 0x000000},
+    {"C02833", "18", LineMode::Metro, 0x00A092, 0xFFFFFF},
     // RER
     {"C01742", "A", LineMode::Rer, 0xEB2132, 0xFFFFFF},
     {"C01743", "B", LineMode::Rer, 0x5091CB, 0xFFFFFF},

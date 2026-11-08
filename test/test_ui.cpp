@@ -290,14 +290,14 @@ int main() {
   static GridItem items[32];
   const LineMode modes[3] = {LineMode::Metro, LineMode::Rer, LineMode::Tram};
   const char* titles[3] = {"Métro", "RER", "Tramway"};
-  const int cols[3] = {8, 5, 5};
+  const int cols[3] = {7, 5, 5};
   const char* names[3] = {"21_lignes_metro", "22_lignes_rer", "23_lignes_tram"};
   for (int m = 0; m < 3; m++) {
     int idx[32];
     const int n = netLinesOfMode(modes[m], idx, 32);
     for (int i = 0; i < n; i++) {
       const LineInfo* li = netLineInfo(idx[i]);
-      items[i] = {li->name, modes[m], li->color, li->textColor, true};
+      items[i] = {li->name, modes[m], li->color, li->textColor, true, netLine(idx[i]).year != 0};
     }
     GridUi g;
     memset(&g, 0, sizeof(g));
@@ -331,8 +331,16 @@ int main() {
   };
   l.ctx = &ctx;
   l.battery = 78;
+  l.note = [](int i, void* c) -> const char* {
+    static char y[8];
+    const int line = ((Ctx*)c)->line;
+    if (i >= netLine(line).count || !netStop(line, i).year) return nullptr;
+    snprintf(y, sizeof(y), "%u", (unsigned)netStop(line, i).year);
+    return y;
+  };
   const char* lists[][3] = {{"1", "0", "24_stations_ligne1"}, {"7", "31", "25_stations_ligne7_branche"},
-                            {"A", "8", "26_stations_rerA"},  {"T3b", "26", "26b_stations_T3b"}};
+                            {"A", "8", "26_stations_rerA"},  {"T3b", "26", "26b_stations_T3b"},
+                            {"18", "1", "26c_stations_ligne18"}};
   for (auto& e : lists) {
     ctx.line = lineIdx(e[0]);
     const LineInfo* li = netLineInfo(ctx.line);
@@ -381,6 +389,17 @@ int main() {
   uiDrawMain(ss);
   dump("27_passages_station");
 
+  // 27b) Station d'une ligne en construction
+  UiState fs = base(findLine("M16"), "Clichy-Montfermeil");
+  fs.back = true;
+  fs.favCount = 0;
+  fs.hasData = true;
+  fs.ageS = -1;
+  fs.emptyTitle = "Pas encore en service";
+  fs.emptySub = "Ouverture prévue en 2027";
+  uiDrawMain(fs);
+  dump("27b_station_en_construction");
+
   // 28-29) Gares SNCF : initiales, puis gares
   static char lab[32][2];
   const int ngr = sncfGroupCount();
@@ -391,7 +410,7 @@ int main() {
       lab[i][1] = 0;
       t = lab[i];
     }
-    items[i] = {t, LineMode::Train, 0, 0, false};
+    items[i] = {t, LineMode::Train, 0, 0, false, false};
   }
   GridUi gg;
   memset(&gg, 0, sizeof(gg));
@@ -431,7 +450,7 @@ int main() {
 
   // Zones de toucher : cohérentes avec le dessin
   if (uiHitHub(6, 60, 70) != 0 || uiHitHub(6, 160, 140) != 4 || !uiHitBack(12, 18) || uiHitList(100, 40) != 0 ||
-      uiHitList(100, 165) != 4 || uiHitGrid(16, 8, 15, 70) != 0) {
+      uiHitList(100, 165) != 4 || uiHitGrid(19, 7, 15, 60) != 0) {
     printf("ÉCHEC : zones de toucher incohérentes\n");
     return 1;
   }

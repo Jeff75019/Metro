@@ -31,6 +31,9 @@ struct UiState {
   // sous chaque destination (« puis 7 et 12 min »)
   bool back;
   const char* sub[2];
+  // Message quand il n'y a aucun passage (par défaut « Aucun passage prévu »)
+  const char* emptyTitle;
+  const char* emptySub;
 };
 
 // Tableau des trains d'une gare SNCF
@@ -68,6 +71,7 @@ struct GridItem {
   LineMode mode;  // pour la forme du pictogramme
   uint32_t color, textColor;
   bool badge;     // false : simple texte
+  bool dim;       // estompé (ligne pas encore en service)
 };
 struct GridUi {
   const char* title;
@@ -89,6 +93,7 @@ struct ListUi {
   int highlight;      // élément mis en valeur (-1 : aucun)
   const char* (*name)(int i, void* ctx);
   uint8_t (*flags)(int i, void* ctx);  // NET_BRANCH / NET_TERMINUS (lineGraphic)
+  const char* (*note)(int i, void* ctx);  // petite mention à droite (« 2027 »), ou nullptr
   void* ctx;
   int battery;
 };

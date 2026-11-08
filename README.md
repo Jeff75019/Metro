@@ -2,7 +2,7 @@
 
 Un petit afficheur de poche, qui se commande au doigt :
 
-- **Métro · RER · Tram** : on choisit sur l'écran la ligne, puis la station, et l'afficheur donne l'attente des **prochains passages dans chaque sens**, comme les écrans des quais. Toutes les lignes de métro, de RER et de tramway d'Île-de-France sont intégrées, stations dans l'ordre de la ligne ;
+- **Métro · RER · Tram** : on choisit sur l'écran la ligne, puis la station, et l'afficheur donne l'attente des **prochains passages dans chaque sens**, comme les écrans des quais. Toutes les lignes de métro, de RER et de tramway d'Île-de-France sont intégrées, stations dans l'ordre de la ligne, ainsi que les lignes 16, 17 et 18 du Grand Paris Express en construction (stations à venir avec leur année d'ouverture prévue) ;
 - **Trains SNCF** : on choisit une grande gare (Paris et 138 autres) et l'afficheur donne ses **départs et arrivées**, comme les tableaux des gares ;
 - **Mes arrêts / Mes gares** : des favoris réglés depuis le téléphone, pour y accéder en un geste.
 
@@ -90,7 +90,7 @@ Par défaut, les départs et arrivées viennent de **[Train Nomade](https://trai
 
 **Mise à jour d'un afficheur déjà installé** (réglages conservés) : le dossier [`firmware/`](firmware/) contient le programme compilé avec TLS 1.3 (nécessaire pour PRIM, voir « État et limites »).
 
-1. Téléchargez `firmware/metro-1.2.0-tls13-0x10000.bin` (bouton « Download raw file » sur GitHub).
+1. Téléchargez `firmware/metro-tls13-0x10000.bin` (bouton « Download raw file » sur GitHub).
 2. Ouvrez [espressif.github.io/esptool-js](https://espressif.github.io/esptool-js/) dans Chrome ou Edge, branchez la carte, **Connect**.
 3. Adresse **0x10000** (pas 0x0), choisissez le fichier, **Program** — sans « Erase Flash », qui effacerait les réglages.
 4. Appuyez sur **RESET**.
@@ -201,7 +201,7 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── sncf.h/.cpp         décodage des tableaux de gare (Train Nomade et API SNCF), horaires prévus
 ├── sncf_stations.h     les 145 grandes gares dont les horaires prévus sont publiés
 ├── reseau.h/.cpp      réseau embarqué : lignes, stations dans l'ordre, gares (choix sur l'écran)
-├── reseau_data.h      36 lignes, 940 stations (généré par tools/make_reseau.py)
+├── reseau_data.h      39 lignes, 969 stations (généré par tools/make_reseau.py)
 ├── sncf_list_data.h    gares proposées sur l'écran (généré par tools/make_sncf_list.py)
 ├── sncf_api.h/.cpp     requêtes Train Nomade / API SNCF, recherche de gares (open data SNCF)
 ├── net.h/.cpp          HTTPS, quotas d'appels quotidiens, réglage de l'horloge
@@ -255,6 +255,7 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 - L'**API SNCF officielle** n'a pas pu être essayée (pas de clé valide) : ses données de test sont reconstituées d'après sa documentation (format Navitia) et des clients existants.
 - Le **choix sur l'écran tactile** (zones de toucher) a été vérifié sur les rendus PC, pas encore sur la carte : si un toucher choisit la mauvaise case, le moniteur série affiche ses coordonnées (« Toucher (x, y) »).
 - L'**ordre des stations** est reconstitué à partir des tracés de l'open data IDFM ; quelques lignes à boucle ou à branches (10, RER C et D) gardent un ordre approximatif. Pour mettre à jour la liste des lignes et des stations : `python3 tools/make_reseau.py`.
+- Lignes **16, 17 et 18** (Grand Paris Express) : stations et années d'ouverture tirées des données des projets IDFM, dans l'ordre géographique. Les stations sans zone d'arrêt référencée affichent « Pas encore en service » ; les 16 et 17 ont un identifiant provisoire (`M16`, `M17`) à remplacer dans `tools/make_reseau.py` et `Metro/lines.cpp` quand IDFM les publiera, puis relancer le script. La ligne 15 peut s'ajouter de la même façon.
 - **PRIM est désormais servi par Cloudflare** et refuse la connexion du cœur Arduino précompilé (« TLS refusé (-0x7780) ») : il faut un firmware compilé avec TLS 1.3. Le binaire `firmware/metro-…-tls13-0x10000.bin` (compilé avec `tools/idf-build`) se flashe à l'adresse 0x10000 avec [esptool-js](https://espressif.github.io/esptool-js/), sans effacer les réglages.
 - Le **réveil par secousse** est expérimental : la séquence de l'IMU vient de notes de la communauté, et la broche d'interruption n'est pas confirmée. Si l'afficheur se réveille tout seul dans une poche, il suspend ce réveil 30 minutes après 3 réveils sans utilisation.
 - Le sens d'affichage (paysage, USB à gauche ou à droite) dépend du montage : utilisez l'option « Retourner l'écran ».

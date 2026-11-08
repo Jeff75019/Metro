@@ -37,7 +37,7 @@ static int findLineIdx(const char* name) {
 int main() {
   // --- Lignes par mode
   int idx[32];
-  CHECK(netLinesOfMode(LineMode::Metro, idx, 32) == 16);
+  CHECK(netLinesOfMode(LineMode::Metro, idx, 32) == 19);  // dont 16, 17, 18 en construction
   CHECK(netLinesOfMode(LineMode::Rer, idx, 32) == 5);
   CHECK(netLinesOfMode(LineMode::Tram, idx, 32) == 15);
   for (int i = 0; i < netLineCount(); i++) {
@@ -45,7 +45,7 @@ int main() {
     CHECK(netLine(i).count >= 4);
     for (int k = 0; k < netLine(i).count; k++) {
       CHECK(netStopName(i, k)[0] != 0);
-      CHECK(netStop(i, k).zda > 0);
+      CHECK(netStop(i, k).zda > 0 || netStop(i, k).year > 0);  // zda 0 : station en construction
     }
   }
 
@@ -65,6 +65,22 @@ int main() {
   for (int k = 0; l7 >= 0 && k < netLine(l7).count; k++)
     if (netStop(l7, k).flags & NET_BRANCH) branches++;
   CHECK(branches == 1);
+
+  // --- Lignes en construction
+  int l16 = findLineIdx("16"), l17 = findLineIdx("17"), l18 = findLineIdx("18");
+  CHECK(l16 >= 0 && l17 >= 0 && l18 >= 0);
+  CHECK(l16 >= 0 && netLine(l16).year >= 2026 && netLine(l16).count >= 8);
+  CHECK(l16 >= 0 && !strcmp(netStopName(l16, 0), "Saint-Denis Pleyel"));
+  CHECK(l16 >= 0 && !strcmp(netStopName(l16, netLine(l16).count - 1), "Noisy-Champs"));
+  CHECK(l17 >= 0 && !strcmp(netStopName(l17, netLine(l17).count - 1), "Le Mesnil-Amelot"));
+  for (int k = 0; l16 >= 0 && k < netLine(l16).count; k++) CHECK(netStop(l16, k).zda == 0 && netStop(l16, k).year);
+  int known18 = 0;  // ligne 18 : stations déjà référencées (zone d'arrêt) et à venir
+  for (int k = 0; l18 >= 0 && k < netLine(l18).count; k++)
+    if (netStop(l18, k).zda) known18++;
+    else CHECK(netStop(l18, k).year >= 2026);
+  CHECK(known18 >= 4);
+  CHECK(l18 >= 0 && !strcmp(netStopName(l18, 0), "Versailles Chantiers"));
+  CHECK(netLine(l1).year == 0);
   char ref[48];
   netStopRef(l1, 0, ref, sizeof(ref));
   CHECK(!strncmp(ref, "STIF:StopArea:SP:", 17) && ref[strlen(ref) - 1] == ':');

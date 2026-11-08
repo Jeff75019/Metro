@@ -421,7 +421,8 @@ void uiDrawMain(const UiState& s) {
     canvas.drawFastHLine(MARGIN + 14, ROW2_Y - 1, W - 2 * MARGIN - 14, HAIR);
     drawSkeletonRow(ROW2_Y, s.now, 1);
   } else {
-    drawBodyMessage(false, "Aucun passage prévu", "Service terminé ou information indisponible", C_TEXT);
+    drawBodyMessage(false, s.emptyTitle ? s.emptyTitle : "Aucun passage prévu",
+                    s.emptySub ? s.emptySub : "Service terminé ou information indisponible", C_TEXT);
   }
 
   // --- Pied de page : état ......................... sens · favoris
@@ -872,7 +873,9 @@ int uiHitGrid(int count, int cols, int x, int y) {
 
 // Grand pictogramme de ligne, centré
 static void bigBadge(int cx, int cy, int cw, int ch, const GridItem& it) {
-  const uint16_t bg = rgb(it.color), fg = rgb(it.textColor);
+  // Ligne pas encore en service : couleurs estompées
+  const uint16_t bg = rgb(it.dim ? mix(it.color, C_BG, 150) : it.color);
+  const uint16_t fg = rgb(it.dim ? mix(it.textColor, C_BG, 110) : it.textColor);
   int sz = (cw < ch ? cw : ch) - 8;
   if (sz > 40) sz = 40;
   const lgfx::IFont* f = sz >= 30 ? &fMedium : &fSmall;
@@ -961,9 +964,15 @@ void uiDrawList(const ListUi& s) {
     }
     char buf[96];
     const char* name = s.name(i, s.ctx);
-    const lgfx::IFont* f = textW(name, &fCondS) <= nameMax ? &fCondS : &fTiny;
-    fitText(buf, sizeof(buf), name, nameMax, f);
-    text(buf, nameX, cy + 1, f, TEXT, lgfx::middle_left);
+    const char* note = s.note ? s.note(i, s.ctx) : nullptr;
+    int maxW = nameMax;
+    if (note && *note) {  // mention à droite (année d'ouverture) : nom en gris
+      text(note, W - 16, cy + 1, &fTiny, MUTED, lgfx::middle_right);
+      maxW -= textW(note, &fTiny) + 8;
+    }
+    const lgfx::IFont* f = textW(name, &fCondS) <= maxW ? &fCondS : &fTiny;
+    fitText(buf, sizeof(buf), name, maxW, f);
+    text(buf, nameX, cy + 1, f, note && *note ? MUTED : TEXT, lgfx::middle_left);
   }
   // Barre de défilement
   if (s.count > LIST_ROWS) {

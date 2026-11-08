@@ -9,11 +9,13 @@ Sources (open data Île-de-France Mobilités, licence ODbL) :
                                    (MonitoringRef « STIF:StopArea:SP:<zda>: ») ;
   - traces-du-reseau-ferre-idf   : tracé des lignes, en tronçons d'une station à
                                    l'autre : sert à retrouver l'ordre des stations
-                                   (branches comprises).
+                                   (branches comprises) ;
+  - projets_arrets_idf / projets_lignes_idf : stations et dates d'ouverture prévues
+                                   des lignes en construction (Grand Paris Express).
 
 Utilisation :
   python3 tools/make_reseau.py                  # télécharge les données
-  python3 tools/make_reseau.py gares.json traces.geojson
+  python3 tools/make_reseau.py gares.json traces.geojson projets_arrets.json projets_lignes.json
 """
 import json
 import math
@@ -26,6 +28,14 @@ API = "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets"
 URL_GARES = (API + "/emplacement-des-gares-idf/exports/json?select=nom_gares,id_ref_zda,idrefligc,"
              "res_com,mode,termetro,terrer,tertram,geo_point_2d")
 URL_TRACES = API + "/traces-du-reseau-ferre-idf/exports/geojson?select=idrefligc,res_com,mode,geo_shape"
+URL_PROJ_ARRETS = API + "/projets_arrets_idf/exports/json"
+URL_PROJ_LIGNES = API + "/projets_lignes_idf/exports/json?select=operation,mes_off_tx"
+
+# Lignes en construction : identifiant (IDFM s'il existe déjà, sinon provisoire,
+# à remplacer quand la ligne apparaîtra dans le référentiel) -> nom dans les
+# données des projets. Leurs stations pas encore référencées (zone d'arrêt 0)
+# s'affichent avec l'année d'ouverture prévue.
+FUTURE = {"C02833": "METRO 18", "M16": "METRO 16", "M17": "METRO 17"}
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "Metro", "reseau_data.h")
@@ -36,7 +46,7 @@ LINES = [
     ("C01371", "1"), ("C01372", "2"), ("C01373", "3"), ("C01386", "3B"), ("C01374", "4"),
     ("C01375", "5"), ("C01376", "6"), ("C01377", "7"), ("C01387", "7B"), ("C01378", "8"),
     ("C01379", "9"), ("C01380", "10"), ("C01381", "11"), ("C01382", "12"), ("C01383", "13"),
-    ("C01384", "14"),
+    ("C01384", "14"), ("M16", "16"), ("M17", "17"), ("C02833", "18"),
     ("C01742", "A"), ("C01743", "B"), ("C01727", "C"), ("C01728", "D"), ("C01729", "E"),
     ("C01389", "T1"), ("C01390", "T2"), ("C01391", "T3a"), ("C01679", "T3b"), ("C01843", "T4"),
     ("C01684", "T5"), ("C01794", "T6"), ("C01774", "T7"), ("C01795", "T8"), ("C02317", "T9"),
@@ -233,9 +243,56 @@ def order_line(stations, segments):
     return [(z, b, pos[z]) for z, b in result]
 
 
+def order_geometric(stations):
+    """Lignes en construction (pas de tracé complet) : chemin le plus court passant
+    par toutes les stations, d'un terminus à l'autre (plus proche voisin + 2-opt)."""
+    coords = {z: s[1] for z, s in stations.items()}
+    zs = list(stations)
+    if len(zs) < 3:
+        return [(z, False, i) for i, z in enumerate(zs)]
+    # Extrémités : les deux terminus annoncés les plus éloignés (à défaut, les deux
+    # stations les plus éloignées)
+    ends = [z for z in zs if stations[z][2]]
+    if len(ends) < 2:
+        ends = zs
+    a, b = max(((x, y) for x in ends for y in ends), key=lambda p: dist(coords[p[0]], coords[p[1]]))
+    path, left = [a], set(zs) - {a, b}
+    while left:
+        n = min(left, key=lambda z: dist(coords[path[-1]], coords[z]))
+        path.append(n)
+        left.discard(n)
+    path.append(b)
+
+    def length(p):
+        return sum(dist(coords[p[i]], coords[p[i + 1]]) for i in range(len(p) - 1))
+
+    improved = True
+    while improved:
+        improved = False
+        for i in range(1, len(path) - 2):  # extrémités fixes
+            for j in range(i + 1, len(path) - 1):
+                cand = path[:i] + path[i:j + 1][::-1] + path[j + 1:]
+                if length(cand) + 1 < length(path):
+                    path, improved = cand, True
+    s, e = coords[path[0]], coords[path[-1]]
+    if abs(s[0] - e[0]) * 73 >= abs(s[1] - e[1]) * 111:
+        if s[0] > e[0]:
+            path.reverse()
+    elif s[1] < e[1]:
+        path.reverse()
+    return [(z, False, i) for i, z in enumerate(path)]
+
+
+def year_of(text):
+    digits = "".join(c for c in str(text) if c.isdigit())
+    return int(digits[-4:]) if len(digits) >= 4 else 0
+
+
 def main():
     gares = load(sys.argv[1] if len(sys.argv) > 1 else None, URL_GARES)
     traces = load(sys.argv[2] if len(sys.argv) > 2 else None, URL_TRACES)
+    proj_arrets = load(sys.argv[3] if len(sys.argv) > 3 else None, URL_PROJ_ARRETS)
+    proj_lignes = load(sys.argv[4] if len(sys.argv) > 4 else None, URL_PROJ_LIGNES)
 
     by_line = defaultdict(dict)
     for r in gares:
@@ -248,6 +305,33 @@ def main():
         if zda in by_line[r["idrefligc"]]:
             continue
         by_line[r["idrefligc"]][zda] = (clean_name(r["nom_gares"]), (p["lon"], p["lat"]), term)
+    years = defaultdict(int)  # (ligne, clé de station) -> année d'ouverture prévue (0 : en service)
+
+    # Lignes en construction : stations des projets, sauf celles déjà référencées
+    op_year = {r["operation"]: year_of(r.get("mes_off_tx")) for r in proj_lignes}
+    line_year = {}
+    for lid, res in FUTURE.items():
+        st = by_line[lid]
+        known = list(st.values())
+        added = {}
+        for r in proj_arrets:
+            if r.get("res_com") != res or not r.get("nom_arret"):
+                continue
+            p = r["geo_point_2d"]
+            c = (p["lon"], p["lat"])
+            y = op_year.get(r.get("operation"), 0)
+            line_year[lid] = min(line_year.get(lid, 9999), y or 9999)
+            if any(dist(c, k[1]) < 400 for k in known):
+                continue  # déjà dans les gares référencées (zone d'arrêt connue)
+            name = clean_name(r["nom_arret"])
+            if name in added:  # même station dans deux phases : la plus proche ouverture
+                old = added[name]
+                years[(lid, old)] = min(years[(lid, old)], y) if years[(lid, old)] else y
+                continue
+            key = -(len(st) + 1)
+            st[key] = (name, c, str(r.get("terminus")) == "1")
+            years[(lid, key)] = y
+            added[name] = key
 
     segs = defaultdict(list)
     for f in traces["features"]:
@@ -263,17 +347,20 @@ def main():
         if not st:
             print("Ligne absente des données :", lid, short, file=sys.stderr)
             continue
-        order = order_line(st, segs[lid])
+        order = order_geometric(st) if lid in FUTURE else order_line(st, segs[lid])
         first = len(stops_out)
-        for zda, branch, p in order:
+        for i, (zda, branch, p) in enumerate(order):
             name, _, term = st[zda]
+            if lid in FUTURE:  # terminus : les deux bouts de la ligne complète
+                term = i in (0, len(order) - 1)
             if name not in name_off:
                 name_off[name] = pool_len
                 names.append(name)
                 pool_len += len(name.encode("utf-8")) + 1
             flags = (1 if branch else 0) | (2 if term else 0)
-            stops_out.append((zda, name_off[name], flags, p, name))
-        lines_out.append((lid, short, first, len(order)))
+            stops_out.append((max(zda, 0), name_off[name], flags, p, years[(lid, zda)], name))
+        ly = line_year.get(lid, 0)
+        lines_out.append((lid, short, first, len(order), 0 if ly == 9999 else ly))
         nb = sum(1 for _, b, _ in order if b)
         print("%-4s %-7s %2d stations%s : %s … %s" % (short, lid, len(order),
               (", %d branche(s)" % nb) if nb else "", st[order[0][0]][0], st[order[-1][0]][0]),
@@ -284,7 +371,7 @@ def main():
         f.write("// Généré par tools/make_reseau.py — ne pas modifier à la main.\n")
         f.write("// Lignes de métro, RER et tramway d'Île-de-France, stations dans l'ordre de la ligne.\n")
         f.write("// Source : open data Île-de-France Mobilités (emplacement-des-gares-idf,\n")
-        f.write("// traces-du-reseau-ferre-idf), licence ODbL.\n")
+        f.write("// traces-du-reseau-ferre-idf, projets_arrets_idf, projets_lignes_idf), licence ODbL.\n")
         f.write("#pragma once\n#include <stdint.h>\n\n")
         f.write("// Noms des stations, chacun terminé par \\0 (une seule fois par nom)\n")
         f.write("static const char NET_NAMES[] =\n")
@@ -293,14 +380,16 @@ def main():
         f.write("    ;\n\n")
         f.write("// zda : zone d'arrêt (MonitoringRef PRIM « STIF:StopArea:SP:<zda>: »)\n")
         f.write("// name : position du nom dans NET_NAMES ; flags : NET_BRANCH | NET_TERMINUS ;\n")
-        f.write("// pos : place le long de la ligne (branches : depuis leur embranchement)\n")
+        f.write("// pos : place le long de la ligne (branches : depuis leur embranchement) ;\n")
+        f.write("// year : année d'ouverture prévue (0 : en service ; zda 0 : pas encore référencée)\n")
         f.write("static const NetStop NET_STOPS[] = {\n")
-        for zda, off, flags, p, name in stops_out:
-            f.write("    {%d, %d, %d, %d},  // %s\n" % (zda, off, flags, p, name))
+        for zda, off, flags, p, y, name in stops_out:
+            f.write("    {%d, %d, %d, %d, %d},  // %s\n" % (zda, off, flags, p, y, name))
         f.write("};\n\n")
+        f.write("// year : ligne pas encore en service, ouverture prévue cette année-là (0 : en service)\n")
         f.write("static const NetLine NET_LINES[] = {\n")
-        for lid, short, first, count in lines_out:
-            f.write("    {\"%s\", %d, %d},  // %s\n" % (lid, first, count, short))
+        for lid, short, first, count, y in lines_out:
+            f.write("    {\"%s\", %d, %d, %d},  // %s\n" % (lid, first, count, y, short))
         f.write("};\n")
     print("%d lignes, %d stations, %d noms (%d octets) -> %s" % (len(lines_out), len(stops_out), len(names),
                                                                  pool_len, OUT), file=sys.stderr)
