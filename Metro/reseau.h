@@ -1,6 +1,6 @@
 // Réseau embarqué dans l'afficheur, pour choisir sur l'écran tactile :
 //   - lignes de métro, RER et tramway, avec leurs stations dans l'ordre de la ligne
-//     (tools/make_network.py, open data IDFM) ;
+//     (tools/make_reseau.py, open data IDFM) ;
 //   - grandes gares SNCF (tools/make_sncf_list.py, liste Train Nomade).
 // C++ "pur" : compilé et testé aussi sur PC.
 #pragma once

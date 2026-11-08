@@ -8,7 +8,7 @@
 #include <string>
 
 #include "../Metro/lines.h"
-#include "../Metro/network.h"
+#include "../Metro/reseau.h"
 #include "../Metro/siri.h"
 #include "../Metro/sncf.h"
 #include "../Metro/ui.h"

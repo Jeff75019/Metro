@@ -200,8 +200,8 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── prim.h/.cpp         requêtes PRIM, recherche d'arrêts (open data IDFM)
 ├── sncf.h/.cpp         décodage des tableaux de gare (Train Nomade et API SNCF), horaires prévus
 ├── sncf_stations.h     les 145 grandes gares dont les horaires prévus sont publiés
-├── network.h/.cpp      réseau embarqué : lignes, stations dans l'ordre, gares (choix sur l'écran)
-├── network_data.h      36 lignes, 940 stations (généré par tools/make_network.py)
+├── reseau.h/.cpp      réseau embarqué : lignes, stations dans l'ordre, gares (choix sur l'écran)
+├── reseau_data.h      36 lignes, 940 stations (généré par tools/make_reseau.py)
 ├── sncf_list_data.h    gares proposées sur l'écran (généré par tools/make_sncf_list.py)
 ├── sncf_api.h/.cpp     requêtes Train Nomade / API SNCF, recherche de gares (open data SNCF)
 ├── net.h/.cpp          HTTPS, quotas d'appels quotidiens, réglage de l'horloge
@@ -212,7 +212,7 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── portal_html.h       la page de configuration
 └── fonts_metro.h       polices générées (ne pas modifier à la main)
 tools/make_fonts.py     génère fonts_metro.h à partir de tools/fonts/
-tools/make_network.py   génère network_data.h (open data IDFM : gares et tracés des lignes)
+tools/make_reseau.py   génère reseau_data.h (open data IDFM : gares et tracés des lignes)
 tools/make_sncf_list.py génère sncf_list_data.h
 tools/portal_preview.py aperçu de la page de configuration sur PC (données fictives)
 tools/idf-build/        compilation de vérification avec ESP-IDF
@@ -254,7 +254,7 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 - **Train Nomade** a été interrogé en vrai le 8 novembre 2026 (Gare de Lyon, Gare du Nord, horaires prévus, recherche de gares dans l'open data SNCF) : réponses correctement décodées, vraies réponses gardées comme données de test. C'est un service indépendant et gratuit, sans garantie de disponibilité ; l'affichage en gare fait foi.
 - L'**API SNCF officielle** n'a pas pu être essayée (pas de clé valide) : ses données de test sont reconstituées d'après sa documentation (format Navitia) et des clients existants.
 - Le **choix sur l'écran tactile** (zones de toucher) a été vérifié sur les rendus PC, pas encore sur la carte : si un toucher choisit la mauvaise case, le moniteur série affiche ses coordonnées (« Toucher (x, y) »).
-- L'**ordre des stations** est reconstitué à partir des tracés de l'open data IDFM ; quelques lignes à boucle ou à branches (10, RER C et D) gardent un ordre approximatif. Pour mettre à jour la liste des lignes et des stations : `python3 tools/make_network.py`.
+- L'**ordre des stations** est reconstitué à partir des tracés de l'open data IDFM ; quelques lignes à boucle ou à branches (10, RER C et D) gardent un ordre approximatif. Pour mettre à jour la liste des lignes et des stations : `python3 tools/make_reseau.py`.
 - **PRIM est désormais servi par Cloudflare** et refuse la connexion du cœur Arduino précompilé (« TLS refusé (-0x7780) ») : il faut un firmware compilé avec TLS 1.3. Le binaire `firmware/metro-…-tls13-0x10000.bin` (compilé avec `tools/idf-build`) se flashe à l'adresse 0x10000 avec [esptool-js](https://espressif.github.io/esptool-js/), sans effacer les réglages.
 - Le **réveil par secousse** est expérimental : la séquence de l'IMU vient de notes de la communauté, et la broche d'interruption n'est pas confirmée. Si l'afficheur se réveille tout seul dans une poche, il suspend ce réveil 30 minutes après 3 réveils sans utilisation.
 - Le sens d'affichage (paysage, USB à gauche ou à droite) dépend du montage : utilisez l'option « Retourner l'écran ».

@@ -1,9 +1,9 @@
-#include "network.h"
+#include "reseau.h"
 
 #include <stdio.h>
 #include <string.h>
 
-#include "network_data.h"
+#include "reseau_data.h"
 #include "sncf_list_data.h"
 
 static const int LINE_COUNT = sizeof(NET_LINES) / sizeof(NET_LINES[0]);

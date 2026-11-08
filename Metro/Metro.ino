@@ -30,7 +30,7 @@
 #include "lines.h"
 #include "portal.h"
 #include "net.h"
-#include "network.h"
+#include "reseau.h"
 #include "prim.h"
 #include "settings.h"
 #include "siri.h"

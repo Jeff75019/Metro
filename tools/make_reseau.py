@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Génère Metro/network_data.h : les lignes de métro, RER et tramway d'Île-de-France
+"""Génère Metro/reseau_data.h : les lignes de métro, RER et tramway d'Île-de-France
 avec leurs stations dans l'ordre de la ligne, pour le choix « ligne → station »
 sur l'afficheur.
 
@@ -12,8 +12,8 @@ Sources (open data Île-de-France Mobilités, licence ODbL) :
                                    (branches comprises).
 
 Utilisation :
-  python3 tools/make_network.py                  # télécharge les données
-  python3 tools/make_network.py gares.json traces.geojson
+  python3 tools/make_reseau.py                  # télécharge les données
+  python3 tools/make_reseau.py gares.json traces.geojson
 """
 import json
 import math
@@ -28,7 +28,7 @@ URL_GARES = (API + "/emplacement-des-gares-idf/exports/json?select=nom_gares,id_
 URL_TRACES = API + "/traces-du-reseau-ferre-idf/exports/geojson?select=idrefligc,res_com,mode,geo_shape"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "Metro", "network_data.h")
+OUT = os.path.join(ROOT, "Metro", "reseau_data.h")
 
 MODES = {"METRO": "Metro", "RER": "Rer", "TRAMWAY": "Tram"}
 # Lignes retenues et ordre d'affichage (identifiants IDFM, nom court)
@@ -281,7 +281,7 @@ def main():
 
     assert pool_len < 65536
     with open(OUT, "w", encoding="utf-8") as f:
-        f.write("// Généré par tools/make_network.py — ne pas modifier à la main.\n")
+        f.write("// Généré par tools/make_reseau.py — ne pas modifier à la main.\n")
         f.write("// Lignes de métro, RER et tramway d'Île-de-France, stations dans l'ordre de la ligne.\n")
         f.write("// Source : open data Île-de-France Mobilités (emplacement-des-gares-idf,\n")
         f.write("// traces-du-reseau-ferre-idf), licence ODbL.\n")

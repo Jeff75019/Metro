@@ -1,4 +1,4 @@
-// Généré par tools/make_network.py — ne pas modifier à la main.
+// Généré par tools/make_reseau.py — ne pas modifier à la main.
 // Lignes de métro, RER et tramway d'Île-de-France, stations dans l'ordre de la ligne.
 // Source : open data Île-de-France Mobilités (emplacement-des-gares-idf,
 // traces-du-reseau-ferre-idf), licence ODbL.
