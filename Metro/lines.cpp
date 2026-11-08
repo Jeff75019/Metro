@@ -1,5 +1,6 @@
 #include "lines.h"
 
+#include <ArduinoJson.h>
 #include <string.h>
 
 static const LineInfo LINES[] = {
@@ -85,6 +86,58 @@ void lineIdFromRef(const char* ref, char* out, unsigned outLen) {
     n++;
   }
   out[n] = 0;
+}
+
+LineMode lineModeFromName(const char* n) {
+  if (!n) return LineMode::Bus;
+  if (!strcmp(n, "metro")) return LineMode::Metro;
+  if (!strcmp(n, "rer")) return LineMode::Rer;
+  if (!strcmp(n, "train")) return LineMode::Train;
+  if (!strcmp(n, "tram")) return LineMode::Tram;
+  if (!strcmp(n, "navette")) return LineMode::Shuttle;
+  return LineMode::Bus;
+}
+
+uint32_t parseHexColor(const char* s, uint32_t def) {
+  if (!s) return def;
+  if (*s == '#') s++;
+  if (strlen(s) != 6) return def;
+  uint32_t v = 0;
+  for (int i = 0; i < 6; i++) {
+    char c = s[i];
+    int d = (c >= '0' && c <= '9') ? c - '0' : (c >= 'a' && c <= 'f') ? c - 'a' + 10 : (c >= 'A' && c <= 'F') ? c - 'A' + 10 : -1;
+    if (d < 0) return def;
+    v = (v << 4) | (uint32_t)d;
+  }
+  return v;
+}
+
+int parseLineReferential(const char* json, size_t len, LineRefInfo* out, int maxN) {
+  JsonDocument filter;
+  for (const char* k : {"id_line", "shortname_line", "transportmode", "colourweb_hexa", "textcolourweb_hexa"})
+    filter["results"][0][k] = true;
+  JsonDocument doc;
+  if (deserializeJson(doc, json, len, DeserializationOption::Filter(filter))) return -1;
+  int n = 0;
+  JsonArrayConst results = doc["results"];
+  for (JsonObjectConst r : results) {
+    if (n >= maxN) break;
+    const char* id = r["id_line"] | "";
+    if (!*id) continue;
+    LineRefInfo& li = out[n++];
+    memset(&li, 0, sizeof(li));
+    strncpy(li.id, id, sizeof(li.id) - 1);
+    strncpy(li.name, r["shortname_line"] | id, sizeof(li.name) - 1);
+    const char* m = r["transportmode"] | "bus";
+    li.mode = !strcmp(m, "metro")                              ? LineMode::Metro
+              : !strcmp(m, "tram")                             ? LineMode::Tram
+              : !strcmp(m, "rail")                             ? LineMode::Train
+              : (!strcmp(m, "funicular") || !strcmp(m, "cableway")) ? LineMode::Shuttle
+                                                                : LineMode::Bus;
+    li.color = parseHexColor(r["colourweb_hexa"] | "", 0x5A6E8C);
+    li.textColor = parseHexColor(r["textcolourweb_hexa"] | "", 0xFFFFFF);
+  }
+  return n;
 }
 
 const char* lineModeName(LineMode m) {

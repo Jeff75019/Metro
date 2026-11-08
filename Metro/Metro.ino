@@ -192,9 +192,10 @@ static void draw() {
   UiState s;
   memset(&s, 0, sizeof(s));
   s.badge = li ? li->name : (f.badge[0] ? f.badge : (f.line[0] ? "?" : "Tout"));
-  s.mode = li ? li->mode : LineMode::Bus;
-  s.badgeColor = li ? li->color : 0x5A6E8C;
-  s.badgeText = li ? li->textColor : 0xFFFFFF;
+  const bool own = !li && f.badge[0];  // ligne hors table (bus...) : infos du favori
+  s.mode = li ? li->mode : (own ? (LineMode)f.mode : LineMode::Bus);
+  s.badgeColor = li ? li->color : (own ? f.color : 0x5A6E8C);
+  s.badgeText = li ? li->textColor : (own ? f.textColor : 0xFFFFFF);
   const bool valid = cacheValid[curFav];
   s.title = f.label[0] ? f.label : (valid && cache[curFav].stopName[0] ? cache[curFav].stopName : f.stopName);
   s.now = nowEpoch();

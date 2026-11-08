@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "../Metro/lines.h"
 #include "../Metro/siri.h"
 
 static std::string readFile(const char* path) {
@@ -118,6 +119,41 @@ int main() {
   CHECK(strcmp(err, "MonitoringRef inconnu") == 0);
   st = parseStopMonitoring("<html>", 6, "", d, err, sizeof(err));
   CHECK(st == SiriStatus::BadJson);
+
+  // --- vraie réponse PRIM (La Défense, 3 h 47, 8 novembre 2026)
+  std::string real = readFile("data/prim_ladefense_reel.json");
+  st = parseStopMonitoring(real.data(), real.size(), "", d, err, sizeof(err));
+  CHECK(st == SiriStatus::Ok);
+  CHECK(strcmp(d.stopName, "La Défense") == 0);
+  CHECK(d.count == MAX_DEPARTURES);
+  int withPlatform = 0;
+  for (int i = 0; i < d.count; i++) {
+    CHECK(strncmp(d.dep[i].platform, "unkn", 4) != 0);  // "unknown" ignoré
+    if (d.dep[i].platform[0]) withPlatform++;
+  }
+  CHECK(withPlatform > 0);  // RER E et Transilien L ont une voie
+  st = parseStopMonitoring(real.data(), real.size(), "C01742", d, err, sizeof(err));  // RER A
+  CHECK(st == SiriStatus::Ok && d.count > 0);
+  buildView(d, "", "", d.responseTime, v);
+  printf("RER A à La Défense : %d sens (%s / %s), prochain vers %s\n", v.groupCount, v.groupKey[0],
+         v.groupCount > 1 ? v.groupKey[1] : "-", v.row[0].dest);
+  CHECK(v.groupCount == 2 && strcmp(v.groupKey[0], "Aller") == 0);
+  n = summarizeLines(real.data(), real.size(), ls, 8, stop, sizeof(stop));
+  CHECK(n == 5);
+
+  // --- référentiel des lignes IDFM (vraie réponse) : nom et couleurs des bus
+  std::string ref = readFile("data/ods_referentiel_reel.json");
+  LineRefInfo lr[8];
+  n = parseLineReferential(ref.data(), ref.size(), lr, 8);
+  CHECK(n == 3);
+  CHECK(strcmp(lr[1].id, "C01392") == 0 && strcmp(lr[1].name, "N24") == 0);
+  CHECK(lr[1].mode == LineMode::Bus && lr[1].color == 0xFF5A00 && lr[1].textColor == 0x000000);
+  CHECK(lr[2].mode == LineMode::Train);
+  CHECK(parseHexColor("#0055c8", 0) == 0x0055C8 && parseHexColor("zz", 7) == 7);
+  CHECK(lineModeFromName("tram") == LineMode::Tram && lineModeFromName("??") == LineMode::Bus);
+  // filtre à plusieurs destinations (RER A vers l'est)
+  CHECK(matchesFilter("Marne-la-Vallée Chessy", "Marne-la-Vallée Chessy|Torcy|Boissy-Saint-Léger"));
+  CHECK(!matchesFilter("Saint-Germain-en-Laye", "Marne-la-Vallée Chessy|Torcy|Boissy-Saint-Léger"));
 
   printf("Tous les tests SIRI passent.\n");
   return 0;

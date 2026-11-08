@@ -8,6 +8,9 @@
 
 static const char* PRIM_URL = "https://prim.iledefrance-mobilites.fr/marketplace/stop-monitoring";
 static const char* ODS_V1 = "https://data.iledefrance-mobilites.fr/api/records/1.0/search/?dataset=zones-d-arrets&rows=30&q=";
+static const char* ODS_REF =
+    "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets/referentiel-des-lignes/records"
+    "?limit=20&select=id_line,shortname_line,transportmode,colourweb_hexa,textcolourweb_hexa&where=";
 static const char* ODS_V21 =
     "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets/zones-d-arrets/records?limit=30&where=";
 
@@ -69,6 +72,22 @@ int primLinesJson(const String& stopRef, const char* apiKey, String& out) {
   static LineSummary ls[16];
   char stop[TXT_LEN];
   int n = summarizeLines(body.c_str(), body.length(), ls, 16, stop, sizeof(stop));
+
+  // Lignes absentes de la table (bus, Noctilien...) : nom et couleurs dans le
+  // référentiel des lignes de l'open data IDFM (un seul appel, sans clé)
+  static LineRefInfo refs[16];
+  int nref = 0;
+  String where;
+  for (int i = 0; i < n; i++) {
+    if (findLine(ls[i].line)) continue;
+    if (where.length()) where += " OR ";
+    where += String("id_line=\"") + ls[i].line + "\"";
+  }
+  if (where.length()) {
+    String rbody;
+    int rc = httpGet(String(ODS_REF) + urlEncode(where, false), HttpAuth(), rbody);
+    if (rc == 200) nref = parseLineReferential(rbody.c_str(), rbody.length(), refs, 16);
+  }
   doc["ref"] = ref;
   doc["stopName"] = stop;
   JsonArray arr = doc["lines"].to<JsonArray>();
@@ -76,12 +95,15 @@ int primLinesJson(const String& stopRef, const char* apiKey, String& out) {
     JsonObject o = arr.add<JsonObject>();
     const LineInfo* li = findLine(ls[i].line);
     char col[12];
+    const LineRefInfo* ri = nullptr;
+    for (int k = 0; k < nref && !li; k++)
+      if (!strcmp(refs[k].id, ls[i].line)) ri = &refs[k];
     o["id"] = ls[i].line;
-    o["name"] = li ? li->name : "";
-    o["mode"] = li ? lineModeName(li->mode) : "bus";
-    snprintf(col, sizeof(col), "#%06X", (unsigned)(li ? li->color : 0x5A6E8C));
+    o["name"] = li ? li->name : (ri ? ri->name : ls[i].line);
+    o["mode"] = lineModeName(li ? li->mode : (ri ? ri->mode : LineMode::Bus));
+    snprintf(col, sizeof(col), "#%06X", (unsigned)(li ? li->color : (ri ? ri->color : 0x5A6E8C)));
     o["color"] = col;
-    snprintf(col, sizeof(col), "#%06X", (unsigned)(li ? li->textColor : 0xFFFFFF));
+    snprintf(col, sizeof(col), "#%06X", (unsigned)(li ? li->textColor : (ri ? ri->textColor : 0xFFFFFF)));
     o["text"] = col;
     JsonArray d = o["dests"].to<JsonArray>();
     for (int k = 0; k < ls[i].ndest; k++) d.add(ls[i].dest[k]);
@@ -104,12 +126,11 @@ static int typeRank(const char* t) {
 
 int searchStopsJson(const String& query, String& out) {
   String body;
-  int code = httpGet(String(ODS_V1) + urlEncode(query, false), HttpAuth(), body);
-  if (code != 200) {  // ancienne API indisponible : API "explore v2.1"
-    String q = query;
-    q.replace("\"", " ");
-    code = httpGet(String(ODS_V21) + urlEncode("\"" + q + "\"", false), HttpAuth(), body);
-  }
+  // API "explore v2.1" (actuelle), puis l'ancienne API v1 en secours
+  String q = query;
+  q.replace("\"", " ");
+  int code = httpGet(String(ODS_V21) + urlEncode("\"" + q + "\"", false), HttpAuth(), body);
+  if (code != 200) code = httpGet(String(ODS_V1) + urlEncode(query, false), HttpAuth(), body);
   JsonDocument res;
   if (code != 200) {
     char msg[64];

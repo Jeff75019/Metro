@@ -49,8 +49,10 @@ La configuration se fait depuis le téléphone :
 
 ### Clé API SNCF (facultative, pour les trains grandes lignes)
 
-1. Remplissez le formulaire sur [numerique.sncf.com/startup/api/token-developpeur](https://numerique.sncf.com/startup/api/token-developpeur/).
-2. Vous recevez un jeton par e-mail : c'est votre **clé API SNCF**.
+1. Remplissez le formulaire « API SNCF » sur [numerique.sncf.com/startup/api](https://numerique.sncf.com/startup/api/) (ancienne adresse : digital.sncf.com/startup/api).
+2. Vous recevez un jeton par e-mail : c'est votre **clé API SNCF** (en général de la forme `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`).
+
+> ⚠️ La clé du portail **SNCF Open Data** (data.sncf.com, 56 caractères hexadécimaux) **ne convient pas** : elle sert aux jeux de données statiques, pas aux tableaux de départs. L'API des départs la refuse (« Token absent in the database »).
 
 > **Quota :** 5 000 requêtes par jour, gratuitement. Un tableau coûte 1 requête ; pour les arrivées, la gare de provenance de chaque nouveau train coûte 1 requête de plus (le résultat est mémorisé). Le tableau est rafraîchi au plus une fois par minute.
 
@@ -109,7 +111,9 @@ Au premier démarrage, l'écran affiche un **QR code** et le nom d'un WiFi « Me
 1. Scannez le QR code avec l'appareil photo du téléphone (ou rejoignez « Metro-XXXX » à la main). La page de configuration s'ouvre ; sinon, allez sur **http://192.168.4.1**.
 2. **WiFi** : « Rechercher les réseaux », choisissez le vôtre, entrez le mot de passe, « Ajouter et se connecter ». Attendez « Connecté ✓ ».
 3. **Clé API PRIM** : collez votre jeton.
-4. **Mes arrêts** : tapez un nom de station (« Bastille »), choisissez-la, puis la ligne et, si vous voulez, le sens. Répétez pour 4 arrêts au plus.
+4. **Mes arrêts** : tapez un nom de station (« Bastille »), choisissez-la, puis la ligne et, si vous voulez, les destinations à afficher. Répétez pour 4 arrêts au plus.
+   Pour un RER à plusieurs branches, cochez toutes les destinations d'un même sens (ex. RER A vers l'est : Marne-la-Vallée Chessy, Torcy, Boissy-Saint-Léger) : les données « Aller / Retour » du RER ne sont pas fiables.
+   Les bus et Noctiliens sont reconnus : leur numéro et leur couleur viennent du référentiel des lignes IDFM.
 5. **Trains grandes lignes** (facultatif) : collez la clé SNCF, cochez les gares de Paris voulues ; « Autre gare » permet d'en ajouter d'autres par leur nom.
 6. **Enregistrer et redémarrer**.
 
@@ -154,6 +158,7 @@ Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille �
 | Trains : pas de numéro de voie | L'API ouverte de la SNCF ne fournit pas les voies |
 | « Aucun passage prévu » | Service terminé, ou temps réel indisponible sur cette ligne |
 | « Horaire théorique » | IDFM ne fournit pas de temps réel pour ce passage, c'est l'horaire prévu |
+| RER : « sens 1/2 » mélange des trains vers l'est et l'ouest | Dans la configuration, choisissez les destinations d'un même sens |
 | Le WiFi n'est pas trouvé | La carte ne gère que le WiFi 2,4 GHz |
 | Écran noir après téléversement | PSRAM mal réglée : choisir **OPI PSRAM** |
 
@@ -213,6 +218,7 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 ## État et limites
 
 - Le décodage PRIM et SNCF (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC.
+- L'**API PRIM réelle** a été interrogée le 8 novembre 2026 (La Défense, Bastille) : réponses correctement décodées ; une vraie réponse sert désormais de donnée de test (`test/data/prim_ladefense_reel.json`). La recherche d'arrêts et le référentiel des lignes de l'open data IDFM ont aussi été vérifiés.
 - Le firmware complet **compile sans erreur ni avertissement** (`-Wall -Wextra`) pour l'ESP32-S3 avec ESP-IDF 5.5.6 + cœur Arduino 3.3.12 + LovyanGFX 1.2.36 + ArduinoJson 7.4.3 (binaire d'environ 1,7 Mo, un peu plus de la moitié de la partition). Il **n'a pas encore été essayé sur la carte** : au premier essai, regardez le moniteur série et signalez les erreurs.
 - Les réponses de l'API SNCF utilisées pour les tests sont reconstituées d'après sa documentation (format Navitia) et des clients existants ; je n'ai pas pu interroger l'API réelle. Les suppressions de trains sont repérées via les perturbations « NO_SERVICE » et les mentions « supprimé » : un train supprimé peut aussi simplement disparaître du tableau.
 - Le **réveil par secousse** est expérimental : la séquence de l'IMU vient de notes de la communauté, et la broche d'interruption n'est pas confirmée. Si l'afficheur se réveille tout seul dans une poche, il suspend ce réveil 30 minutes après 3 réveils sans utilisation.

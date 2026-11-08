@@ -11,7 +11,10 @@ struct Favorite {
   char stopName[40];  // nom de l'arrêt (affiché avant la 1re réponse)
   char line[12];      // ex. "C01371" ; vide = toutes les lignes
   char badge[8];      // texte du pictogramme si la ligne est inconnue (bus...)
-  char filter[48];    // filtre de direction, ex. "Défense" (optionnel)
+  uint32_t color;     // couleurs du pictogramme (0xRRGGBB) pour ces lignes
+  uint32_t textColor;
+  uint8_t mode;       // LineMode
+  char filter[96];    // destinations gardées, ex. "Défense" ou "Chessy|Torcy" (optionnel)
 };
 
 struct Station {

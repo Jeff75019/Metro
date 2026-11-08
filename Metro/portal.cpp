@@ -58,7 +58,16 @@ static void handleGetConfig() {
   // Ajoute nom et couleurs des lignes connues, pour l'affichage dans la page
   for (JsonObject f : doc["favorites"].as<JsonArray>()) {
     const LineInfo* li = findLine(f["line"] | "");
-    if (!li) continue;
+    if (!li) {
+      if (*(f["badge"] | "")) {
+        JsonObject l = f["_line"].to<JsonObject>();
+        l["name"] = f["badge"].as<const char*>();
+        l["mode"] = f["mode"].as<const char*>();
+        l["color"] = f["color"].as<const char*>();
+        l["text"] = f["text"].as<const char*>();
+      }
+      continue;
+    }
     JsonObject l = f["_line"].to<JsonObject>();
     char col[12];
     l["name"] = li->name;

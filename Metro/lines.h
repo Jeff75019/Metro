@@ -1,6 +1,7 @@
 // Référentiel (simplifié) des lignes ferrées d'Île-de-France : identifiant IDFM,
 // nom court et couleurs officielles. Source : "Référentiel des lignes" IDFM.
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 
 enum class LineMode : uint8_t { Metro, Rer, Train, Tram, Shuttle, Bus };
@@ -21,3 +22,16 @@ const LineInfo* findLine(const char* id);
 void lineIdFromRef(const char* lineRef, char* out, unsigned outLen);
 
 const char* lineModeName(LineMode m);
+LineMode lineModeFromName(const char* name);  // "metro", "rer", "train", "tram", "navette", "bus"
+uint32_t parseHexColor(const char* s, uint32_t def);  // "#FF5A00" ou "ff5a00"
+
+// Lignes absentes de la table (bus, Noctilien...) : infos lues dans le jeu de
+// données "referentiel-des-lignes" de l'open data IDFM (API explore v2.1).
+struct LineRefInfo {
+  char id[12];
+  char name[12];
+  LineMode mode;
+  uint32_t color;
+  uint32_t textColor;
+};
+int parseLineReferential(const char* json, size_t len, LineRefInfo* out, int maxN);

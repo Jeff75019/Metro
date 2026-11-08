@@ -291,6 +291,14 @@ static const char* firstString(JsonVariantConst v, int depth = 0) {
   return nullptr;
 }
 
+// Voie réellement connue ? (PRIM renvoie souvent "unknown")
+static bool usefulPlatform(const char* p) {
+  if (!p || !*p) return false;
+  char n[16];
+  normalizeAscii(p, n, sizeof(n));
+  return n[0] && strcmp(n, "unknown") != 0 && strcmp(n, "inconnu") != 0 && strcmp(n, "inconnue") != 0;
+}
+
 static bool ieq(const char* a, const char* b) {
   if (!a || !b) return false;
   while (*a && *b) {
@@ -423,8 +431,8 @@ SiriStatus parseStopMonitoring(const char* json, size_t len, const char* lineFil
     fixText(d.dir);
 
     const char* plat = sval(call["DeparturePlatformName"]);
-    if (!plat || !*plat) plat = sval(call["ArrivalPlatformName"]);
-    copyStr(d.platform, plat, sizeof(d.platform));
+    if (!usefulPlatform(plat)) plat = sval(call["ArrivalPlatformName"]);
+    if (usefulPlatform(plat)) copyStr(d.platform, plat, sizeof(d.platform));
 
     if (call["VehicleAtStop"] | false) d.flags |= DEP_AT_STOP;
     const char* ds = call["DepartureStatus"] | (const char*)"";
@@ -476,7 +484,7 @@ int summarizeLines(const char* json, size_t len, LineSummary* out, int maxLines,
     bool known = false;
     for (int k = 0; k < ls.ndest; k++)
       if (strcmp(ls.dest[k], dest) == 0) known = true;
-    if (!known && ls.ndest < 4) copyStr(ls.dest[ls.ndest++], dest, TXT_LEN);
+    if (!known && ls.ndest < LINE_DESTS) copyStr(ls.dest[ls.ndest++], dest, TXT_LEN);
   }
   return n;
 }

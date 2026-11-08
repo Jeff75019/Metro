@@ -126,6 +126,14 @@ String settingsToJson(const Settings& s, bool hideSecrets) {
     o["line"] = fv.line;
     o["badge"] = fv.badge;
     o["filter"] = fv.filter;
+    if (fv.badge[0]) {
+      char col[12];
+      snprintf(col, sizeof(col), "#%06X", (unsigned)(fv.color & 0xFFFFFF));
+      o["color"] = col;
+      snprintf(col, sizeof(col), "#%06X", (unsigned)(fv.textColor & 0xFFFFFF));
+      o["text"] = col;
+      o["mode"] = lineModeName((LineMode)fv.mode);
+    }
   }
   doc["refreshS"] = s.refreshS;
   doc["awakeS"] = s.awakeS;
@@ -192,6 +200,9 @@ bool settingsFromJson(Settings& s, const char* json, String& err) {
       copyStr(fv.line, line, sizeof(fv.line));
       copyStr(fv.badge, o["badge"] | "", sizeof(fv.badge));
       copyStr(fv.filter, o["filter"] | "", sizeof(fv.filter));
+      fv.color = parseHexColor(o["color"] | "", 0x5A6E8C);
+      fv.textColor = parseHexColor(o["text"] | "", 0xFFFFFF);
+      fv.mode = (uint8_t)lineModeFromName(o["mode"] | "bus");
     }
   }
 

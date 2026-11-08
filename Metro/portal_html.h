@@ -93,7 +93,7 @@ svg{display:block}
 <div class="row"><input id="q" placeholder="Station ou arrêt, ex. Bastille" autocomplete="off"><button class="pri" id="go" aria-label="Chercher"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button></div>
 <div id="smsg" class="msg"></div><div class="list" id="sres"></div>
 <div id="lsel" style="display:none"><label class="f" id="ltitle"></label><div class="chips" id="lchips"></div>
-<label class="f">Sens</label><div class="chips" id="dchips"></div>
+<label class="f">Destinations à afficher (plusieurs possibles, ex. toutes celles d'un même sens)</label><div class="chips" id="dchips"></div>
 <label class="f">Nom affiché (facultatif)</label><input id="flabel" placeholder="ex. Maison → Bureau">
 <div style="margin-top:12px"><button class="pri" id="addf" style="width:100%">Ajouter cet arrêt</button></div></div>
 </div>
@@ -156,7 +156,7 @@ T.append(h('span',{class:'tag'},'v'+s.version));$('n1').classList.toggle('done',
 function renderW(){const L=$('wl');L.innerHTML='';C.wifi.forEach((w,i)=>L.append(h('div',{class:'item'},h('span',{html:wifiIcon(-50)}),h('div',{class:'grow'},h('div',{class:'name'},w.ssid),h('div',{class:'meta'},w.pass?'Nouveau mot de passe':(w.hasPass?'Mot de passe enregistré':'Réseau ouvert'))),
 h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.wifi.splice(i,1);renderW()}}))));if(!C.wifi.length)L.append(h('div',{class:'empty'},'Aucun réseau enregistré pour l\'instant.'))}
 function renderF(){const L=$('fl');L.innerHTML='';C.favorites.forEach((f,i)=>{const li=f._line||{name:f.badge||f.line||'Tout',mode:'bus'};
-L.append(h('div',{class:'item'},pics(li),h('div',{class:'grow'},h('div',{class:'name'},f.label||f.stopName||f.stopRef),h('div',{class:'meta'},(f.label?f.stopName+' · ':'')+(f.filter?'Vers '+f.filter:'Tous les sens'))),
+L.append(h('div',{class:'item'},pics(li),h('div',{class:'grow'},h('div',{class:'name'},f.label||f.stopName||f.stopRef),h('div',{class:'meta'},(f.label?f.stopName+' · ':'')+(f.filter?'Vers '+f.filter.split('|').join(', '):'Toutes les destinations'))),
 i?h('button',{class:'icon',title:'Monter',html:ICON.up,onclick:()=>{C.favorites.splice(i-1,0,C.favorites.splice(i,1)[0]);renderF()}}):null,
 h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.favorites.splice(i,1);renderF()}})))});
 if(!C.favorites.length)L.append(h('div',{class:'empty'},'Aucun arrêt pour l\'instant : cherchez-en un ci-dessous.'));$('n3').classList.toggle('done',C.favorites.length>0)}
@@ -199,11 +199,14 @@ if(r.error){msg('smsg',r.error,'err');return}
 if(!r.lines||!r.lines.length){msg('smsg','Aucun passage annoncé en ce moment à cet arrêt (réessayez en journée).');return}
 msg('smsg','');sel={stopRef:r.ref,stopName:r.stopName||s.name,line:'',filter:'',_line:null};$('ltitle').textContent='Ligne à '+sel.stopName;
 const LC=$('lchips');LC.innerHTML='';r.lines.forEach(l=>{const c=h('span',{class:'chip',onclick:()=>{choose(LC,c);sel.line=l.id;sel._line=l;sel.filter='';
-const D=$('dchips');D.innerHTML='';const all=h('span',{class:'chip t on',onclick:()=>{choose(D,all);sel.filter=''}},'Tous les sens');D.append(all);
-l.dests.forEach(d=>{const dc=h('span',{class:'chip t',onclick:()=>{choose(D,dc);sel.filter=d}},'→ '+d);D.append(dc)})}},badge(l),l.dests.slice(0,2).join(' / '));LC.append(c)});
+const D=$('dchips');D.innerHTML='';const picked=new Set();
+const all=h('span',{class:'chip t on',onclick:()=>{picked.clear();[...D.children].forEach(x=>x.classList.remove('on'));all.classList.add('on');sel.filter=''}},'Toutes');D.append(all);
+l.dests.forEach(d=>{const dc=h('span',{class:'chip t',onclick:()=>{if(picked.has(d)){picked.delete(d);dc.classList.remove('on')}else{picked.add(d);dc.classList.add('on')}
+all.classList.toggle('on',!picked.size);sel.filter=[...picked].join('|')}},'→ '+d);D.append(dc)})}},badge(l),l.dests.slice(0,2).join(' / '));LC.append(c)});
 $('lsel').style.display='';LC.children[0].click()}
 $('addf').onclick=()=>{if(!sel)return;if(C.favorites.length>=4){msg('smsg','4 arrêts au maximum.','err');return}
-C.favorites.push({stopRef:sel.stopRef,stopName:sel.stopName,line:sel.line,badge:'',filter:sel.filter,label:$('flabel').value.trim(),_line:sel._line});
+const L=sel._line||{};C.favorites.push({stopRef:sel.stopRef,stopName:sel.stopName,line:sel.line,badge:(L.name||'').slice(0,7),color:L.color,text:L.text,mode:L.mode,
+filter:sel.filter,label:$('flabel').value.trim(),_line:sel._line});
 renderF();$('lsel').style.display='none';$('flabel').value='';$('q').value='';msg('smsg','Arrêt ajouté ✓ N\'oubliez pas d\'enregistrer.','ok')};
 $('addm').onclick=()=>{const r=$('mref').value.trim();if(!r)return;if(C.favorites.length>=4){alert('4 arrêts au maximum');return}
 C.favorites.push({stopRef:r,stopName:$('mlabel').value.trim()||r,line:$('mline').value.trim(),badge:$('mbadge').value.trim(),filter:$('mfilter').value.trim(),label:$('mlabel').value.trim()});renderF()};

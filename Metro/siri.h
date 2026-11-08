@@ -10,6 +10,7 @@
 #define MAX_DEPARTURES 20
 #define MAX_GROUPS 4
 #define TXT_LEN 40
+#define LINE_DESTS 8  // destinations retenues par ligne (configuration)
 
 enum : uint8_t {
   DEP_REALTIME = 1,   // heure "Expected" (temps réel) et non théorique
@@ -47,7 +48,7 @@ SiriStatus parseStopMonitoring(const char* json, size_t len, const char* lineFil
 struct LineSummary {
   char line[12];
   uint8_t ndest;
-  char dest[4][TXT_LEN];
+  char dest[LINE_DESTS][TXT_LEN];
 };
 int summarizeLines(const char* json, size_t len, LineSummary* out, int maxLines,
                    char* stopName, size_t stopNameLen);

@@ -54,7 +54,12 @@ LINES = {"ref": "STIF:StopArea:SP:71517:", "stopName": "Bastille", "lines": [
     {"id": "C01375", "name": "5", "mode": "metro", "color": "#FF5A00", "text": "#000000",
      "dests": ["Bobigny - Pablo Picasso", "Place d'Italie"]},
     {"id": "C01378", "name": "8", "mode": "metro", "color": "#D282BE", "text": "#000000",
-     "dests": ["Balard", "Pointe du Lac"]}]}
+     "dests": ["Balard", "Pointe du Lac"]},
+    {"id": "C01742", "name": "A", "mode": "rer", "color": "#EB2132", "text": "#FFFFFF",
+     "dests": ["Marne-la-Vallée Chessy", "Torcy", "Boissy-Saint-Léger", "Saint-Germain-en-Laye",
+               "Cergy le Haut", "Poissy"]},
+    {"id": "C01392", "name": "N24", "mode": "bus", "color": "#FF5A00", "text": "#000000",
+     "dests": ["Châtelet", "Gare de Sartrouville"]}]}
 
 
 SNCF_SEARCH = {"stations": [{"id": "stop_area:SNCF:87393009", "name": "Versailles Chantiers"},
