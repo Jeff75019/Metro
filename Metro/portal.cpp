@@ -284,9 +284,23 @@ static void handleConnect() {
   staConnect(ssid, pass, true);
 }
 
+// Réponse quand l'afficheur n'a pas (encore) Internet, avec la raison
+static void sendNoInternet() {
+  char msg[160];
+  if (staState == StaState::Connecting)
+    snprintf(msg, sizeof(msg), "L'afficheur se connecte encore à « %s » : réessayez dans quelques secondes.",
+             staSsid.c_str());
+  else if (staState == StaState::Failed)
+    snprintf(msg, sizeof(msg), "L'afficheur n'a pas pu se connecter à « %s » (%s) : voir l'étape 1.", staSsid.c_str(),
+             staFailReason ? wifiReasonText(staFailReason) : "pas de réponse");
+  else
+    snprintf(msg, sizeof(msg), "Pas d'accès Internet : ajoutez d'abord un réseau WiFi (étape 1).");
+  sendError(503, msg);
+}
+
 static void handleSearch() {
   lastActivity = millis();
-  if (!staConnected()) return sendError(503, "Pas d'accès Internet : ajoutez d'abord un réseau WiFi (étape 1).");
+  if (!staConnected()) return sendNoInternet();
   String q = server.arg("q");
   q.trim();
   if (q.length() < 2) return sendError(400, "Tapez au moins 2 lettres");
@@ -297,7 +311,7 @@ static void handleSearch() {
 
 static void handleLines() {
   lastActivity = millis();
-  if (!staConnected()) return sendError(503, "Pas d'accès Internet : ajoutez d'abord un réseau WiFi (étape 1).");
+  if (!staConnected()) return sendNoInternet();
   String key = server.arg("key");
   key.trim();
   if (key.isEmpty()) key = settings.apiKey;
@@ -309,7 +323,7 @@ static void handleLines() {
 
 static void handleSncfSearch() {
   lastActivity = millis();
-  if (!staConnected()) return sendError(503, "Pas d'accès Internet : ajoutez d'abord un réseau WiFi (étape 1).");
+  if (!staConnected()) return sendNoInternet();
   const bool useApi = server.arg("src") == "sncf";
   String key = server.arg("key");
   key.trim();

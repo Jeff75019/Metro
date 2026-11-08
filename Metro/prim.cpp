@@ -129,8 +129,13 @@ int searchStopsJson(const String& query, String& out) {
   // API "explore v2.1" (actuelle), puis l'ancienne API v1 en secours
   String q = query;
   q.replace("\"", " ");
+  const uint32_t t0 = millis();
   int code = httpGet(String(ODS_V21) + urlEncode("\"" + q + "\"", false), HttpAuth(), body);
-  if (code != 200) code = httpGet(String(ODS_V1) + urlEncode(query, false), HttpAuth(), body);
+  // Ancienne API seulement si la nouvelle répond par une erreur (pas en cas de
+  // panne réseau : même serveur, ce serait une longue attente pour rien)
+  if (code >= 300) code = httpGet(String(ODS_V1) + urlEncode(query, false), HttpAuth(), body);
+  log_i("Recherche d'arrêts « %s » : code %d, %u octets, %lu ms", query.c_str(), code, (unsigned)body.length(),
+        (unsigned long)(millis() - t0));
   JsonDocument res;
   if (code != 200) {
     char msg[64];

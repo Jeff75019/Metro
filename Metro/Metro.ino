@@ -401,7 +401,10 @@ static void switchApp() {
                                           : "Choisissez au moins une gare",
                     "Appui long sur l'écran : configuration", 0x1A4CA8);
     else
-      uiDrawMessage("Métro non configuré", "Ajoutez une clé API PRIM et un arrêt",
+      uiDrawMessage("Métro non configuré",
+                    settings.apiKey[0]  ? "Clé PRIM enregistrée : ajoutez un arrêt"
+                    : settings.favCount ? "Ajoutez votre clé API PRIM"
+                                        : "Ajoutez une clé API PRIM et un arrêt",
                     "Appui long sur l'écran : configuration", 0xFFC12E);
     delay(1800);
     draw();

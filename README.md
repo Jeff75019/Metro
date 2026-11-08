@@ -111,7 +111,7 @@ Au premier démarrage, l'écran affiche un **QR code** et le nom d'un WiFi « Me
 1. Scannez le QR code avec l'appareil photo du téléphone (ou rejoignez « Metro-XXXX » à la main). La page de configuration s'ouvre ; sinon, allez sur **http://192.168.4.1**.
 2. **WiFi** : « Rechercher les réseaux », choisissez le vôtre, entrez le mot de passe, « Ajouter et se connecter ». Attendez « Connecté et enregistré ✓ » : le réseau est enregistré dès que la connexion réussit. L'écran de l'afficheur indique aussi le résultat (« WiFi : mot de passe refusé »…). Si le téléphone perd la page à ce moment (l'afficheur change de canal pour rejoindre la box), reconnectez-le à « Metro-XXXX », ou ouvrez l'adresse **http://192.168.…** affichée sur l'écran depuis le WiFi de la maison.
 3. **Clé API PRIM** : collez votre jeton.
-4. **Mes arrêts** : tapez un nom de station (« Bastille »), choisissez-la, puis la ligne et, si vous voulez, les destinations à afficher. Répétez pour 4 arrêts au plus.
+4. **Mes arrêts** : tapez un nom de station (« Bastille ») : la liste des arrêts apparaît au bout d'une seconde (la recherche passe par l'afficheur, qui doit donc être connecté au WiFi : étape 1). Touchez l'arrêt, puis la ligne et, si vous voulez, les destinations à afficher, puis « Ajouter » : l'arrêt est enregistré aussitôt. Répétez pour 4 arrêts au plus.
    Pour un RER à plusieurs branches, cochez toutes les destinations d'un même sens (ex. RER A vers l'est : Marne-la-Vallée Chessy, Torcy, Boissy-Saint-Léger) : les données « Aller / Retour » du RER ne sont pas fiables.
    Les bus et Noctiliens sont reconnus : leur numéro et leur couleur viennent du référentiel des lignes IDFM.
 5. **Trains grandes lignes** (facultatif) : cochez les gares de Paris voulues ; « Autre gare » permet d'en ajouter d'autres par leur nom (recherche dans l'open data SNCF, sans clé). Rien d'autre à faire avec la source Train Nomade.
@@ -162,6 +162,8 @@ Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille �
 | « Horaire théorique » | IDFM ne fournit pas de temps réel pour ce passage, c'est l'horaire prévu |
 | RER : « sens 1/2 » mélange des trains vers l'est et l'ouest | Dans la configuration, choisissez les destinations d'un même sens |
 | « WiFi : réseau introuvable » / réseau absent de la liste | La carte ne capte que le WiFi 2,4 GHz : vérifiez que cette bande est active sur la box. Partage de connexion d'iPhone : activez « Maximiser la compatibilité » |
+| Recherche d'arrêts : « L'afficheur ne répond pas » | Le téléphone a quitté le réseau « Metro-XXXX » (il préfère souvent un WiFi avec Internet) : reconnectez-le, ou ouvrez l'adresse http://192.168.… affichée sur l'écran depuis le WiFi de la maison |
+| Recherche d'arrêts : « Réseau : … » | L'afficheur n'arrive pas à joindre l'open data IDFM : regardez le moniteur série (ligne « Recherche d'arrêts ») |
 | « WiFi : mot de passe refusé » | Cochez « Afficher le mot de passe » pour le vérifier (majuscules, chiffres et symboles comptent) |
 | « WiFi : sécurité non gérée » | Réseau d'entreprise (identifiant + mot de passe) ou WEP : non gérés ; utilisez le WPA2 ou le WPA3 personnel |
 | La page de configuration se ferme pendant la connexion WiFi | Normal si l'afficheur change de canal : reconnectez le téléphone à « Metro-XXXX » ; le WiFi est déjà enregistré si l'écran affiche « ou http://… » |

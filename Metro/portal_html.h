@@ -145,7 +145,9 @@ function wifiIcon(rssi){const n=rssi>-60?3:rssi>-72?2:1;return `<svg width="20" 
 function h(t,a,...k){const e=document.createElement(t);for(const n in a||{}){if(n.startsWith('on'))e[n]=a[n];else if(n=='html')e.innerHTML=a[n];else e.setAttribute(n,a[n]);}
 for(const c of k.flat())if(c!=null)e.append(c.nodeType?c:document.createTextNode(c));return e}
 async function api(u,b){const o=b===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)};
-const r=await fetch(u,o);const j=await r.json().catch(()=>({error:'Réponse invalide ('+r.status+')'}));if(!r.ok&&!j.error)j.error='Erreur '+r.status;return j}
+const ac=new AbortController();const t=setTimeout(()=>ac.abort(),45000);o.signal=ac.signal;
+try{const r=await fetch(u,o);const j=await r.json().catch(()=>({error:'Réponse invalide ('+r.status+')'}));if(!r.ok&&!j.error)j.error='Erreur '+r.status;return j}finally{clearTimeout(t)}}
+const LOST=()=>({error:'L\'afficheur ne répond pas : vérifiez que ce téléphone est toujours connecté au réseau « '+(AP||'Metro-…')+' » (ou au même WiFi que l\'afficheur), puis réessayez.'});
 function msg(id,t,cls){const e=$(id);e.className='msg'+(cls?' '+cls:'');e.textContent=t||''}
 const MODE={metro:['M',''],rer:['RER','r'],train:['TRAIN','r'],tram:['T',''],navette:['VAL','r'],bus:['BUS','r']};
 function modePic(m){const d=MODE[m]||MODE.bus;return h('span',{class:'mode '+d[1]},d[0])}
@@ -204,14 +206,17 @@ if(!st){if(++lost>=2)msg('wmsg','Liaison avec l\'afficheur coupée : c\'est norm
 lost=0;if(st.sta&&st.ssid==s){msg('wmsg','Connecté et enregistré ✓ Vous pouvez chercher vos arrêts.','ok');return}
 if(st.staState=='failed'&&st.staTarget==s){msg('wmsg','Connexion impossible : '+st.staError+'. '+(st.staHint||''),'err');return}}
 msg('wmsg','Pas de réponse : regardez l\'écran de l\'afficheur, il indique le résultat de la connexion.','err')}finally{$('addw').disabled=false}};
-$('go').onclick=async()=>{const q=$('q').value.trim();if(!q)return;msg('smsg','Recherche…');$('sres').innerHTML='';$('lsel').style.display='none';
-const r=await api('/api/search?q='+encodeURIComponent(q));if(r.error){msg('smsg',r.error,'err');return}
-msg('smsg',r.stops.length?'Choisissez l\'arrêt :':'Aucun résultat.');
+let SQ=0,STO;
+async function searchStops(){clearTimeout(STO);const q=$('q').value.trim();if(q.length<2){msg('smsg','Tapez au moins 2 lettres.');return}
+const n=++SQ;msg('smsg','Recherche de « '+q+' » par l\'afficheur… (quelques secondes)');$('sres').innerHTML='';$('lsel').style.display='none';
+const r=await api('/api/search?q='+encodeURIComponent(q)).catch(LOST);if(n!=SQ)return;if(r.error){msg('smsg',r.error,'err');return}
+msg('smsg',r.stops.length?'Touchez votre arrêt :':'Aucun arrêt trouvé pour « '+q+' ». Essayez un autre nom (ex. « Gare de Lyon », « Nation »).');
 r.stops.forEach(s=>$('sres').append(h('div',{class:'item pick',onclick:()=>pickStop(s)},modePic(s.type=='rail'?'rer':s.type),h('div',{class:'grow'},h('div',{class:'name'},s.name),h('div',{class:'meta'},s.town)))))};
-$('q').onkeydown=e=>{if(e.key=='Enter')$('go').click()};
+$('go').onclick=searchStops;$('q').onkeydown=e=>{if(e.key=='Enter')searchStops()};
+$('q').oninput=()=>{clearTimeout(STO);if($('q').value.trim().length>=3)STO=setTimeout(searchStops,1000)};
 function choose(box,el){[...box.children].forEach(x=>x.classList.remove('on'));el.classList.add('on')}
-async function pickStop(s){$('sres').innerHTML='';msg('smsg','Lignes desservies à '+s.name+'…');
-const r=await api('/api/lines?ref='+encodeURIComponent(s.ref)+'&key='+encodeURIComponent($('key').value.trim()));
+async function pickStop(s){$('sres').innerHTML='';msg('smsg','Lignes desservies à '+s.name+' (interrogation de PRIM)…');
+const r=await api('/api/lines?ref='+encodeURIComponent(s.ref)+'&key='+encodeURIComponent($('key').value.trim())).catch(LOST);
 if(r.error){msg('smsg',r.error,'err');return}
 if(!r.lines||!r.lines.length){msg('smsg','Aucun passage annoncé en ce moment à cet arrêt (réessayez en journée).');return}
 msg('smsg','');sel={stopRef:r.ref,stopName:r.stopName||s.name,line:'',filter:'',_line:null};$('ltitle').textContent='Ligne à '+sel.stopName;
@@ -221,17 +226,19 @@ const all=h('span',{class:'chip t on',onclick:()=>{picked.clear();[...D.children
 l.dests.forEach(d=>{const dc=h('span',{class:'chip t',onclick:()=>{if(picked.has(d)){picked.delete(d);dc.classList.remove('on')}else{picked.add(d);dc.classList.add('on')}
 all.classList.toggle('on',!picked.size);sel.filter=[...picked].join('|')}},'→ '+d);D.append(dc)})}},badge(l),l.dests.slice(0,2).join(' / '));LC.append(c)});
 $('lsel').style.display='';LC.children[0].click()}
-$('addf').onclick=()=>{if(!sel)return;if(C.favorites.length>=4){msg('smsg','4 arrêts au maximum.','err');return}
+$('addf').onclick=async()=>{if(!sel)return;if(C.favorites.length>=4){msg('smsg','4 arrêts au maximum.','err');return}
 const L=sel._line||{};C.favorites.push({stopRef:sel.stopRef,stopName:sel.stopName,line:sel.line,badge:(L.name||'').slice(0,7),color:L.color,text:L.text,mode:L.mode,
 filter:sel.filter,label:$('flabel').value.trim(),_line:sel._line});
-renderF();$('lsel').style.display='none';$('flabel').value='';$('q').value='';msg('smsg','Arrêt ajouté ✓ N\'oubliez pas d\'enregistrer.','ok')};
+renderF();$('lsel').style.display='none';$('flabel').value='';$('q').value='';msg('smsg','Enregistrement…');
+const r=await saveCfg().catch(LOST);msg('smsg',r.error?'Arrêt ajouté, mais pas encore enregistré ('+r.error+') : touchez « Enregistrer » en bas de la page.':'Arrêt ajouté et enregistré ✓',r.error?'err':'ok')};
 $('addm').onclick=()=>{const r=$('mref').value.trim();if(!r)return;if(C.favorites.length>=4){alert('4 arrêts au maximum');return}
 C.favorites.push({stopRef:r,stopName:$('mlabel').value.trim()||r,line:$('mline').value.trim(),badge:$('mbadge').value.trim(),filter:$('mfilter').value.trim(),label:$('mlabel').value.trim()});renderF()};
-$('save').onclick=async()=>{const b={wifi:C.wifi.map(w=>({ssid:w.ssid,pass:w.pass||''})),favorites:C.favorites.map(({_line,...f})=>f),
+function cfgBody(){const b={wifi:C.wifi.map(w=>({ssid:w.ssid,pass:w.pass||''})),favorites:C.favorites.map(({_line,...f})=>f),
 refreshS:+$('refreshS').value,awakeS:+$('awakeS').value,dailyQuota:+$('dailyQuota').value,brightness:+$('brightness').value,sleepMode:C.sleepMode,
 motionWake:$('motionWake').checked,flip:$('flip').checked,stations:C.stations,mainlineOnly:$('mainlineOnly').checked,trainSource:C.trainSource};
-const k=$('key').value.trim();if(k)b.apiKey=k;const sk=$('skey').value.trim();if(sk)b.sncfKey=sk;
-const r=await api('/api/config',b);const T=$('toast');if(r.error){T.className='msg err';T.textContent=r.error;return}
+const k=$('key').value.trim();if(k)b.apiKey=k;const sk=$('skey').value.trim();if(sk)b.sncfKey=sk;return b}
+const saveCfg=()=>api('/api/config',cfgBody());
+$('save').onclick=async()=>{const r=await saveCfg().catch(LOST);const T=$('toast');if(r.error){T.className='msg err';T.textContent=r.error;return}
 if(r.ready){T.className='msg ok';T.textContent='Enregistré ✓ L\'afficheur redémarre…';api('/api/reboot',{})}else{T.className='msg err';T.textContent='Enregistré. Il manque encore : '+r.missing+'.'}};
 $('reset').onclick=async()=>{if(confirm('Effacer le WiFi, la clé et les arrêts ?')){await api('/api/reset',{});$('toast').textContent='Réglages effacés, redémarrage…'}};
 load();setInterval(()=>status().catch(()=>{}),15000);
