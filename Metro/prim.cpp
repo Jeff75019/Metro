@@ -200,7 +200,7 @@ int primLinesJson(const String& stopRef, const char* apiKey, String& out) {
   for (int i = 0; i < n; i++) {
     JsonObject o = arr.add<JsonObject>();
     const LineInfo* li = findLine(ls[i].line);
-    char col[8];
+    char col[12];
     o["id"] = ls[i].line;
     o["name"] = li ? li->name : "";
     o["mode"] = li ? lineModeName(li->mode) : "bus";
@@ -261,7 +261,7 @@ int searchStopsJson(const String& query, String& out) {
   JsonArray arr = res["stops"].to<JsonArray>();
   for (int rank = 0; rank <= 4; rank++) {  // métro et RER d'abord, bus à la fin
     for (JsonObjectConst it : items) {
-      JsonObjectConst f = v1 ? it["fields"] : it;
+      JsonObjectConst f = v1 ? it["fields"].as<JsonObjectConst>() : it;
       const char* zt = f["zdatype"] | "";
       const char* type = !strcmp(zt, "metroStation")   ? "metro"
                          : !strcmp(zt, "railStation")  ? "rail"

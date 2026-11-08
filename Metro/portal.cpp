@@ -58,7 +58,7 @@ static void handleGetConfig() {
     const LineInfo* li = findLine(f["line"] | "");
     if (!li) continue;
     JsonObject l = f["_line"].to<JsonObject>();
-    char col[8];
+    char col[12];
     l["name"] = li->name;
     l["mode"] = lineModeName(li->mode);
     snprintf(col, sizeof(col), "#%06X", (unsigned)li->color);

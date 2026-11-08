@@ -164,7 +164,7 @@ static void drawBattery(int xRight, int cy, int pct) {
   canvas.fillRect(x + w, cy - 2, 2, 5, COL_MUTED);
   int fw = (w - 4) * pct / 100;
   if (fw > 0) canvas.fillRect(x + 2, cy - h / 2 + 2, fw, h - 4, c);
-  char buf[8];
+  char buf[16];
   snprintf(buf, sizeof(buf), "%d%%", pct);
   drawText(buf, x - 4, cy + 1, &fSmall, COL_MUTED, lgfx::middle_right);
 }
@@ -209,11 +209,11 @@ static void drawRow(int y, const Row* r, int64_t now) {
     // clignote comme sur les quais
     rightW = status("À l'approche", &fMedium, (now & 1) ? COL_AMBER : COL_AMBER_DIM);
   } else if (diff >= 100 * 60) {
-    char hhmm[8];
+    char hhmm[16];
     localHHMM(r->when, hhmm, sizeof(hhmm));
     rightW = status(hhmm, &fLarge, COL_AMBER);
   } else {
-    char num[8];
+    char num[16];
     snprintf(num, sizeof(num), "%d", (int)(diff / 60));
     const int base = y + 45;
     uint16_t c = (r->flags & DEP_REALTIME) ? COL_AMBER : COL_AMBER_DIM;
