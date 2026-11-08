@@ -10,3 +10,4 @@ tools/idf-build/sdkconfig
 tools/idf-build/sdkconfig.old
 tools/idf-build/main/*.cpp
 tools/idf-build/main/*.h
+!firmware/*.bin
