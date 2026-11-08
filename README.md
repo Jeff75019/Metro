@@ -55,6 +55,17 @@ Données : **API PRIM d'Île-de-France Mobilités** (gratuite, clé personnelle)
 7. Branchez la carte en USB-C et cliquez sur **Téléverser**.
    Si le téléversement échoue : maintenez **BOOT**, appuyez brièvement sur **RESET**, relâchez BOOT, puis recommencez.
 
+### Sans rien installer : binaire précompilé
+
+Si vous avez le fichier `metro-merged.bin` (image complète : chargeur de démarrage + table de partitions + programme) :
+
+1. Ouvrez [espressif.github.io/esptool-js](https://espressif.github.io/esptool-js/) dans Chrome ou Edge.
+2. Branchez la carte, cliquez sur **Connect** et choisissez le port USB (si rien n'apparaît : maintenez **BOOT**, appuyez sur **RESET**, relâchez BOOT).
+3. Adresse **0x0**, fichier `metro-merged.bin`, puis **Program**.
+4. Appuyez sur **RESET**.
+
+En ligne de commande : `esptool.py --chip esp32s3 write_flash 0x0 metro-merged.bin`.
+
 ### Avec PlatformIO (VS Code)
 
 Ouvrez le dossier du dépôt dans VS Code avec l'extension PlatformIO, puis :
@@ -159,7 +170,8 @@ Pour modifier les polices (taille, caractères) : `pip install pillow && python3
 
 ## État et limites
 
-- Le décodage PRIM (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC. La partie propre à l'ESP32 (WiFi, HTTPS, veille, portail) a été écrite d'après les en-têtes du cœur Arduino ESP32 3.3.12 et de LovyanGFX 1.2.36, mais **n'a pas encore été compilée ni essayée sur la carte**. Au premier essai, regardez le moniteur série et signalez les erreurs.
+- Le décodage PRIM (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC.
+- Le firmware complet **compile sans erreur ni avertissement** (`-Wall -Wextra`) pour l'ESP32-S3 avec ESP-IDF 5.5.6 + cœur Arduino 3.3.12 + LovyanGFX 1.2.36 + ArduinoJson 7.4.3 (binaire d'environ 1,5 Mo, la moitié de la partition). Il **n'a pas encore été essayé sur la carte** : au premier essai, regardez le moniteur série et signalez les erreurs.
 - Le **réveil par secousse** est expérimental : la séquence de l'IMU vient de notes de la communauté, et la broche d'interruption n'est pas confirmée. Si l'afficheur se réveille tout seul dans une poche, il suspend ce réveil 30 minutes après 3 réveils sans utilisation.
 - Le sens d'affichage (paysage, USB à gauche ou à droite) dépend du montage : utilisez l'option « Retourner l'écran ».
 - Les connexions HTTPS vérifient les certificats avec le magasin intégré au cœur ESP32 (versions 3.3.x). Si la connexion échoue, l'afficheur refait un essai sans vérification pour ne pas rester bloqué.

@@ -4,3 +4,9 @@ build/
 test/build/
 test/out/
 *.bin
+tools/idf-build/build/
+tools/idf-build/components/
+tools/idf-build/sdkconfig
+tools/idf-build/sdkconfig.old
+tools/idf-build/main/*.cpp
+tools/idf-build/main/*.h
