@@ -150,5 +150,41 @@ int main() {
 
   uiDrawSplash("1.0.0");
   dump("09_demarrage");
+
+  // 10) Premier chargement (squelette)
+  s = base(findLine("C01374"), "Montparnasse - Bienvenüe");
+  s.view = nullptr;
+  s.hasData = false;
+  s.net = NetState::Connecting;
+  s.ageS = -1;
+  s.now = now;
+  uiDrawMain(s);
+  dump("10_chargement");
+
+  // 11) Bus (ligne absente de la table), données un peu anciennes
+  r.count = 2;
+  r.dep[0].when = now + 4 * 60 + 10;
+  copyStr(r.dep[0].dest, "Gare Saint-Lazare", TXT_LEN);
+  r.dep[0].flags = DEP_REALTIME;
+  r.dep[1].when = now + 16 * 60;
+  copyStr(r.dep[1].dest, "Gare Saint-Lazare", TXT_LEN);
+  r.dep[1].flags = DEP_REALTIME;
+  buildView(r, "", "", now, v);
+  memset(&s, 0, sizeof(s));
+  s.badge = "21";
+  s.mode = LineMode::Bus;
+  s.badgeColor = 0x5A6E8C;
+  s.badgeText = 0xFFFFFF;
+  s.title = "Porte de Gentilly";
+  s.battery = 92;
+  s.view = &v;
+  s.hasData = true;
+  s.now = now;
+  s.net = NetState::Online;
+  s.ageS = 240;
+  s.favIndex = 2;
+  s.favCount = 3;
+  uiDrawMain(s);
+  dump("11_bus");
   return 0;
 }

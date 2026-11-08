@@ -34,10 +34,14 @@ BIG_CHARS = [ord(c) for c in " 0123456789:+-<>'M"]
 
 # (nom C, fichier, taille en pixels, jeu de caractères)
 FONTS = [
+    ("font_tiny", "barlow-semi-condensed-latin-600-normal.woff", 13, TEXT_CHARS),
     ("font_small", "barlow-semi-condensed-latin-600-normal.woff", 16, TEXT_CHARS),
     ("font_medium", "barlow-semi-condensed-latin-600-normal.woff", 23, TEXT_CHARS),
+    # même taille, plus étroite : pour les noms de destination trop longs
+    ("font_cond", "barlow-condensed-latin-600-normal.woff", 23, TEXT_CHARS),
+    ("font_cond_small", "barlow-condensed-latin-600-normal.woff", 19, TEXT_CHARS),
     ("font_large", "barlow-semi-condensed-latin-700-normal.woff", 30, TEXT_CHARS),
-    ("font_big", "barlow-semi-condensed-latin-700-normal.woff", 52, BIG_CHARS),
+    ("font_big", "barlow-semi-condensed-latin-700-normal.woff", 54, BIG_CHARS),
 ]
 
 
@@ -77,7 +81,7 @@ def make_vlw(path, size, chars):
 def main():
     lines = [
         "// Fichier généré par tools/make_fonts.py — ne pas modifier à la main.",
-        "// Police : Barlow Semi Condensed (SIL Open Font License 1.1, voir tools/fonts/OFL.txt)",
+        "// Polices : Barlow Semi Condensed et Barlow Condensed (SIL Open Font License 1.1, voir tools/fonts/OFL.txt)",
         "#pragma once",
         "#include <stdint.h>",
         "",

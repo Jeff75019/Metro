@@ -1,132 +1,192 @@
 // Page web de configuration, servie par l'afficheur (http://192.168.4.1).
+// Aperçu sur PC sans la carte : python3 tools/portal_preview.py
 #pragma once
 
 static const char PORTAL_HTML[] = R"HTML(<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a1020">
 <title>Afficheur Métro</title>
 <style>
-:root{--bg:#06101f;--card:#0e1e38;--line:#1e3357;--txt:#fff;--mut:#8a9bbc;--acc:#ffc629;--ok:#48d597;--err:#ff7a5f}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-main{max-width:640px;margin:0 auto;padding:16px}h1{font-size:22px;margin:4px 0 2px}h2{font-size:17px;margin:0 0 10px;color:var(--acc)}
-.sub{color:var(--mut);font-size:14px;margin-bottom:14px}section{background:var(--card);border-radius:14px;padding:16px;margin:14px 0}
-label{display:block;font-size:14px;color:var(--mut);margin:10px 0 4px}
-input,select{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:#081429;color:var(--txt);font-size:16px}
-input[type=checkbox]{width:auto;margin-right:8px}input[type=range]{padding:0}
-button{border:0;border-radius:10px;padding:11px 14px;font-size:15px;font-weight:600;background:var(--line);color:var(--txt);cursor:pointer}
-button.pri{background:var(--acc);color:#111}button.sm{padding:6px 10px;font-size:13px}button:disabled{opacity:.5}
-.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.row>button{flex:0 0 auto}
-.list>div{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.list>div:last-child{border:0}
-.grow{flex:1;min-width:0}.mut{color:var(--mut);font-size:13px}.ok{color:var(--ok)}.err{color:var(--err)}
-.badge{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 6px;border-radius:15px;font-weight:700;font-size:15px}
-.badge.sq{border-radius:7px}.badge.rect{border-radius:4px}
-.pick{cursor:pointer}.pick:hover{background:#13284a}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.chip{border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer;font-size:14px;background:#081429}.chip.on{border-color:var(--acc);color:var(--acc)}
-details summary{cursor:pointer;color:var(--mut);margin-top:12px}.foot{display:flex;gap:10px;position:sticky;bottom:0;padding:12px 0;background:var(--bg)}
-.foot button{flex:1}a{color:var(--acc)}#toast{min-height:22px;margin-top:6px}
+:root{--bg:#0a1020;--card:#111a2e;--card2:#0d1527;--line:#1d2843;--txt:#f4f6fb;--mut:#8c98b4;--faint:#55617f;
+--acc:#ffc12e;--ok:#34d399;--err:#ff6b6b;--warn:#ffa94d;--r:16px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg)}body{margin:0;color:var(--txt);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif}
+main{max-width:560px;margin:0 auto;padding:20px 16px 110px}
+.top{display:flex;align-items:center;gap:12px;margin:4px 0 6px}
+.logo{width:44px;height:44px;border-radius:50%;background:var(--txt);color:var(--bg);display:grid;place-items:center;font:800 24px/1 system-ui;flex:none}
+h1{font-size:21px;margin:0;letter-spacing:-.2px}.sub{color:var(--mut);font-size:13px}
+.stripe{display:flex;height:3px;border-radius:2px;overflow:hidden;margin:14px 0 4px}.stripe i{flex:1}
+.status{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.tag{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12.5px;color:var(--mut)}
+.tag b{font-weight:600;color:var(--txt)}.dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}.dot.ok{background:var(--ok)}.dot.err{background:var(--err)}
+section{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 16px;margin:14px 0}
+.sh{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.num{width:26px;height:26px;border-radius:50%;background:rgba(255,193,46,.14);color:var(--acc);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.num.done{background:rgba(52,211,153,.15);color:var(--ok)}
+h2{font-size:16.5px;margin:0}.desc{color:var(--mut);font-size:13.5px;margin:2px 0 12px 36px}
+label.f{display:block;font-size:12.5px;color:var(--mut);margin:12px 0 6px;font-weight:500}
+input,select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--txt);font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(255,193,46,.18)}
+input::placeholder{color:var(--faint)}
+button{border:0;border-radius:12px;padding:12px 16px;font-size:15px;font-weight:600;background:var(--line);color:var(--txt);cursor:pointer;transition:filter .15s,transform .05s}
+button:active{transform:scale(.98)}button:hover{filter:brightness(1.15)}button:disabled{opacity:.45}
+button.pri{background:var(--acc);color:#1a1300}button.ghost{background:transparent;color:var(--mut);padding:8px 10px}
+button.icon{background:transparent;color:var(--mut);padding:8px;border-radius:10px;line-height:0}button.icon:hover{background:var(--line)}
+.row{display:flex;gap:8px;align-items:center}.row>input{flex:1}.row>button{flex:none}
+.list{margin:4px 0}.item{display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid var(--line)}.item:first-child{border-top:0}
+.pick{cursor:pointer;border-radius:12px;padding:11px 10px}.pick:hover{background:var(--card2)}
+.grow{flex:1;min-width:0}.name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta{color:var(--mut);font-size:12.5px}
+.empty{color:var(--faint);font-size:13.5px;padding:8px 4px}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 7px;border-radius:14px;font-weight:700;font-size:14px;flex:none}
+.badge.sq{border-radius:7px}.badge.rect{border-radius:5px}
+.mode{display:inline-flex;align-items:center;justify-content:center;height:22px;min-width:22px;padding:0 5px;border-radius:11px;background:var(--txt);color:var(--bg);font-weight:800;font-size:11px;flex:none}
+.mode.r{border-radius:5px}
+.pics{display:flex;align-items:center;gap:5px;flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 12px 6px 6px;cursor:pointer;font-size:13.5px;background:var(--card2);color:var(--txt)}
+.chip.t{padding:7px 13px}.chip.on{border-color:var(--acc);background:rgba(255,193,46,.08)}
+.msg{font-size:13.5px;margin-top:8px;color:var(--mut)}.msg.ok{color:var(--ok)}.msg.err{color:var(--err)}
+.panel{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--line)}.set:first-of-type{border-top:0}
+.set .l{flex:1}.set .l b{display:block;font-weight:600;font-size:14.5px}.set .l span{color:var(--mut);font-size:12.5px}
+.set input[type=number]{width:96px;text-align:right}
+.seg{display:flex;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-top:8px}
+.seg button{flex:1;background:transparent;color:var(--mut);padding:9px 6px;font-size:13px;border-radius:9px}.seg button.on{background:var(--line);color:var(--txt)}
+.sw{position:relative;width:46px;height:28px;flex:none}.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw span{position:absolute;inset:0;background:var(--line);border-radius:14px;transition:.2s;cursor:pointer}
+.sw span:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;border-radius:50%;background:var(--mut);transition:.2s}
+.sw input:checked+span{background:rgba(255,193,46,.35)}.sw input:checked+span:before{transform:translateX(18px);background:var(--acc)}
+input[type=range]{padding:0;height:28px;background:transparent;border:0;accent-color:var(--acc);box-shadow:none}
+details{margin-top:14px}summary{cursor:pointer;color:var(--mut);font-size:13.5px;list-style:none}summary:before{content:"▸ "}details[open] summary:before{content:"▾ "}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%);display:flex;justify-content:center}
+.bar .in{max-width:560px;width:100%;display:flex;flex-direction:column;gap:8px}.bar button{width:100%;padding:15px;font-size:16px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+#toast{text-align:center;font-size:13.5px;min-height:18px}
+svg{display:block}
 </style></head><body><main>
-<h1>Afficheur Métro</h1><div class="sub" id="st">Chargement…</div>
+<div class="top"><div class="logo">M</div><div><h1>Afficheur Métro</h1><div class="sub">Prochains passages en temps réel · Île-de-France</div></div></div>
+<div class="stripe" id="stripe"></div>
+<div class="status" id="st"><span class="tag"><span class="dot"></span>Connexion à l'afficheur…</span></div>
 
-<section><h2>1. WiFi</h2>
-<div class="mut">Le réseau que l'afficheur utilisera pour récupérer les horaires (jusqu'à 3 : maison, bureau, partage de connexion…).</div>
+<section><div class="sh"><span class="num" id="n1">1</span><h2>Réseau WiFi</h2></div>
+<div class="desc">Celui que l'afficheur utilisera pour récupérer les horaires. Jusqu'à 3 : maison, bureau, partage de connexion…</div>
 <div class="list" id="wl"></div>
-<div class="row" style="margin-top:10px"><button id="scan">Rechercher les réseaux</button></div>
+<div class="panel">
+<div class="row"><button id="scan" style="width:100%">Rechercher les réseaux à proximité</button></div>
 <div class="list" id="scanres"></div>
-<label>Nom du réseau (SSID)</label><input id="nssid" autocomplete="off">
-<label>Mot de passe</label><input id="npass" type="password" autocomplete="off">
-<div class="row" style="margin-top:10px"><button class="pri" id="addw">Ajouter et se connecter</button></div>
-<div id="wmsg" class="mut"></div>
+<label class="f">Nom du réseau</label><input id="nssid" autocomplete="off" placeholder="ex. Freebox-1A2B3C">
+<label class="f">Mot de passe</label><input id="npass" type="password" autocomplete="off" placeholder="••••••••">
+<div style="margin-top:12px"><button class="pri" id="addw" style="width:100%">Ajouter et se connecter</button></div>
+<div id="wmsg" class="msg"></div></div>
 </section>
 
-<section><h2>2. Clé API PRIM</h2>
-<div class="mut">Gratuite : créez un compte sur <a href="https://prim.iledefrance-mobilites.fr" target="_blank">prim.iledefrance-mobilites.fr</a>, puis « Mes jetons d'authentification » → « Générer un jeton ». Abonnez-vous à l'API « Prochains passages (requête unitaire) ».</div>
-<label>Clé (jeton)</label><input id="key" type="password" autocomplete="off">
+<section><div class="sh"><span class="num" id="n2">2</span><h2>Clé API PRIM</h2></div>
+<div class="desc">Gratuite : créez un compte sur <a href="https://prim.iledefrance-mobilites.fr" target="_blank">prim.iledefrance-mobilites.fr</a>, abonnez-vous à l'API « Prochains passages (requête unitaire) », puis générez un jeton dans « Mon compte ».</div>
+<input id="key" type="password" autocomplete="off">
 </section>
 
-<section><h2>3. Mes arrêts</h2>
-<div class="mut">Glissez le doigt sur l'écran pour passer d'un arrêt à l'autre (4 maximum).</div>
+<section><div class="sh"><span class="num" id="n3">3</span><h2>Mes arrêts</h2></div>
+<div class="desc">Glissez le doigt sur l'écran de l'afficheur pour passer de l'un à l'autre (4 au maximum).</div>
 <div class="list" id="fl"></div>
-<label>Ajouter : nom de la station ou de l'arrêt</label>
-<div class="row"><input id="q" placeholder="ex. Bastille, Châtelet, Gare de Lyon"><button id="go">Chercher</button></div>
-<div id="smsg" class="mut"></div><div class="list" id="sres"></div>
-<div id="lsel" style="display:none"><label id="ltitle"></label><div class="chips" id="lchips"></div>
-<label>Sens (facultatif)</label><div class="chips" id="dchips"></div>
-<label>Nom affiché (facultatif)</label><input id="flabel" placeholder="ex. Maison → Boulot">
-<div class="row" style="margin-top:12px"><button class="pri" id="addf">Ajouter cet arrêt</button></div></div>
-<details><summary>Saisie manuelle (identifiants IDFM)</summary>
-<label>Identifiant d'arrêt (MonitoringRef, « IDFM:… » ou n° de zone d'arrêt)</label><input id="mref" placeholder="STIF:StopArea:SP:71517:">
-<label>Identifiant de ligne (facultatif)</label><input id="mline" placeholder="C01371">
-<label>Texte du pictogramme si ligne inconnue (ex. numéro de bus)</label><input id="mbadge" maxlength="7">
-<label>Filtre de direction (facultatif, plusieurs avec « | »)</label><input id="mfilter" placeholder="Défense">
-<label>Nom affiché</label><input id="mlabel">
-<div class="row" style="margin-top:10px"><button id="addm">Ajouter</button></div></details>
+<div class="panel">
+<div class="row"><input id="q" placeholder="Station ou arrêt, ex. Bastille" autocomplete="off"><button class="pri" id="go" aria-label="Chercher"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button></div>
+<div id="smsg" class="msg"></div><div class="list" id="sres"></div>
+<div id="lsel" style="display:none"><label class="f" id="ltitle"></label><div class="chips" id="lchips"></div>
+<label class="f">Sens</label><div class="chips" id="dchips"></div>
+<label class="f">Nom affiché (facultatif)</label><input id="flabel" placeholder="ex. Maison → Bureau">
+<div style="margin-top:12px"><button class="pri" id="addf" style="width:100%">Ajouter cet arrêt</button></div></div>
+</div>
+<details><summary>Saisie manuelle des identifiants IDFM</summary><div class="panel">
+<label class="f">Identifiant d'arrêt (MonitoringRef, « IDFM:… » ou n° de zone d'arrêt)</label><input id="mref" placeholder="STIF:StopArea:SP:71517:">
+<label class="f">Identifiant de ligne (facultatif)</label><input id="mline" placeholder="C01371">
+<label class="f">Texte du pictogramme si la ligne est inconnue</label><input id="mbadge" maxlength="7" placeholder="ex. 91">
+<label class="f">Filtre de direction (plusieurs avec « | »)</label><input id="mfilter" placeholder="Défense">
+<label class="f">Nom affiché</label><input id="mlabel">
+<div style="margin-top:12px"><button id="addm" style="width:100%">Ajouter</button></div></div></details>
 </section>
 
-<section><h2>4. Réglages</h2>
-<label>Rafraîchissement (secondes)</label><input id="refreshS" type="number" min="10" max="3600">
-<label>Durée d'affichage avant veille (secondes)</label><input id="awakeS" type="number" min="10" max="3600">
-<label>Veille</label><select id="sleepMode"><option value="0">Veille profonde (sur batterie) — réveil par le bouton BOOT</option>
-<option value="1">Écran éteint (sur secteur) — réveil au toucher</option><option value="2">Toujours allumé (sur secteur)</option></select>
-<label><input type="checkbox" id="motionWake">Réveil en secouant l'afficheur (expérimental)</label>
-<label>Quota d'appels par jour (1000 pour un compte PRIM gratuit)</label><input id="dailyQuota" type="number" min="10" max="60000">
-<label>Luminosité</label><input id="brightness" type="range" min="5" max="255">
-<label><input type="checkbox" id="flip">Retourner l'écran (180°)</label>
-<details><summary>Avancé</summary><div class="row" style="margin-top:10px"><button id="reset">Effacer tous les réglages</button></div></details>
+<section><div class="sh"><span class="num">4</span><h2>Réglages</h2></div>
+<div class="set"><div class="l"><b>Mise en veille</b><span id="sleepHelp"></span></div></div>
+<div class="seg" id="sleepSeg"><button data-v="0">Batterie</button><button data-v="1">Écran éteint</button><button data-v="2">Permanent</button></div>
+<div class="set" style="margin-top:8px"><div class="l"><b>Durée d'affichage</b><span>avant la mise en veille, en secondes</span></div><input id="awakeS" type="number" min="10" max="3600"></div>
+<div class="set"><div class="l"><b>Rafraîchissement</b><span>intervalle entre deux mises à jour, en secondes</span></div><input id="refreshS" type="number" min="10" max="3600"></div>
+<div class="set"><div class="l"><b>Quota d'appels par jour</b><span>1000 pour un compte PRIM gratuit</span></div><input id="dailyQuota" type="number" min="10" max="60000"></div>
+<div class="set"><div class="l"><b>Réveil en secouant</b><span>expérimental</span></div><label class="sw"><input type="checkbox" id="motionWake"><span></span></label></div>
+<div class="set"><div class="l"><b>Retourner l'écran</b><span>rotation de 180°</span></div><label class="sw"><input type="checkbox" id="flip"><span></span></label></div>
+<div class="set" style="display:block"><div class="l"><b>Luminosité</b></div><input id="brightness" type="range" min="5" max="255"></div>
+<details><summary>Avancé</summary><div style="margin-top:10px"><button class="ghost" id="reset" style="color:var(--err)">Effacer tous les réglages</button></div></details>
 </section>
-
-<div class="foot"><button class="pri" id="save">Enregistrer et redémarrer</button></div>
-<div id="toast"></div>
-</main><script>
+</main>
+<div class="bar"><div class="in"><div id="toast"></div><button class="pri" id="save">Enregistrer et redémarrer</button></div></div>
+<script>
 const $=i=>document.getElementById(i);let C={},sel=null;
-function h(t,a,...k){const e=document.createElement(t);for(const n in a||{}){if(n.startsWith('on'))e[n]=a[n];else e.setAttribute(n,a[n]);}
+const COLORS=['#ffbe00','#0055c8','#6e6e00','#82c8e6','#a0006e','#ff5a00','#82dc73','#ff82b4','#d282be','#d2d200','#dc9600','#6e491e','#00643c','#640082'];
+$('stripe').innerHTML=COLORS.map(c=>`<i style="background:${c}"></i>`).join('');
+const ICON={x:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+up:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"/></svg>',
+lock:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'};
+function wifiIcon(rssi){const n=rssi>-60?3:rssi>-72?2:1;return `<svg width="20" height="16" viewBox="0 0 20 16">${[0,1,2].map(i=>`<rect x="${2+i*6}" y="${11-i*4}" width="4" height="${5+i*4}" rx="1.5" fill="${i<n?'#f4f6fb':'#1d2843'}"/>`).join('')}</svg>`}
+function h(t,a,...k){const e=document.createElement(t);for(const n in a||{}){if(n.startsWith('on'))e[n]=a[n];else if(n=='html')e.innerHTML=a[n];else e.setAttribute(n,a[n]);}
 for(const c of k.flat())if(c!=null)e.append(c.nodeType?c:document.createTextNode(c));return e}
 async function api(u,b){const o=b===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)};
 const r=await fetch(u,o);const j=await r.json().catch(()=>({error:'Réponse invalide ('+r.status+')'}));if(!r.ok&&!j.error)j.error='Erreur '+r.status;return j}
+function msg(id,t,cls){const e=$(id);e.className='msg'+(cls?' '+cls:'');e.textContent=t||''}
+const MODE={metro:['M',''],rer:['RER','r'],train:['TRAIN','r'],tram:['T',''],navette:['VAL','r'],bus:['BUS','r']};
+function modePic(m){const d=MODE[m]||MODE.bus;return h('span',{class:'mode '+d[1]},d[0])}
 function badge(l){const m=l.mode||'bus';const cls=m=='metro'?'':(m=='rer'||m=='train')?'sq':'rect';
 return h('span',{class:'badge '+cls,style:`background:${l.color||'#5a6e8c'};color:${l.text||'#fff'}`},l.name||l.badge||l.id||'?')}
-async function status(){const s=await api('/api/status');let t=s.sta?`<span class="ok">Connecté à ${s.ssid}</span> · ${s.ip}`:'<span class="err">Pas de connexion Internet</span> (ajoutez un WiFi)';
-t+=` · batterie ${s.battery}% · ${s.quotaUsed}/${s.quota} appels aujourd'hui · v${s.version}`;$('st').innerHTML=t;return s}
-function renderW(){const L=$('wl');L.innerHTML='';C.wifi.forEach((w,i)=>L.append(h('div',{},h('div',{class:'grow'},w.ssid,h('div',{class:'mut'},w.pass?'nouveau mot de passe':(w.hasPass?'mot de passe enregistré':'réseau ouvert'))),
-h('button',{class:'sm',onclick:()=>{C.wifi.splice(i,1);renderW()}},'Retirer'))));if(!C.wifi.length)L.append(h('div',{class:'mut'},'Aucun réseau enregistré.'))}
-function renderF(){const L=$('fl');L.innerHTML='';C.favorites.forEach((f,i)=>{const li=f._line||{name:f.badge||(f.line?f.line:'Toutes'),mode:f.line?'bus':'rect'};
-L.append(h('div',{},badge(li),h('div',{class:'grow'},f.label||f.stopName||f.stopRef,h('div',{class:'mut'},(f.label?f.stopName+' · ':'')+(f.filter?'vers '+f.filter:'tous les sens'))),
-i?h('button',{class:'sm',onclick:()=>{C.favorites.splice(i-1,0,C.favorites.splice(i,1)[0]);renderF()}},'↑'):null,
-h('button',{class:'sm',onclick:()=>{C.favorites.splice(i,1);renderF()}},'Retirer')))});
-if(!C.favorites.length)L.append(h('div',{class:'mut'},'Aucun arrêt pour l\'instant.'))}
+function pics(l){return h('span',{class:'pics'},modePic(l.mode),badge(l))}
+async function status(){const s=await api('/api/status');const T=$('st');T.innerHTML='';
+T.append(h('span',{class:'tag'},h('span',{class:'dot '+(s.sta?'ok':'err')}),s.sta?h('span',{},'Internet via ',h('b',{},s.ssid)):'Pas encore d\'accès Internet'));
+T.append(h('span',{class:'tag'},'Batterie ',h('b',{},s.battery+' %')));
+T.append(h('span',{class:'tag'},'Appels du jour ',h('b',{},s.quotaUsed+' / '+s.quota)));
+T.append(h('span',{class:'tag'},'v'+s.version));$('n1').classList.toggle('done',!!s.sta);return s}
+function renderW(){const L=$('wl');L.innerHTML='';C.wifi.forEach((w,i)=>L.append(h('div',{class:'item'},h('span',{html:wifiIcon(-50)}),h('div',{class:'grow'},h('div',{class:'name'},w.ssid),h('div',{class:'meta'},w.pass?'Nouveau mot de passe':(w.hasPass?'Mot de passe enregistré':'Réseau ouvert'))),
+h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.wifi.splice(i,1);renderW()}}))));if(!C.wifi.length)L.append(h('div',{class:'empty'},'Aucun réseau enregistré pour l\'instant.'))}
+function renderF(){const L=$('fl');L.innerHTML='';C.favorites.forEach((f,i)=>{const li=f._line||{name:f.badge||f.line||'Tout',mode:'bus'};
+L.append(h('div',{class:'item'},pics(li),h('div',{class:'grow'},h('div',{class:'name'},f.label||f.stopName||f.stopRef),h('div',{class:'meta'},(f.label?f.stopName+' · ':'')+(f.filter?'Vers '+f.filter:'Tous les sens'))),
+i?h('button',{class:'icon',title:'Monter',html:ICON.up,onclick:()=>{C.favorites.splice(i-1,0,C.favorites.splice(i,1)[0]);renderF()}}):null,
+h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.favorites.splice(i,1);renderF()}})))});
+if(!C.favorites.length)L.append(h('div',{class:'empty'},'Aucun arrêt pour l\'instant : cherchez-en un ci-dessous.'));$('n3').classList.toggle('done',C.favorites.length>0)}
+const SLEEP=['Veille profonde après la durée d\'affichage ; réveil par le bouton BOOT.','Sur secteur : l\'écran s\'éteint, un toucher le rallume.','Sur secteur, écran toujours allumé ; rafraîchissement étalé pour respecter le quota.'];
+function setSleep(v){C.sleepMode=+v;[...$('sleepSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.v==v));$('sleepHelp').textContent=SLEEP[v]}
+[...$('sleepSeg').children].forEach(b=>b.onclick=()=>setSleep(b.dataset.v));
 async function load(){C=await api('/api/config');C.favorites=C.favorites||[];C.wifi=C.wifi||[];
-$('key').placeholder=C.apiKeySet?'Clé enregistrée ('+(C.apiKeyHint||'')+') — laisser vide pour la garder':'Collez votre clé ici';
-for(const k of['refreshS','awakeS','dailyQuota','brightness','sleepMode'])$(k).value=C[k];$('motionWake').checked=C.motionWake;$('flip').checked=C.flip;
-renderW();renderF();status()}
-$('scan').onclick=async()=>{$('scan').disabled=true;$('scanres').innerHTML='<div class="mut">Recherche…</div>';const r=await api('/api/scan');$('scan').disabled=false;
-const L=$('scanres');L.innerHTML='';(r.networks||[]).forEach(n=>L.append(h('div',{class:'pick',onclick:()=>{$('nssid').value=n.ssid;$('npass').focus()}},h('div',{class:'grow'},n.ssid),h('span',{class:'mut'},(n.secure?'🔒 ':'')+n.rssi+' dBm'))))};
+$('key').placeholder=C.apiKeySet?'Enregistrée '+(C.apiKeyHint||'')+' (vide = inchangée)':'Collez votre jeton ici';$('n2').classList.toggle('done',!!C.apiKeySet);
+for(const k of['refreshS','awakeS','dailyQuota','brightness'])$(k).value=C[k];$('motionWake').checked=C.motionWake;$('flip').checked=C.flip;setSleep(C.sleepMode||0);
+renderW();renderF();status().catch(()=>{})}
+$('scan').onclick=async()=>{$('scan').disabled=true;$('scan').textContent='Recherche en cours…';const r=await api('/api/scan');$('scan').disabled=false;$('scan').textContent='Rechercher à nouveau';
+const L=$('scanres');L.innerHTML='';(r.networks||[]).forEach(n=>L.append(h('div',{class:'item pick',onclick:()=>{$('nssid').value=n.ssid;$('npass').focus()}},h('span',{html:wifiIcon(n.rssi)}),h('div',{class:'grow name'},n.ssid),n.secure?h('span',{class:'meta',html:ICON.lock}):null)))};
 $('addw').onclick=async()=>{const s=$('nssid').value.trim(),p=$('npass').value;if(!s)return;C.wifi=C.wifi.filter(w=>w.ssid!=s);if(C.wifi.length>=3)C.wifi.pop();
-C.wifi.unshift({ssid:s,pass:p,hasPass:!!p});renderW();$('wmsg').textContent='Connexion à '+s+'…';await api('/api/connect',{ssid:s,pass:p});
-for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,1000));const st=await status().catch(()=>({}));if(st.sta&&st.ssid==s){$('wmsg').innerHTML='<span class="ok">Connecté ✓</span> — vous pouvez chercher vos arrêts.';return}}
-$('wmsg').innerHTML='<span class="err">Connexion impossible : vérifiez le mot de passe.</span>'};
-$('go').onclick=async()=>{const q=$('q').value.trim();if(!q)return;$('smsg').textContent='Recherche…';$('sres').innerHTML='';$('lsel').style.display='none';
-const r=await api('/api/search?q='+encodeURIComponent(q));if(r.error){$('smsg').innerHTML='<span class="err">'+r.error+'</span>';return}
-$('smsg').textContent=r.stops.length?'Choisissez l\'arrêt :':'Aucun résultat.';const icon={metro:'Ⓜ️',rail:'🚆',tram:'🚊',bus:'🚌'};
-r.stops.forEach(s=>$('sres').append(h('div',{class:'pick',onclick:()=>pickStop(s)},h('span',{},icon[s.type]||'📍'),h('div',{class:'grow'},s.name,h('div',{class:'mut'},s.town)))))};
+C.wifi.unshift({ssid:s,pass:p,hasPass:!!p});renderW();msg('wmsg','Connexion à « '+s+' »…');await api('/api/connect',{ssid:s,pass:p});
+for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,1000));const st=await status().catch(()=>({}));if(st.sta&&st.ssid==s){msg('wmsg','Connecté ✓ Vous pouvez chercher vos arrêts.','ok');return}}
+msg('wmsg','Connexion impossible : vérifiez le mot de passe.','err')};
+$('go').onclick=async()=>{const q=$('q').value.trim();if(!q)return;msg('smsg','Recherche…');$('sres').innerHTML='';$('lsel').style.display='none';
+const r=await api('/api/search?q='+encodeURIComponent(q));if(r.error){msg('smsg',r.error,'err');return}
+msg('smsg',r.stops.length?'Choisissez l\'arrêt :':'Aucun résultat.');
+r.stops.forEach(s=>$('sres').append(h('div',{class:'item pick',onclick:()=>pickStop(s)},modePic(s.type=='rail'?'rer':s.type),h('div',{class:'grow'},h('div',{class:'name'},s.name),h('div',{class:'meta'},s.town)))))};
 $('q').onkeydown=e=>{if(e.key=='Enter')$('go').click()};
-async function pickStop(s){$('sres').innerHTML='';$('smsg').textContent='Lignes desservies à '+s.name+'…';
+function choose(box,el){[...box.children].forEach(x=>x.classList.remove('on'));el.classList.add('on')}
+async function pickStop(s){$('sres').innerHTML='';msg('smsg','Lignes desservies à '+s.name+'…');
 const r=await api('/api/lines?ref='+encodeURIComponent(s.ref)+'&key='+encodeURIComponent($('key').value.trim()));
-if(r.error){$('smsg').innerHTML='<span class="err">'+r.error+'</span>';return}
-if(!r.lines||!r.lines.length){$('smsg').textContent='Aucun passage annoncé en ce moment à cet arrêt (réessayez en journée).';return}
-$('smsg').textContent='';sel={stopRef:r.ref,stopName:r.stopName||s.name,line:'',filter:'',_line:null};$('ltitle').textContent='Ligne à '+sel.stopName+' :';
-const LC=$('lchips');LC.innerHTML='';r.lines.forEach(l=>{const c=h('span',{class:'chip',onclick:()=>{[...LC.children].forEach(x=>x.classList.remove('on'));c.classList.add('on');sel.line=l.id;sel._line=l;sel.filter='';
-const D=$('dchips');D.innerHTML='';const all=h('span',{class:'chip on',onclick:()=>{[...D.children].forEach(x=>x.classList.remove('on'));all.classList.add('on');sel.filter=''}},'Tous les sens');D.append(all);
-l.dests.forEach(d=>{const dc=h('span',{class:'chip',onclick:()=>{[...D.children].forEach(x=>x.classList.remove('on'));dc.classList.add('on');sel.filter=d}},'→ '+d);D.append(dc)})}},badge(l),' ',l.dests.slice(0,2).join(' / '));LC.append(c)});
+if(r.error){msg('smsg',r.error,'err');return}
+if(!r.lines||!r.lines.length){msg('smsg','Aucun passage annoncé en ce moment à cet arrêt (réessayez en journée).');return}
+msg('smsg','');sel={stopRef:r.ref,stopName:r.stopName||s.name,line:'',filter:'',_line:null};$('ltitle').textContent='Ligne à '+sel.stopName;
+const LC=$('lchips');LC.innerHTML='';r.lines.forEach(l=>{const c=h('span',{class:'chip',onclick:()=>{choose(LC,c);sel.line=l.id;sel._line=l;sel.filter='';
+const D=$('dchips');D.innerHTML='';const all=h('span',{class:'chip t on',onclick:()=>{choose(D,all);sel.filter=''}},'Tous les sens');D.append(all);
+l.dests.forEach(d=>{const dc=h('span',{class:'chip t',onclick:()=>{choose(D,dc);sel.filter=d}},'→ '+d);D.append(dc)})}},badge(l),l.dests.slice(0,2).join(' / '));LC.append(c)});
 $('lsel').style.display='';LC.children[0].click()}
-$('addf').onclick=()=>{if(!sel)return;if(C.favorites.length>=4){alert('4 arrêts maximum');return}
+$('addf').onclick=()=>{if(!sel)return;if(C.favorites.length>=4){msg('smsg','4 arrêts au maximum.','err');return}
 C.favorites.push({stopRef:sel.stopRef,stopName:sel.stopName,line:sel.line,badge:'',filter:sel.filter,label:$('flabel').value.trim(),_line:sel._line});
-renderF();$('lsel').style.display='none';$('flabel').value='';$('q').value=''};
-$('addm').onclick=()=>{const r=$('mref').value.trim();if(!r)return;if(C.favorites.length>=4){alert('4 arrêts maximum');return}
+renderF();$('lsel').style.display='none';$('flabel').value='';$('q').value='';msg('smsg','Arrêt ajouté ✓ N\'oubliez pas d\'enregistrer.','ok')};
+$('addm').onclick=()=>{const r=$('mref').value.trim();if(!r)return;if(C.favorites.length>=4){alert('4 arrêts au maximum');return}
 C.favorites.push({stopRef:r,stopName:$('mlabel').value.trim()||r,line:$('mline').value.trim(),badge:$('mbadge').value.trim(),filter:$('mfilter').value.trim(),label:$('mlabel').value.trim()});renderF()};
 $('save').onclick=async()=>{const b={wifi:C.wifi.map(w=>({ssid:w.ssid,pass:w.pass||''})),favorites:C.favorites.map(({_line,...f})=>f),
-refreshS:+$('refreshS').value,awakeS:+$('awakeS').value,dailyQuota:+$('dailyQuota').value,brightness:+$('brightness').value,sleepMode:+$('sleepMode').value,
+refreshS:+$('refreshS').value,awakeS:+$('awakeS').value,dailyQuota:+$('dailyQuota').value,brightness:+$('brightness').value,sleepMode:C.sleepMode,
 motionWake:$('motionWake').checked,flip:$('flip').checked};const k=$('key').value.trim();if(k)b.apiKey=k;
-const r=await api('/api/config',b);if(r.error){$('toast').innerHTML='<span class="err">'+r.error+'</span>';return}
-$('toast').innerHTML='<span class="ok">Enregistré ✓</span> '+(r.ready?'L\'afficheur redémarre…':'<span class="err">Il manque encore : '+r.missing+'</span>');if(r.ready)api('/api/reboot',{})};
-$('reset').onclick=async()=>{if(confirm('Effacer WiFi, clé et arrêts ?')){await api('/api/reset',{});$('toast').textContent='Réglages effacés, redémarrage…'}};
+const r=await api('/api/config',b);const T=$('toast');if(r.error){T.className='msg err';T.textContent=r.error;return}
+if(r.ready){T.className='msg ok';T.textContent='Enregistré ✓ L\'afficheur redémarre…';api('/api/reboot',{})}else{T.className='msg err';T.textContent='Enregistré. Il manque encore : '+r.missing+'.'}};
+$('reset').onclick=async()=>{if(confirm('Effacer le WiFi, la clé et les arrêts ?')){await api('/api/reset',{});$('toast').textContent='Réglages effacés, redémarrage…'}};
 load();setInterval(()=>status().catch(()=>{}),15000);
 </script></body></html>)HTML";

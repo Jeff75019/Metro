@@ -6,41 +6,76 @@
 
 #include "fonts_metro.h"
 
-// ----------------------------------------------------------------------------
-//  Palette (inspirée des écrans de quai IDFM : fond bleu nuit, minutes ambre)
-// ----------------------------------------------------------------------------
+// ============================================================================
+//  Palette
+//  Fond bleu nuit, texte blanc cassé, attentes en ambre (comme les écrans de
+//  quai), états en pastilles colorées. Couleurs en 0xRRGGBB, converties en
+//  RGB565 pour l'écran.
+// ============================================================================
 static constexpr uint16_t rgb(uint32_t c) {
   return (uint16_t)((((c >> 16) & 0xF8) << 8) | (((c >> 8) & 0xFC) << 3) | ((c & 0xFF) >> 3));
 }
-static const uint16_t COL_BG = rgb(0x06101F);
-static const uint16_t COL_PANEL = rgb(0x0E1E38);
-static const uint16_t COL_LINE = rgb(0x1E3357);
-static const uint16_t COL_TEXT = rgb(0xFFFFFF);
-static const uint16_t COL_MUTED = rgb(0x8A9BBC);
-static const uint16_t COL_AMBER = rgb(0xFFC629);
-static const uint16_t COL_AMBER_DIM = rgb(0xB89130);
-static const uint16_t COL_GREEN = rgb(0x48D597);
-static const uint16_t COL_RED = rgb(0xFF5F5F);
-static const uint16_t COL_ORANGE = rgb(0xFF9A3C);
+// Mélange de deux couleurs (t = 0..255 : part de b)
+static constexpr uint32_t mix(uint32_t a, uint32_t b, uint32_t t) {
+  return ((((a >> 16) & 0xFF) * (255 - t) + ((b >> 16) & 0xFF) * t) / 255) << 16 |
+         ((((a >> 8) & 0xFF) * (255 - t) + ((b >> 8) & 0xFF) * t) / 255) << 8 |
+         (((a & 0xFF) * (255 - t) + (b & 0xFF) * t) / 255);
+}
+
+static constexpr uint32_t C_BG = 0x0A1020;
+static constexpr uint32_t C_HAIR = 0x1D2843;
+static constexpr uint32_t C_TEXT = 0xF4F6FB;
+static constexpr uint32_t C_MUTED = 0x8C98B4;
+static constexpr uint32_t C_FAINT = 0x3A4562;
+static constexpr uint32_t C_SKEL = 0x172139;
+static constexpr uint32_t C_AMBER = 0xFFC12E;
+static constexpr uint32_t C_GREEN = 0x34D399;
+static constexpr uint32_t C_RED = 0xFF6B6B;
+static constexpr uint32_t C_ORANGE = 0xFFA94D;
+
+static const uint16_t BG = rgb(C_BG), HAIR = rgb(C_HAIR), TEXT = rgb(C_TEXT), MUTED = rgb(C_MUTED),
+                      FAINT = rgb(C_FAINT), SKEL = rgb(C_SKEL), AMBER = rgb(C_AMBER),
+                      AMBER_DIM = rgb(mix(C_AMBER, C_BG, 90)), GREEN = rgb(C_GREEN), RED = rgb(C_RED),
+                      ORANGE = rgb(C_ORANGE);
+static inline uint16_t tint(uint32_t c, uint32_t t = 60) { return rgb(mix(C_BG, c, t)); }
+
+// Couleurs des lignes de métro, pour le liseré "signature" en bas de certains écrans
+static const uint32_t METRO_COLORS[] = {0xFFBE00, 0x0055C8, 0x6E6E00, 0x82C8E6, 0xA0006E, 0xFF5A00,
+                                        0x82DC73, 0xFF82B4, 0xD282BE, 0xD2D200, 0xDC9600, 0x6E491E,
+                                        0x00643C, 0x82C8E6, 0x640082};
 
 static constexpr int W = 320;
 static constexpr int H = 170;
 
+// Grille de l'écran principal
+static constexpr int HEADER_H = 40;  // en-tête 0..39, filet en 40
+static constexpr int ROW_H = 58;
+static constexpr int ROW1_Y = 41;
+static constexpr int ROW2_Y = ROW1_Y + ROW_H + 1;  // 100
+static constexpr int FOOT_Y = 164;                 // milieu du pied de page (158..170)
+static constexpr int MARGIN = 10;
+
 static LGFX_Sprite canvas;
 static lgfx::LovyanGFX* lcd = nullptr;
 
+static lgfx::PointerWrapper wTiny(font_tiny, sizeof(font_tiny));
 static lgfx::PointerWrapper wSmall(font_small, sizeof(font_small));
 static lgfx::PointerWrapper wMedium(font_medium, sizeof(font_medium));
+static lgfx::PointerWrapper wCond(font_cond, sizeof(font_cond));
+static lgfx::PointerWrapper wCondS(font_cond_small, sizeof(font_cond_small));
 static lgfx::PointerWrapper wLarge(font_large, sizeof(font_large));
 static lgfx::PointerWrapper wBig(font_big, sizeof(font_big));
-static lgfx::VLWfont fSmall, fMedium, fLarge, fBig;
+static lgfx::VLWfont fTiny, fSmall, fMedium, fCond, fCondS, fLarge, fBig;
 
 LGFX_Sprite& uiCanvas() { return canvas; }
 
 void uiBegin(lgfx::LovyanGFX* display) {
   lcd = display;
+  fTiny.loadFont(&wTiny);
   fSmall.loadFont(&wSmall);
   fMedium.loadFont(&wMedium);
+  fCond.loadFont(&wCond);
+  fCondS.loadFont(&wCondS);
   fLarge.loadFont(&wLarge);
   fBig.loadFont(&wBig);
   canvas.setColorDepth(16);
@@ -55,12 +90,24 @@ static void present() {
   if (lcd) canvas.pushSprite(lcd, 0, 0);
 }
 
-// ----------------------------------------------------------------------------
+// ============================================================================
 //  Texte
-// ----------------------------------------------------------------------------
-// Copie s dans out en le raccourcissant (avec « … ») pour tenir dans maxW pixels
-// avec la police courante.
-static void fitText(char* out, size_t n, const char* s, int maxW) {
+// ============================================================================
+static int textW(const char* s, const lgfx::IFont* f) {
+  canvas.setFont(f);
+  return canvas.textWidth(s);
+}
+
+static void text(const char* s, int x, int y, const lgfx::IFont* f, uint16_t color, lgfx::textdatum_t datum) {
+  canvas.setFont(f);
+  canvas.setTextColor(color);
+  canvas.setTextDatum(datum);
+  canvas.drawString(s, x, y);
+}
+
+// Copie s dans out en le raccourcissant (avec « … ») pour tenir dans maxW.
+static void fitText(char* out, size_t n, const char* s, int maxW, const lgfx::IFont* f) {
+  canvas.setFont(f);
   copyStr(out, s, n);
   if (canvas.textWidth(out) <= maxW) return;
   size_t len = strlen(out);
@@ -83,7 +130,8 @@ static void fitText(char* out, size_t n, const char* s, int maxW) {
 }
 
 // Coupe s en deux lignes de largeur maxW (la 2e est raccourcie si besoin).
-static bool wrap2(const char* s, int maxW, char* l1, char* l2, size_t n) {
+static bool wrap2(const char* s, int maxW, const lgfx::IFont* f, char* l1, char* l2, size_t n) {
+  canvas.setFont(f);
   const char* best = nullptr;
   for (const char* p = s; *p; p++) {
     if (*p != ' ' && *p != '-') continue;
@@ -102,81 +150,122 @@ static bool wrap2(const char* s, int maxW, char* l1, char* l2, size_t n) {
   l1[l] = 0;
   const char* rest = best + 1;
   while (*rest == ' ') rest++;
-  fitText(l2, n, rest, maxW);
+  fitText(l2, n, rest, maxW, f);
   return true;
 }
 
-static void drawText(const char* s, int x, int y, const lgfx::IFont* f, uint16_t color,
-                     lgfx::textdatum_t datum) {
-  canvas.setFont(f);
-  canvas.setTextColor(color);
-  canvas.setTextDatum(datum);
-  canvas.drawString(s, x, y);
+// ============================================================================
+//  Éléments graphiques
+// ============================================================================
+// Pastille de texte (À quai, Supprimé...). xRight = bord droit. Renvoie la largeur.
+static int pill(int xRight, int cy, const char* s, const lgfx::IFont* f, uint16_t fg, uint16_t bg) {
+  const int h = 28, padX = 12;
+  const int w = textW(s, f) + padX * 2;
+  canvas.fillSmoothRoundRect(xRight - w, cy - h / 2, w, h, h / 2, bg);
+  text(s, xRight - w / 2, cy + 1, f, fg, lgfx::middle_center);
+  return w;
 }
 
-// ----------------------------------------------------------------------------
-//  Éléments graphiques
-// ----------------------------------------------------------------------------
+// Pictogramme du mode de transport, façon signalétique IDFM (blanc sur fond sombre).
+static int drawMode(int x, int cy, LineMode mode) {
+  const char* label;
+  bool round = false;
+  switch (mode) {
+    case LineMode::Metro: label = "M"; round = true; break;
+    case LineMode::Tram: label = "T"; round = true; break;
+    case LineMode::Rer: label = "RER"; break;
+    case LineMode::Train: label = "TRAIN"; break;
+    case LineMode::Shuttle: label = "VAL"; break;
+    default: label = "BUS"; break;
+  }
+  if (round) {
+    const int r = 12;
+    canvas.fillSmoothCircle(x + r, cy, r, TEXT);
+    text(label, x + r, cy + 1, &fSmall, BG, lgfx::middle_center);
+    return 2 * r + 1;
+  }
+  const int h = 20, w = textW(label, &fTiny) + 10;
+  canvas.fillSmoothRoundRect(x, cy - h / 2, w, h, 5, TEXT);
+  text(label, x + w / 2, cy + 1, &fTiny, BG, lgfx::middle_center);
+  return w;
+}
+
 // Pictogramme de ligne : rond (métro), carré arrondi (RER/Transilien),
 // rectangle (tram, bus, navette). Renvoie la largeur dessinée.
-static int drawBadge(int x, int cy, const char* name, LineMode mode, uint32_t color, uint32_t text) {
-  const uint16_t bg = rgb(color), fg = rgb(text);
-  const int h = 28;
-  canvas.setFont(&fMedium);
-  int tw = canvas.textWidth(name);
+static int drawBadge(int x, int cy, const char* name, LineMode mode, uint32_t color, uint32_t txt) {
+  const uint16_t bg = rgb(color), fg = rgb(txt);
   const lgfx::IFont* f = &fMedium;
-  if ((mode == LineMode::Metro && tw > 22) || mode == LineMode::Tram || tw > 52) {
+  int tw = textW(name, f);
+  if ((mode == LineMode::Metro && tw > 20) || tw > 48) {
     f = &fSmall;
-    canvas.setFont(f);
-    tw = canvas.textWidth(name);
+    tw = textW(name, f);
   }
   int w;
   switch (mode) {
     case LineMode::Metro:
-      w = h;
-      canvas.fillCircle(x + h / 2, cy, h / 2, bg);
+      w = 27;
+      canvas.fillSmoothCircle(x + 13, cy, 13, bg);
       break;
     case LineMode::Rer:
     case LineMode::Train:
-      w = h;
-      canvas.fillRoundRect(x, cy - h / 2, w, h, 6, bg);
+      w = 26;
+      canvas.fillSmoothRoundRect(x, cy - 13, w, 26, 6, bg);
       break;
     default:
-      w = tw + 14;
-      if (w < h) w = h;
-      canvas.fillRoundRect(x, cy - h / 2, w, h, 4, bg);
-      if (mode == LineMode::Tram) {  // filets haut et bas comme les pictos tram
-        canvas.fillRect(x + 3, cy - h / 2 + 2, w - 6, 2, fg);
-        canvas.fillRect(x + 3, cy + h / 2 - 4, w - 6, 2, fg);
-      }
+      w = tw + 12 < 26 ? 26 : tw + 12;
+      canvas.fillSmoothRoundRect(x, cy - 12, w, 24, 4, bg);
       break;
   }
-  drawText(name, x + w / 2, cy + 1, f, fg, lgfx::middle_center);
+  text(name, x + w / 2, cy + 1, f, fg, lgfx::middle_center);
   return w;
 }
 
 static void drawBattery(int xRight, int cy, int pct) {
   if (pct < 0) return;
-  const int w = 22, h = 11;
-  int x = xRight - w - 2;
-  uint16_t c = pct > 50 ? COL_GREEN : (pct > 20 ? COL_AMBER : COL_RED);
-  canvas.drawRoundRect(x, cy - h / 2, w, h, 2, COL_MUTED);
-  canvas.fillRect(x + w, cy - 2, 2, 5, COL_MUTED);
-  int fw = (w - 4) * pct / 100;
-  if (fw > 0) canvas.fillRect(x + 2, cy - h / 2 + 2, fw, h - 4, c);
-  char buf[16];
-  snprintf(buf, sizeof(buf), "%d%%", pct);
-  drawText(buf, x - 4, cy + 1, &fSmall, COL_MUTED, lgfx::middle_right);
+  const int w = 22, h = 12;
+  const int x = xRight - w - 2;
+  const uint16_t frame = pct <= 15 ? RED : MUTED;
+  canvas.fillSmoothRoundRect(x, cy - h / 2, w, h, 3, frame);
+  canvas.fillSmoothRoundRect(x + 1, cy - h / 2 + 1, w - 2, h - 2, 2, BG);
+  canvas.fillSmoothRoundRect(x + w, cy - 3, 3, 6, 1, frame);
+  const int fw = (w - 4) * pct / 100;
+  if (fw > 0) canvas.fillSmoothRoundRect(x + 2, cy - h / 2 + 2, fw < 2 ? 2 : fw, h - 4, 1, pct <= 15 ? RED : TEXT);
+  if (pct <= 15) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d %%", pct);
+    text(buf, x - 6, cy + 1, &fTiny, RED, lgfx::middle_right);
+  }
 }
 
 static void drawDots(int xRight, int cy, int index, int count) {
-  if (count < 2) return;
-  const int step = 10;
-  int x = xRight - (count - 1) * step - 3;
-  for (int i = 0; i < count; i++) {
-    if (i == index) canvas.fillCircle(x + i * step, cy, 3, COL_TEXT);
-    else canvas.drawCircle(x + i * step, cy, 3, COL_MUTED);
+  const int step = 9;
+  const int x0 = xRight - (count - 1) * step;
+  for (int i = 0; i < count; i++)
+    canvas.fillSmoothCircle(x0 + i * step, cy, i == index ? 3 : 2, i == index ? TEXT : FAINT);
+}
+
+// Liseré aux couleurs des lignes de métro
+static void drawSignature(int y, int h) {
+  const int n = sizeof(METRO_COLORS) / sizeof(METRO_COLORS[0]);
+  for (int i = 0; i < n; i++) {
+    int x0 = W * i / n, x1 = W * (i + 1) / n;
+    canvas.fillRect(x0, y, x1 - x0, h, rgb(METRO_COLORS[i]));
   }
+}
+
+// Icônes simples dessinées (anticrénelées)
+static void iconAlert(int cx, int cy, uint32_t color) {
+  canvas.fillSmoothCircle(cx, cy, 17, tint(color, 70));
+  canvas.drawWideLine(cx, cy - 8, cx, cy + 2, 1.8f, rgb(color));
+  canvas.fillSmoothCircle(cx, cy + 8, 2, rgb(color));
+}
+
+static void iconClock(int cx, int cy) {
+  canvas.fillSmoothCircle(cx, cy, 17, tint(C_MUTED, 50));
+  canvas.fillSmoothCircle(cx, cy, 12, MUTED);
+  canvas.fillSmoothCircle(cx, cy, 10, tint(C_MUTED, 50));
+  canvas.drawWideLine(cx, cy, cx, cy - 7, 1.2f, MUTED);
+  canvas.drawWideLine(cx, cy, cx + 5, cy + 2, 1.2f, MUTED);
 }
 
 static void localHHMM(int64_t t, char* out, size_t n) {
@@ -186,235 +275,263 @@ static void localHHMM(int64_t t, char* out, size_t n) {
   snprintf(out, n, "%02d:%02d", lt.tm_hour, lt.tm_min);
 }
 
-// Une ligne de départ : destination à gauche, attente à droite.
-static void drawRow(int y, const Row* r, int64_t now) {
-  const int x = 4, w = W - 8, h = 56;
-  canvas.fillRoundRect(x, y, w, h, 8, COL_PANEL);
-  if (!r) return;
-  const int cy = y + h / 2;
+// ============================================================================
+//  Écran principal
+// ============================================================================
+// Une ligne de départ : liseré couleur de ligne, destination, attente.
+static void drawRow(int y0, const Row* r, int64_t now, uint32_t lineColor) {
+  const int cy = y0 + ROW_H / 2;
+  const int xr = W - MARGIN;
+  const bool cancelled = r->flags & DEP_CANCELLED;
   const int64_t diff = r->when - now;
 
-  // --- partie droite : attente
-  int rightW;  // largeur réservée à droite
-  auto status = [&](const char* txt, const lgfx::IFont* f, uint16_t c) {
-    drawText(txt, x + w - 10, cy + 1, f, c, lgfx::middle_right);
-    canvas.setFont(f);
-    return (int)canvas.textWidth(txt) + 16;
-  };
-  if (r->flags & DEP_CANCELLED) {
-    rightW = status("Supprimé", &fMedium, COL_RED);
+  canvas.fillSmoothRoundRect(MARGIN, cy - 15, 4, 30, 2, cancelled ? FAINT : rgb(lineColor));
+
+  // --- à droite : l'attente
+  int rightW;
+  if (cancelled) {
+    rightW = pill(xr, cy, "Supprimé", &fSmall, RED, tint(C_RED, 55));
   } else if ((r->flags & DEP_AT_STOP) || diff < 0) {
-    rightW = status("À quai", &fLarge, COL_GREEN);
+    rightW = pill(xr, cy, "À quai", &fSmall, GREEN, tint(C_GREEN, 55));
   } else if (diff < 45) {
     // clignote comme sur les quais
-    rightW = status("À l'approche", &fMedium, (now & 1) ? COL_AMBER : COL_AMBER_DIM);
+    const bool on = now & 1;
+    rightW = pill(xr, cy, "À l'approche", &fSmall, on ? BG : AMBER, on ? AMBER : tint(C_AMBER, 55));
   } else if (diff >= 100 * 60) {
     char hhmm[16];
     localHHMM(r->when, hhmm, sizeof(hhmm));
-    rightW = status(hhmm, &fLarge, COL_AMBER);
+    text(hhmm, xr, cy + 2, &fLarge, AMBER, lgfx::middle_right);
+    rightW = textW(hhmm, &fLarge);
   } else {
     char num[16];
     snprintf(num, sizeof(num), "%d", (int)(diff / 60));
-    const int base = y + 45;
-    uint16_t c = (r->flags & DEP_REALTIME) ? COL_AMBER : COL_AMBER_DIM;
-    drawText("min", x + w - 10, base, &fSmall, c, lgfx::baseline_right);
-    canvas.setFont(&fSmall);
-    int minW = canvas.textWidth("min");
-    drawText(num, x + w - 14 - minW, base, &fBig, c, lgfx::baseline_right);
-    canvas.setFont(&fBig);
-    rightW = 22 + minW + canvas.textWidth(num);
-    if (rightW < 70) rightW = 70;
+    const uint16_t c = (r->flags & DEP_REALTIME) ? AMBER : AMBER_DIM;
+    const int base = y0 + 47;
+    const int minW = textW("min", &fSmall);
+    text("min", xr, base, &fSmall, c, lgfx::baseline_right);
+    text(num, xr - minW - 4, base, &fBig, c, lgfx::baseline_right);
+    rightW = minW + 4 + textW(num, &fBig);
   }
 
-  // --- partie gauche : destination (+ mention éventuelle)
-  const int tx = x + 10;
-  const int maxW = w - 20 - rightW;
-  char extra[24] = "";
-  uint16_t extraCol = COL_MUTED;
-  if (r->flags & DEP_DELAYED) {
-    copyStr(extra, "Retardé", sizeof(extra));
-    extraCol = COL_ORANGE;
+  // --- à gauche : destination (+ mention)
+  const int tx = MARGIN + 14;
+  const int maxW = xr - rightW - 14 - tx;
+  char sub[24] = "";
+  uint16_t subCol = MUTED;
+  if (cancelled) {
+  } else if (r->flags & DEP_DELAYED) {
+    copyStr(sub, "Retardé", sizeof(sub));
+    subCol = ORANGE;
   } else if (r->platform[0]) {
-    snprintf(extra, sizeof(extra), "Voie %s", r->platform);
-  } else if (!(r->flags & DEP_REALTIME) && !(r->flags & DEP_CANCELLED)) {
-    copyStr(extra, "Horaire théorique", sizeof(extra));
+    snprintf(sub, sizeof(sub), "Voie %s", r->platform);
+  } else if (!(r->flags & DEP_REALTIME)) {
+    copyStr(sub, "Horaire théorique", sizeof(sub));
   }
+  const uint16_t destCol = cancelled ? MUTED : TEXT;
+
+  // Police la plus grande qui tient sur une ligne ; sinon deux lignes condensées
+  const lgfx::IFont* f = nullptr;
+  for (const lgfx::IFont* c : {(const lgfx::IFont*)&fMedium, (const lgfx::IFont*)&fCond, (const lgfx::IFont*)&fCondS})
+    if (!f && textW(r->dest, c) <= maxW) f = c;
 
   char l1[64], l2[64];
-  canvas.setFont(&fMedium);
-  if (canvas.textWidth(r->dest) <= maxW) {
-    if (extra[0]) {
-      drawText(r->dest, tx, cy - 8, &fMedium, COL_TEXT, lgfx::middle_left);
-      drawText(extra, tx, cy + 15, &fSmall, extraCol, lgfx::middle_left);
-    } else {
-      drawText(r->dest, tx, cy + 1, &fMedium, COL_TEXT, lgfx::middle_left);
+  if (f) {
+    const int dy = sub[0] ? -8 : 1;
+    text(r->dest, tx, cy + dy, f, destCol, lgfx::middle_left);
+    if (cancelled) canvas.fillRect(tx, cy + dy, textW(r->dest, f), 2, MUTED);  // barré
+    if (sub[0]) text(sub, tx, cy + 14, &fTiny, subCol, lgfx::middle_left);
+  } else if (wrap2(r->dest, maxW, &fCondS, l1, l2, sizeof(l1))) {
+    text(l1, tx, cy - 10, &fCondS, destCol, lgfx::middle_left);
+    text(l2, tx, cy + 10, &fCondS, destCol, lgfx::middle_left);
+    // la mention passe au bout de la 2e ligne si elle y tient
+    const int endX = tx + textW(l2, &fCondS) + 8;
+    if (sub[0] && endX + textW(sub, &fTiny) <= tx + maxW) {
+      canvas.fillSmoothCircle(endX, cy + 11, 2, subCol);
+      text(sub, endX + 7, cy + 11, &fTiny, subCol, lgfx::middle_left);
     }
-    return;
-  }
-  canvas.setFont(&fSmall);
-  if (canvas.textWidth(r->dest) <= maxW) {
-    drawText(r->dest, tx, extra[0] ? cy - 8 : cy + 1, &fSmall, COL_TEXT, lgfx::middle_left);
-    if (extra[0]) drawText(extra, tx, cy + 12, &fSmall, extraCol, lgfx::middle_left);
-  } else if (wrap2(r->dest, maxW, l1, l2, sizeof(l1))) {
-    drawText(l1, tx, cy - 9, &fSmall, COL_TEXT, lgfx::middle_left);
-    drawText(l2, tx, cy + 10, &fSmall, COL_TEXT, lgfx::middle_left);
   } else {
-    fitText(l1, sizeof(l1), r->dest, maxW);
-    drawText(l1, tx, cy + 1, &fSmall, COL_TEXT, lgfx::middle_left);
+    fitText(l1, sizeof(l1), r->dest, maxW, &fCondS);
+    text(l1, tx, cy + 1, &fCondS, destCol, lgfx::middle_left);
   }
 }
 
-static void drawCenterMessage(int y, int h, const char* a, const char* b, uint16_t color) {
-  canvas.fillRoundRect(4, y, W - 8, h, 8, COL_PANEL);
-  char buf[64];
-  canvas.setFont(&fMedium);
-  fitText(buf, sizeof(buf), a, W - 24);
-  int cy = y + h / 2;
-  if (b && *b) {
-    drawText(buf, W / 2, cy - 12, &fMedium, color, lgfx::middle_center);
-    canvas.setFont(&fSmall);
-    fitText(buf, sizeof(buf), b, W - 24);
-    drawText(buf, W / 2, cy + 14, &fSmall, COL_MUTED, lgfx::middle_center);
-  } else {
-    drawText(buf, W / 2, cy, &fMedium, color, lgfx::middle_center);
+// Ligne "fantôme" pendant le premier chargement
+static void drawSkeletonRow(int y0, int64_t now, int phase) {
+  const int cy = y0 + ROW_H / 2;
+  const uint16_t c = ((now + phase) & 1) ? SKEL : rgb(mix(C_SKEL, C_HAIR, 128));
+  canvas.fillSmoothRoundRect(MARGIN, cy - 15, 4, 30, 2, FAINT);
+  canvas.fillSmoothRoundRect(MARGIN + 14, cy - 7, phase ? 120 : 160, 14, 7, c);
+  canvas.fillSmoothRoundRect(W - MARGIN - 62, cy - 14, 62, 28, 8, c);
+}
+
+static void drawBodyMessage(bool alert, const char* title, const char* sub, uint32_t color) {
+  const int cx = W / 2, top = HEADER_H + 1, bottom = 156;
+  const int cy = (top + bottom) / 2;
+  if (alert) iconAlert(cx, cy - 26, color);
+  else iconClock(cx, cy - 26);
+  char buf[96];
+  fitText(buf, sizeof(buf), title, W - 2 * MARGIN, &fMedium);
+  text(buf, cx, cy + 10, &fMedium, alert ? rgb(color) : TEXT, lgfx::middle_center);
+  if (sub && *sub) {
+    fitText(buf, sizeof(buf), sub, W - 2 * MARGIN, &fSmall);
+    text(buf, cx, cy + 34, &fSmall, MUTED, lgfx::middle_center);
   }
 }
 
-// ----------------------------------------------------------------------------
-//  Écrans
-// ----------------------------------------------------------------------------
 void uiDrawMain(const UiState& s) {
-  canvas.fillScreen(COL_BG);
+  canvas.fillScreen(BG);
 
-  // En-tête : pictogramme + nom de l'arrêt + batterie
-  const int hy = 18;
-  int bx = 6;
-  int bw = drawBadge(bx, hy, s.badge && *s.badge ? s.badge : "?", s.mode, s.badgeColor, s.badgeText);
-  int titleX = bx + bw + 9;
-  int titleMax = W - titleX - 70;
-  char title[64];
-  const lgfx::IFont* tf = &fMedium;
-  canvas.setFont(tf);
-  if (canvas.textWidth(s.title ? s.title : "") > titleMax) {
-    tf = &fSmall;
-    canvas.setFont(tf);
-  }
-  fitText(title, sizeof(title), s.title ? s.title : "", titleMax);
-  drawText(title, titleX, hy + 1, tf, COL_TEXT, lgfx::middle_left);
-  drawBattery(W - 6, hy, s.battery);
+  // --- En-tête : mode + ligne + arrêt ............................ batterie
+  const int hy = HEADER_H / 2;
+  int x = MARGIN;
+  x += drawMode(x, hy, s.mode) + 6;
+  x += drawBadge(x, hy, s.badge && *s.badge ? s.badge : "?", s.mode, s.badgeColor, s.badgeText) + 10;
+  const int titleMax = W - x - (s.battery >= 0 ? (s.battery <= 15 ? 76 : 38) : MARGIN);
+  const char* title = s.title ? s.title : "";
+  const lgfx::IFont* tf = textW(title, &fMedium) <= titleMax ? &fMedium : &fCond;
+  char buf[96];
+  fitText(buf, sizeof(buf), title, titleMax, tf);
+  text(buf, x, hy + 1, tf, TEXT, lgfx::middle_left);
+  drawBattery(W - MARGIN, hy, s.battery);
+  canvas.drawFastHLine(0, HEADER_H, W, HAIR);
 
-  // Corps : deux prochains passages
-  const int y1 = 36, y2 = 96;
+  // --- Corps : deux prochains passages
   const View* v = s.view;
   if (v && v->rows > 0) {
-    drawRow(y1, &v->row[0], s.now);
-    drawRow(y2, v->rows > 1 ? &v->row[1] : nullptr, s.now);
+    drawRow(ROW1_Y, &v->row[0], s.now, s.badgeColor);
+    canvas.drawFastHLine(MARGIN + 14, ROW2_Y - 1, W - 2 * MARGIN - 14, HAIR);
+    if (v->rows > 1) drawRow(ROW2_Y, &v->row[1], s.now, s.badgeColor);
+  } else if (!s.hasData && s.status && *s.status) {
+    drawBodyMessage(true, s.status, "Nouvel essai dans quelques secondes", C_ORANGE);
   } else if (!s.hasData) {
-    if (s.status && *s.status)
-      drawCenterMessage(y1, 116, s.status, "Nouvel essai bientôt", COL_ORANGE);
-    else if (s.net == NetState::Connecting)
-      drawCenterMessage(y1, 116, "Connexion au WiFi…", nullptr, COL_MUTED);
-    else
-      drawCenterMessage(y1, 116, "Chargement…", nullptr, COL_MUTED);
+    drawSkeletonRow(ROW1_Y, s.now, 0);
+    canvas.drawFastHLine(MARGIN + 14, ROW2_Y - 1, W - 2 * MARGIN - 14, HAIR);
+    drawSkeletonRow(ROW2_Y, s.now, 1);
   } else {
-    drawCenterMessage(y1, 116, "Aucun passage prévu", "Service terminé ou info indisponible", COL_TEXT);
+    drawBodyMessage(false, "Aucun passage prévu", "Service terminé ou information indisponible", C_TEXT);
   }
 
-  // Pied de page : état de la mise à jour, sens, favoris
-  const int fy = 162;
-  char foot[64] = "";
-  uint16_t fc = COL_MUTED;
-  if (s.busy) {
-    copyStr(foot, "Mise à jour…", sizeof(foot));
-  } else if (s.status && *s.status && s.hasData) {
-    copyStr(foot, s.status, sizeof(foot));
-    fc = COL_ORANGE;
-  } else if (s.net == NetState::Connecting) {
-    copyStr(foot, "Connexion au WiFi…", sizeof(foot));
-  } else if (s.ageS >= 0) {
-    if (s.ageS < 60) snprintf(foot, sizeof(foot), "Mis à jour il y a %d s", s.ageS);
-    else snprintf(foot, sizeof(foot), "Mis à jour il y a %d min", s.ageS / 60);
-    if (s.ageS > 300) fc = COL_ORANGE;
+  // --- Pied de page : état ......................... sens · favoris
+  int rightX = W - MARGIN;
+  if (s.favCount > 1) {
+    drawDots(rightX - 2, FOOT_Y, s.favIndex, s.favCount);
+    rightX -= (s.favCount - 1) * 9 + 14;
   }
-  canvas.setFont(&fSmall);
-  char tmp[64];
-  fitText(tmp, sizeof(tmp), foot, 190);
-  drawText(tmp, 8, fy, &fSmall, fc, lgfx::middle_left);
-  int dotsW = s.favCount > 1 ? s.favCount * 10 + 6 : 0;
   if (v && v->groupCount > 1) {
     char g[16];
     snprintf(g, sizeof(g), "sens %d/%d", v->groupIndex + 1, v->groupCount);
-    drawText(g, W - 8 - dotsW, fy, &fSmall, COL_MUTED, lgfx::middle_right);
+    text(g, rightX, FOOT_Y, &fTiny, MUTED, lgfx::middle_right);
+    rightX -= textW(g, &fTiny) + 12;
   }
-  drawDots(W - 6, fy, s.favIndex, s.favCount);
+
+  char foot[64] = "";
+  uint16_t dot = GREEN, fc = MUTED;
+  const bool error = s.status && *s.status;
+  if (s.busy) {
+    copyStr(foot, "Mise à jour…", sizeof(foot));
+    dot = (s.now & 1) ? AMBER : FAINT;
+  } else if (error && s.hasData) {
+    copyStr(foot, s.status, sizeof(foot));
+    dot = ORANGE;
+    fc = ORANGE;
+  } else if (s.net == NetState::Connecting) {
+    copyStr(foot, "Connexion au WiFi…", sizeof(foot));
+    dot = (s.now & 1) ? MUTED : FAINT;
+  } else if (s.ageS >= 0) {
+    if (s.ageS < 10) copyStr(foot, "À l'instant", sizeof(foot));
+    else if (s.ageS < 60) snprintf(foot, sizeof(foot), "Il y a %d s", s.ageS);
+    else snprintf(foot, sizeof(foot), "Il y a %d min", s.ageS / 60);
+    if (s.ageS > 180) dot = AMBER;
+  } else {
+    dot = FAINT;
+  }
+  if (foot[0] || dot != FAINT) {
+    canvas.fillSmoothCircle(MARGIN + 3, FOOT_Y, 3, dot);
+    fitText(buf, sizeof(buf), foot, rightX - (MARGIN + 12), &fTiny);
+    text(buf, MARGIN + 12, FOOT_Y, &fTiny, fc, lgfx::middle_left);
+  }
 
   present();
+}
+
+// ============================================================================
+//  Autres écrans
+// ============================================================================
+// Texte centré à partir de y (haut), sur une ou deux lignes. Renvoie la hauteur utilisée.
+static int drawLines(const char* line, int y, int maxW, uint16_t color) {
+  if (textW(line, &fSmall) <= maxW) {
+    text(line, W / 2, y + 10, &fSmall, color, lgfx::middle_center);
+    return 22;
+  }
+  char a[64], b[64];
+  if (wrap2(line, maxW, &fSmall, a, b, sizeof(a))) {
+    text(a, W / 2, y + 10, &fSmall, color, lgfx::middle_center);
+    text(b, W / 2, y + 29, &fSmall, color, lgfx::middle_center);
+    return 41;
+  }
+  fitText(a, sizeof(a), line, maxW, &fSmall);
+  text(a, W / 2, y + 10, &fSmall, color, lgfx::middle_center);
+  return 22;
 }
 
 void uiDrawMessage(const char* title, const char* line1, const char* line2, uint32_t accent) {
-  canvas.fillScreen(COL_BG);
-  canvas.fillRect(0, 0, W, 4, rgb(accent));
+  canvas.fillScreen(BG);
+  iconAlert(W / 2, 34, accent);
   char buf[96];
-  canvas.setFont(&fLarge);
-  fitText(buf, sizeof(buf), title ? title : "", W - 20);
-  drawText(buf, W / 2, 44, &fLarge, rgb(accent), lgfx::middle_center);
-  int y = 94;
-  for (const char* l : {line1, line2}) {
-    if (!l || !*l) continue;
-    canvas.setFont(&fMedium);
-    if (canvas.textWidth(l) <= W - 20) {
-      drawText(l, W / 2, y, &fMedium, COL_TEXT, lgfx::middle_center);
-    } else {
-      char a[64], b[64];
-      canvas.setFont(&fSmall);
-      if (wrap2(l, W - 20, a, b, sizeof(a))) {
-        drawText(a, W / 2, y - 9, &fSmall, COL_TEXT, lgfx::middle_center);
-        drawText(b, W / 2, y + 10, &fSmall, COL_TEXT, lgfx::middle_center);
-      } else {
-        fitText(a, sizeof(a), l, W - 20);
-        drawText(a, W / 2, y, &fSmall, COL_TEXT, lgfx::middle_center);
-      }
-    }
-    y += 42;
-  }
+  fitText(buf, sizeof(buf), title ? title : "", W - 2 * MARGIN, &fLarge);
+  text(buf, W / 2, 76, &fLarge, TEXT, lgfx::middle_center);
+  int y = 98;
+  if (line1 && *line1) y += drawLines(line1, y, W - 2 * MARGIN, MUTED) + 4;
+  if (line2 && *line2) drawLines(line2, y, W - 2 * MARGIN, MUTED);
+  drawSignature(H - 3, 3);
   present();
 }
 
-void uiDrawPortal(const char* apName, const char* qrPayload, const char* url, const char* url2) {
-  canvas.fillScreen(COL_BG);
-  // QR code (fond blanc) pour rejoindre le point d'accès d'un coup d'appareil photo
-  const int q = 132, qx = 8, qy = (H - q) / 2;
-  canvas.fillRoundRect(qx - 4, qy - 4, q + 8, q + 8, 6, COL_TEXT);
-  canvas.qrcode(qrPayload, qx, qy, q, 2);
+static void stepNumber(int x, int cy, const char* n) {
+  canvas.fillSmoothCircle(x + 8, cy, 8, tint(C_AMBER, 70));
+  text(n, x + 8, cy + 1, &fTiny, AMBER, lgfx::middle_center);
+}
 
-  const int tx = qx + q + 14;
-  const int tw = W - tx - 6;
+void uiDrawPortal(const char* apName, const char* qrPayload, const char* url, const char* url2) {
+  canvas.fillScreen(BG);
+
+  // QR code sur carte blanche : le scanner rejoint directement le WiFi
+  const int card = 140, cx0 = MARGIN, cy0 = (H - 3 - card) / 2;
+  canvas.fillSmoothRoundRect(cx0, cy0, card, card, 10, TEXT);
+  canvas.qrcode(qrPayload, cx0 + 8, cy0 + 8, card - 16, 2);
+
+  const int tx = cx0 + card + 14;
+  const int tw = W - tx - MARGIN;
   char buf[64];
-  drawText("Configuration", tx, 18, &fMedium, COL_AMBER, lgfx::middle_left);
-  drawText("1. Rejoignez le WiFi", tx, 46, &fSmall, COL_MUTED, lgfx::middle_left);
-  canvas.setFont(&fMedium);
-  fitText(buf, sizeof(buf), apName, tw);
-  drawText(buf, tx, 67, &fMedium, COL_TEXT, lgfx::middle_left);
-  drawText("2. Ouvrez", tx, 95, &fSmall, COL_MUTED, lgfx::middle_left);
-  canvas.setFont(&fMedium);
-  fitText(buf, sizeof(buf), url, tw);
-  drawText(buf, tx, 116, &fMedium, COL_TEXT, lgfx::middle_left);
+  text("Configuration", tx, 20, &fMedium, TEXT, lgfx::middle_left);
+
+  stepNumber(tx, 50, "1");
+  text("Scannez ou rejoignez", tx + 22, 50, &fTiny, MUTED, lgfx::middle_left);
+  fitText(buf, sizeof(buf), apName, tw, &fMedium);
+  text(buf, tx, 73, &fMedium, AMBER, lgfx::middle_left);
+
+  stepNumber(tx, 102, "2");
+  text("Ouvrez dans le navigateur", tx + 22, 102, &fTiny, MUTED, lgfx::middle_left);
+  fitText(buf, sizeof(buf), url, tw, &fMedium);
+  text(buf, tx, 125, &fMedium, AMBER, lgfx::middle_left);
   if (url2 && *url2) {
-    canvas.setFont(&fSmall);
-    fitText(buf, sizeof(buf), url2, tw);
-    drawText(buf, tx, 140, &fSmall, COL_MUTED, lgfx::middle_left);
+    fitText(buf, sizeof(buf), url2, tw, &fTiny);
+    text(buf, tx, 147, &fTiny, MUTED, lgfx::middle_left);
+  } else {
+    text("BOOT : quitter", tx, 147, &fTiny, FAINT, lgfx::middle_left);
   }
-  drawText("BOOT : quitter", tx, 160, &fSmall, COL_MUTED, lgfx::middle_left);
+  drawSignature(H - 3, 3);
   present();
 }
 
 void uiDrawSplash(const char* version) {
-  canvas.fillScreen(COL_BG);
-  canvas.fillCircle(W / 2, 62, 34, COL_TEXT);
-  drawText("M", W / 2, 64, &fBig, COL_BG, lgfx::middle_center);
-  drawText("Afficheur Métro", W / 2, 122, &fMedium, COL_TEXT, lgfx::middle_center);
+  canvas.fillScreen(BG);
+  canvas.fillSmoothCircle(W / 2, 62, 36, TEXT);
+  text("M", W / 2, 66, &fBig, BG, lgfx::middle_center);
+  text("Afficheur Métro", W / 2, 122, &fMedium, TEXT, lgfx::middle_center);
   char buf[32];
-  snprintf(buf, sizeof(buf), "v%s", version);
-  drawText(buf, W / 2, 150, &fSmall, COL_MUTED, lgfx::middle_center);
+  snprintf(buf, sizeof(buf), "Version %s", version);
+  text(buf, W / 2, 146, &fTiny, MUTED, lgfx::middle_center);
+  drawSignature(H - 4, 4);
   present();
 }

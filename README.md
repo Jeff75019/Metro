@@ -9,6 +9,10 @@ Données : **API PRIM d'Île-de-France Mobilités** (gratuite, clé personnelle)
 
 *Rendus générés sur PC à partir du vrai code d'affichage (voir « Tests sur PC »).*
 
+La configuration se fait depuis le téléphone :
+
+![Page de configuration](docs/configuration.png)
+
 ## Fonctionnalités
 
 - Deux prochains passages avec destination et attente en minutes, rafraîchis automatiquement.
@@ -140,6 +144,8 @@ Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
 ├── portal_html.h       la page de configuration
 └── fonts_metro.h       polices générées (ne pas modifier à la main)
 tools/make_fonts.py     génère fonts_metro.h à partir de tools/fonts/
+tools/portal_preview.py aperçu de la page de configuration sur PC (données fictives)
+tools/idf-build/        compilation de vérification avec ESP-IDF
 test/                   tests sur PC (décodage + rendu des écrans en images)
 ```
 
@@ -168,6 +174,8 @@ Il faut `g++` et les sources de ArduinoJson et LovyanGFX (chemins réglables : `
 
 Pour modifier les polices (taille, caractères) : `pip install pillow && python3 tools/make_fonts.py`.
 
+Pour retoucher la page de configuration sans la carte : `python3 tools/portal_preview.py`, puis ouvrez http://localhost:8080 (données fictives, rien n'est envoyé).
+
 ## État et limites
 
 - Le décodage PRIM (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC.
@@ -178,7 +186,7 @@ Pour modifier les polices (taille, caractères) : `pip install pillow && python3
 
 ## Licences et sources
 
-- Police : [Barlow Semi Condensed](https://github.com/jpt/barlow), SIL Open Font License 1.1 (`tools/fonts/OFL.txt`).
+- Polices : [Barlow Semi Condensed et Barlow Condensed](https://github.com/jpt/barlow), SIL Open Font License 1.1 (`tools/fonts/OFL.txt`).
 - Données : API PRIM et open data d'Île-de-France Mobilités ; couleurs des lignes issues du référentiel des lignes IDFM.
 - Bibliothèques : [LovyanGFX](https://github.com/lovyan03/LovyanGFX) (FreeBSD), [ArduinoJson](https://arduinojson.org) (MIT), [cœur Arduino ESP32](https://github.com/espressif/arduino-esp32) (LGPL 2.1).
 - Projet indépendant, sans lien avec la RATP, IDFM ou les fabricants d'afficheurs du commerce.
