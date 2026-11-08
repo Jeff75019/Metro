@@ -2,13 +2,18 @@
 //  Afficheur Métro — prochains passages en temps réel (Île-de-France)
 //  pour Waveshare ESP32-S3-Touch-LCD-1.9 (+ batterie LiPo)
 //
-//  Données : API PRIM d'Île-de-France Mobilités (gratuite, clé nécessaire)
+//  Deux programmes :
+//    - Métro · RER · Tram : vos arrêts favoris (API PRIM d'Île-de-France Mobilités)
+//    - Trains grandes lignes : départs / arrivées des gares SNCF (API SNCF)
+//  Les deux API sont gratuites, avec une clé à demander en ligne.
 //
 //  Utilisation :
 //    - Premier démarrage : l'écran affiche un QR code. Rejoignez le WiFi
 //      « Metro-XXXX » et ouvrez http://192.168.4.1 pour tout configurer.
-//    - Toucher l'écran         : changer de sens (si plusieurs) / actualiser
-//    - Glisser gauche/droite   : arrêt favori suivant / précédent
+//    - Glisser haut/bas        : changer de programme (Métro <-> Trains)
+//    - Glisser gauche/droite   : arrêt favori / gare suivant(e) ou précédent(e)
+//    - Toucher l'écran         : Métro : changer de sens (ou actualiser)
+//                                Trains : départs <-> arrivées
 //    - Appui long (3 s) écran  : mode configuration
 //    - Bouton BOOT             : réveil / mise en veille
 //    - Bouton BOOT maintenu 3 s : mode configuration
@@ -22,10 +27,15 @@
 #include "config.h"
 #include "lines.h"
 #include "portal.h"
+#include "net.h"
 #include "prim.h"
 #include "settings.h"
 #include "siri.h"
+#include "sncf.h"
+#include "sncf_api.h"
 #include "ui.h"
+
+enum class App : uint8_t { Metro = 0, Trains = 1 };
 
 // ---- État conservé pendant la veille profonde (mémoire RTC) -----------------
 RTC_DATA_ATTR static uint8_t rtcFav = 0;                         // favori affiché
@@ -36,7 +46,12 @@ RTC_DATA_ATTR static uint8_t rtcBssid[6];                         // reconnexion
 RTC_DATA_ATTR static int32_t rtcChannel = 0;
 RTC_DATA_ATTR static uint8_t rtcWifiIdx = 0;
 RTC_DATA_ATTR static uint8_t rtcIdleMotionWakes = 0;             // réveils "secousse" sans usage
-RTC_DATA_ATTR static uint32_t rtcCfgHash = 0;                     // empreinte des favoris
+RTC_DATA_ATTR static uint32_t rtcCfgHash = 0;                     // empreinte des favoris et gares
+RTC_DATA_ATTR static uint8_t rtcApp = 0;                          // programme affiché
+RTC_DATA_ATTR static uint8_t rtcStation = 0;                      // gare affichée
+RTC_DATA_ATTR static bool rtcArrivals = false;                    // arrivées plutôt que départs
+RTC_DATA_ATTR static Board rtcBoard;                              // dernier tableau SNCF
+RTC_DATA_ATTR static uint8_t rtcBoardKey = 0xFF;                  // gare * 2 + arrivées
 
 // ---- État en RAM ------------------------------------------------------------
 static StopData cache[MAX_FAVORITES];
@@ -51,6 +66,16 @@ static bool busy = false;
 static bool screenOn = true;
 static bool interacted = false;
 static WakeReason wake = WakeReason::PowerOn;
+static App app = App::Metro;
+
+// Programme Trains : un tableau (départs, arrivées) par gare
+static Board boards[MAX_STATIONS][2];
+static bool boardValid[MAX_STATIONS][2];
+static int64_t boardNext[MAX_STATIONS][2];
+static bool boardForce[MAX_STATIONS][2];
+static uint8_t curStation = 0;
+static bool arrivals = false;
+static uint32_t lastOriginTry = 0;
 static uint32_t lastInteraction = 0, lastDraw = 0, lastBattery = 0;
 static int battPct = -1, battMv = 0;
 
@@ -139,8 +164,29 @@ static void wifiPoll() {
 // ---- Affichage ----------------------------------------------------------------
 static int64_t nowEpoch() { return (int64_t)time(nullptr); }
 
+static void drawTrains() {
+  BoardUi s;
+  memset(&s, 0, sizeof(s));
+  const bool valid = boardValid[curStation][arrivals];
+  const Board& b = boards[curStation][arrivals];
+  s.board = valid ? &b : nullptr;
+  s.station = settings.stations[curStation].name;
+  s.arrivals = arrivals;
+  s.now = nowEpoch();
+  s.battery = battPct;
+  s.net = net;
+  s.busy = busy;
+  s.status = lastErr[0] ? lastErr : nullptr;
+  s.ageS = valid ? (int)(s.now - b.fetchedAt) : -1;
+  s.index = curStation;
+  s.count = settings.stationCount;
+  uiDrawBoard(s);
+  lastDraw = millis();
+}
+
 static void draw() {
   if (!screenOn) return;
+  if (app == App::Trains) return drawTrains();
   const Favorite& f = settings.fav[curFav];
   const LineInfo* li = findLine(f.line);
   UiState s;
@@ -176,7 +222,7 @@ static void readBattery() {
 // ---- Récupération des horaires --------------------------------------------------
 static void fetchNow(uint8_t idx) {
   const int64_t now = nowEpoch();
-  if (!quotaAvailable(settings.dailyQuota)) {
+  if (!quotaAvailable(Api::Prim, settings.dailyQuota)) {
     snprintf(lastErr, sizeof(lastErr), "Quota du jour atteint (%u appels)", (unsigned)settings.dailyQuota);
     nextAttempt[idx] = now + 300;
     return;
@@ -211,7 +257,69 @@ static uint32_t refreshInterval() {
   return s;
 }
 
+static void fetchBoardNow(uint8_t st, bool arr) {
+  const int64_t now = nowEpoch();
+  if (!quotaAvailable(Api::Sncf, settings.sncfQuota)) {
+    snprintf(lastErr, sizeof(lastErr), "Quota SNCF du jour atteint (%u appels)", (unsigned)settings.sncfQuota);
+    boardNext[st][arr] = now + 300;
+    return;
+  }
+  busy = true;
+  draw();
+  FetchResult r = sncfFetchBoard(settings.stations[st], arr, boards[st][arr]);
+  busy = false;
+  if (r.ok) {
+    boardValid[st][arr] = true;
+    lastErr[0] = 0;
+    boardNext[st][arr] = 0;
+    rtcBoard = boards[st][arr];
+    rtcBoardKey = (uint8_t)(st * 2 + (arr ? 1 : 0));
+  } else {
+    copyStr(lastErr, r.msg, sizeof(lastErr));
+    const bool hard = r.http == 401 || r.http == 403 || r.http == 429;
+    boardNext[st][arr] = nowEpoch() + (hard ? 120 : 20);
+    log_w("Échec SNCF : %s", r.msg);
+  }
+  draw();
+}
+
+static uint32_t trainsInterval() {
+  uint32_t s = settings.refreshS < TRAINS_REFRESH_MIN_S ? TRAINS_REFRESH_MIN_S : settings.refreshS;
+  if (settings.sleepMode == SleepMode::AlwaysOn && settings.sncfQuota > 0) {
+    // allumé en permanence : environ 2 appels par mise à jour (tableau + provenances)
+    uint32_t minS = 2 * 86400UL / settings.sncfQuota + 1;
+    if (s < minS) s = minS;
+  }
+  return s;
+}
+
+static void maybeFetchTrains() {
+  if (!screenOn || net != NetState::Online || busy) return;
+  const int64_t now = nowEpoch();
+  const uint8_t st = curStation;
+  const bool arr = arrivals;
+  if (now < boardNext[st][arr]) return;
+  Board& b = boards[st][arr];
+  const bool stale = boardForce[st][arr] || !boardValid[st][arr] ||
+                     now - b.fetchedAt >= (int64_t)trainsInterval() || now < b.fetchedAt;
+  if (stale) {
+    boardForce[st][arr] = false;
+    fetchBoardNow(st, arr);
+    return;
+  }
+  // Arrivées : provenances à compléter, une requête à la fois
+  if (arr && millis() - lastOriginTry > 1500) {
+    lastOriginTry = millis();
+    if (sncfResolveOrigins(b, settings.stations[st], BOARD_ROWS)) {
+      rtcBoard = b;
+      rtcBoardKey = (uint8_t)(st * 2 + (arr ? 1 : 0));
+      draw();
+    }
+  }
+}
+
 static void maybeFetch() {
+  if (app == App::Trains) return maybeFetchTrains();
   if (!screenOn || net != NetState::Online || busy) return;
   const int64_t now = nowEpoch();
   if (now < nextAttempt[curFav]) return;
@@ -235,6 +343,9 @@ static void goToSleep() {
     timerS = 30 * 60;
   }
   rtcFav = curFav;
+  rtcApp = (uint8_t)app;
+  rtcStation = curStation;
+  rtcArrivals = arrivals;
   log_i("Veille profonde (secousse : %d)", motion);
   boardDeepSleep(motion, timerS);
 }
@@ -264,7 +375,34 @@ static void onInteraction() {
   rtcIdleMotionWakes = 0;
 }
 
+static void switchApp() {
+  const App next = app == App::Metro ? App::Trains : App::Metro;
+  const bool ready = next == App::Trains ? trainsReady() : metroReady();
+  if (!ready) {
+    if (next == App::Trains)
+      uiDrawMessage("Trains non configurés", "Ajoutez une clé API SNCF et des gares",
+                    "Appui long sur l'écran : configuration", 0x1A4CA8);
+    else
+      uiDrawMessage("Métro non configuré", "Ajoutez une clé API PRIM et un arrêt",
+                    "Appui long sur l'écran : configuration", 0xFFC12E);
+    delay(1800);
+    draw();
+    return;
+  }
+  app = next;
+  lastErr[0] = 0;
+  uiDrawAppTitle(app == App::Trains);
+  delay(450);
+  draw();
+}
+
 static void onTap() {
+  if (app == App::Trains) {  // départs <-> arrivées
+    arrivals = !arrivals;
+    lastErr[0] = 0;
+    draw();
+    return;
+  }
   if (lastView.groupCount > 1) {
     uint8_t g = (lastView.groupIndex + 1) % lastView.groupCount;
     copyStr(rtcDirKey[curFav], lastView.groupKey[g], TXT_LEN);
@@ -276,6 +414,13 @@ static void onTap() {
 }
 
 static void onSwipe(int dir) {
+  if (app == App::Trains) {
+    if (settings.stationCount < 2) return;
+    curStation = (uint8_t)((curStation + settings.stationCount + dir) % settings.stationCount);
+    lastErr[0] = 0;
+    draw();
+    return;
+  }
   if (settings.favCount < 2) return;
   curFav = (uint8_t)((curFav + settings.favCount + dir) % settings.favCount);
   lastErr[0] = 0;
@@ -313,6 +458,7 @@ static void handleTouch() {
     if (longDone) return;
     const int dx = x1 - x0, dy = y1 - y0;
     if (abs(dx) > 50 && abs(dx) > abs(dy)) onSwipe(dx < 0 ? +1 : -1);
+    else if (abs(dy) > 40 && abs(dy) > abs(dx)) switchApp();
     else if (abs(dx) < 30 && abs(dy) < 30) onTap();
   }
 }
@@ -384,16 +530,34 @@ void setup() {
     return;
   }
 
-  // Favoris modifiés depuis la dernière fois : on oublie l'état mémorisé
+  // Favoris ou gares modifiés depuis la dernière fois : on oublie l'état mémorisé
   uint32_t h = 2166136261u;
-  const uint8_t* p = (const uint8_t*)settings.fav;
-  for (size_t i = 0; i < sizeof(settings.fav); i++) h = (h ^ p[i]) * 16777619u;
-  h ^= settings.favCount;
+  auto mixIn = [&](const void* data, size_t n) {
+    const uint8_t* p = (const uint8_t*)data;
+    for (size_t i = 0; i < n; i++) h = (h ^ p[i]) * 16777619u;
+  };
+  mixIn(settings.fav, sizeof(settings.fav));
+  mixIn(&settings.favCount, 1);
+  mixIn(settings.stations, sizeof(settings.stations));
+  mixIn(&settings.stationCount, 1);
+  mixIn(&settings.mainlineOnly, 1);
   if (h != rtcCfgHash) {
     rtcCfgHash = h;
     rtcFav = 0;
     rtcDataFav = 0xFF;
     memset(rtcDirKey, 0, sizeof(rtcDirKey));
+    rtcStation = 0;
+    rtcArrivals = false;
+    rtcBoardKey = 0xFF;
+  }
+
+  // Programme au démarrage : le dernier utilisé, s'il est configuré
+  app = (rtcApp == (uint8_t)App::Trains && trainsReady()) || !metroReady() ? App::Trains : App::Metro;
+  curStation = rtcStation < settings.stationCount ? rtcStation : 0;
+  arrivals = rtcArrivals;
+  if (rtcBoardKey / 2 < settings.stationCount && rtcBoard.count <= BOARD_MAX) {
+    boards[rtcBoardKey / 2][rtcBoardKey & 1] = rtcBoard;
+    boardValid[rtcBoardKey / 2][rtcBoardKey & 1] = true;
   }
 
   curFav = rtcFav < settings.favCount ? rtcFav : 0;

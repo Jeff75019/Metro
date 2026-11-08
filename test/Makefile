@@ -1,6 +1,6 @@
 # Tests sur PC (Linux/macOS) — aucun matériel nécessaire.
 #
-#   make test   : tests du décodage des réponses PRIM (siri.cpp)
+#   make test   : tests du décodage des réponses PRIM (siri.cpp) et SNCF (sncf.cpp)
 #   make ui     : rendu des écrans en images (out/*.ppm puis out/*.png)
 #
 # Dépendances : g++, et les sources de ArduinoJson et LovyanGFX
@@ -29,8 +29,13 @@ LGFX_OBJ := $(patsubst $(LOVYANGFX)/%,$(BUILD)/lgfx/%.o,$(LGFX_SRC) $(LGFX_C))
 
 .PHONY: test ui clean
 
-test: $(BUILD)/test_siri
+test: $(BUILD)/test_siri $(BUILD)/test_sncf
 	$(BUILD)/test_siri
+	$(BUILD)/test_sncf
+
+$(BUILD)/test_sncf: test_sncf.cpp ../Metro/sncf.cpp ../Metro/siri.cpp ../Metro/lines.cpp ../Metro/sncf.h
+	@mkdir -p $(BUILD)
+	$(CXX) $(CXXFLAGS) $(SAN) -I$(ARDUINOJSON)/src test_sncf.cpp ../Metro/sncf.cpp ../Metro/siri.cpp ../Metro/lines.cpp -o $@
 
 $(BUILD)/test_siri: test_siri.cpp ../Metro/siri.cpp ../Metro/lines.cpp ../Metro/siri.h
 	@mkdir -p $(BUILD)
@@ -44,9 +49,9 @@ $(BUILD)/lgfx/%.c.o: $(LOVYANGFX)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) -O1 -w -DLGFX_LINUX_FB -I$(LOVYANGFX)/src -c $< -o $@
 
-$(BUILD)/test_ui: test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/lines.cpp ../Metro/fonts_metro.h $(LGFX_OBJ)
+$(BUILD)/test_ui: test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/sncf.cpp ../Metro/lines.cpp ../Metro/fonts_metro.h $(LGFX_OBJ)
 	$(CXX) $(CXXFLAGS) -DLGFX_LINUX_FB -I$(ARDUINOJSON)/src -I$(LOVYANGFX)/src \
-	  test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/lines.cpp $(LGFX_OBJ) -lpthread -o $@
+	  test_ui.cpp ../Metro/ui.cpp ../Metro/siri.cpp ../Metro/sncf.cpp ../Metro/lines.cpp $(LGFX_OBJ) -lpthread -o $@
 
 ui: $(BUILD)/test_ui
 	$(BUILD)/test_ui

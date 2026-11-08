@@ -21,7 +21,3 @@ int primLinesJson(const String& stopRef, const char* apiKey, String& out);
 
 // Recherche d'arrêts par nom (open data IDFM, pas de clé nécessaire).
 int searchStopsJson(const String& query, String& out);
-
-// Compteur d'appels du jour (quota PRIM)
-uint16_t quotaUsedToday();
-bool quotaAvailable(uint16_t dailyQuota);

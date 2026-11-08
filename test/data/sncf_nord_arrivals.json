@@ -1,0 +1,14 @@
+{"arrivals":[
+{"display_informations":{"direction":"Paris Nord (Paris)","network":"Eurostar","links":[],"physical_mode":"Train grande vitesse","headsign":"9015","commercial_mode":"Eurostar"},
+ "links":[{"type":"vehicle_journey","id":"vehicle_journey:SNCF:2026-11-08:9015:1187:LongDistanceTrain"}],
+ "stop_date_time":{"links":[{"type":"stop_area","rel":"origins","id":"stop_area:SNCF:70154005","internal":true}],"additional_informations":[],"arrival_date_time":"20261108T095800","base_arrival_date_time":"20261108T095500","data_freshness":"realtime"}},
+{"display_informations":{"direction":"Paris Nord (Paris)","network":"SNCF","links":[],"physical_mode":"Train grande vitesse","headsign":"7208","commercial_mode":"TGV INOUI"},
+ "links":[{"type":"vehicle_journey","id":"vehicle_journey:SNCF:2026-11-08:7208:1187:LongDistanceTrain"}],
+ "stop_date_time":{"additional_informations":[],"arrival_date_time":"20261108T100400","base_arrival_date_time":"20261108T100400","data_freshness":"realtime"}},
+{"display_informations":{"direction":"Paris Nord (Paris)","network":"TER","links":[],"physical_mode":"Train","headsign":"847906","commercial_mode":"TER"},
+ "links":[{"type":"vehicle_journey","id":"vehicle_journey:SNCF:2026-11-08:847906:1187:Train"}],
+ "stop_date_time":{"additional_informations":["Train supprimé"],"arrival_date_time":"20261108T101100","base_arrival_date_time":"20261108T101100","data_freshness":"realtime"}}
+],
+"origins":[{"id":"stop_area:SNCF:70154005","name":"London St-Pancras"}],
+"disruptions":[],
+"context":{"timezone":"Europe/Paris","current_datetime":"20261108T094100"}}

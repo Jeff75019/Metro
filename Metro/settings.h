@@ -14,6 +14,11 @@ struct Favorite {
   char filter[48];    // filtre de direction, ex. "Défense" (optionnel)
 };
 
+struct Station {
+  char id[40];    // ex. "stop_area:SNCF:87686006"
+  char name[32];  // nom court affiché, ex. "Gare de Lyon"
+};
+
 struct WifiCred {
   char ssid[33];
   char pass[65];
@@ -37,6 +42,12 @@ struct Settings {
   SleepMode sleepMode;
   bool motionWake;      // réveil par secousse (IMU)
   bool flip;            // écran retourné de 180°
+  // Trains grandes lignes (API SNCF)
+  char sncfKey[64];
+  Station stations[MAX_STATIONS];
+  uint8_t stationCount;
+  bool mainlineOnly;    // écarter Transilien, RER et autocars
+  uint16_t sncfQuota;   // nombre max d'appels API SNCF par jour
 };
 
 extern Settings settings;
@@ -45,7 +56,17 @@ void settingsDefaults(Settings& s);
 void settingsLoad();
 bool settingsSave();
 void settingsErase();
-bool settingsReady();  // WiFi + clé + au moins un favori
+bool metroReady();     // clé PRIM + au moins un arrêt
+bool trainsReady();    // clé SNCF + au moins une gare
+bool settingsReady();  // WiFi + (métro ou trains) configurés
+
+// Gares parisiennes proposées par défaut
+struct ParisStation {
+  const char* id;
+  const char* name;
+};
+extern const ParisStation PARIS_STATIONS[];
+extern const int PARIS_STATION_COUNT;
 
 // Conversion JSON (pour la page web et le stockage).
 // hideSecrets : les mots de passe et la clé API ne sont pas renvoyés en clair.

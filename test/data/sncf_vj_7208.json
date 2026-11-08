@@ -1,0 +1,4 @@
+{"vehicle_journeys":[{"id":"vehicle_journey:SNCF:2026-11-08:7208:1187:LongDistanceTrain","name":"7208","stop_times":[
+{"arrival_time":"080000","departure_time":"080000","stop_point":{"id":"stop_point:SNCF:87286005:LongDistanceTrain","name":"Lille Flandres","label":"Lille Flandres (Lille)"}},
+{"arrival_time":"100400","departure_time":"100400","stop_point":{"id":"stop_point:SNCF:87271007:LongDistanceTrain","name":"Paris Nord","label":"Paris Nord (Paris)"}}]}],
+"context":{"timezone":"Europe/Paris"}}

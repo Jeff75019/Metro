@@ -81,13 +81,13 @@ svg{display:block}
 <div id="wmsg" class="msg"></div></div>
 </section>
 
-<section><div class="sh"><span class="num" id="n2">2</span><h2>Clé API PRIM</h2></div>
+<section><div class="sh"><span class="num" id="n2">2</span><h2>Clé API PRIM <span class="meta">· métro, RER, tram, bus</span></h2></div>
 <div class="desc">Gratuite : créez un compte sur <a href="https://prim.iledefrance-mobilites.fr" target="_blank">prim.iledefrance-mobilites.fr</a>, abonnez-vous à l'API « Prochains passages (requête unitaire) », puis générez un jeton dans « Mon compte ».</div>
 <input id="key" type="password" autocomplete="off">
 </section>
 
 <section><div class="sh"><span class="num" id="n3">3</span><h2>Mes arrêts</h2></div>
-<div class="desc">Glissez le doigt sur l'écran de l'afficheur pour passer de l'un à l'autre (4 au maximum).</div>
+<div class="desc">Métro, RER, tram ou bus. Glissez le doigt vers la gauche ou la droite sur l'afficheur pour passer de l'un à l'autre (4 au maximum).</div>
 <div class="list" id="fl"></div>
 <div class="panel">
 <div class="row"><input id="q" placeholder="Station ou arrêt, ex. Bastille" autocomplete="off"><button class="pri" id="go" aria-label="Chercher"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button></div>
@@ -106,7 +106,17 @@ svg{display:block}
 <div style="margin-top:12px"><button id="addm" style="width:100%">Ajouter</button></div></div></details>
 </section>
 
-<section><div class="sh"><span class="num">4</span><h2>Réglages</h2></div>
+<section><div class="sh"><span class="num" id="n4">4</span><h2>Trains grandes lignes <span class="meta">· facultatif</span></h2></div>
+<div class="desc">Départs et arrivées des gares SNCF (TGV, Ouigo, Intercités, TER…) : glissez le doigt vers le haut ou le bas sur l'afficheur pour passer du métro aux trains. Clé gratuite (5 000 requêtes par jour) sur <a href="https://numerique.sncf.com/startup/api/token-developpeur/" target="_blank">numerique.sncf.com</a>.</div>
+<label class="f">Clé API SNCF</label><input id="skey" type="password" autocomplete="off">
+<label class="f">Gares de Paris</label><div class="list" id="pl"></div>
+<label class="f" id="otherLbl">Autres gares</label><div class="list" id="ol"></div>
+<div class="panel"><div class="row"><input id="sq" placeholder="Autre gare, ex. Marne-la-Vallée" autocomplete="off"><button class="pri" id="sgo" aria-label="Chercher"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button></div>
+<div id="smsg2" class="msg"></div><div class="list" id="sres2"></div></div>
+<div class="set" style="margin-top:6px"><div class="l"><b>Grandes lignes uniquement</b><span>masquer RER, Transilien et autocars</span></div><label class="sw"><input type="checkbox" id="mainlineOnly"><span></span></label></div>
+</section>
+
+<section><div class="sh"><span class="num">5</span><h2>Réglages</h2></div>
 <div class="set"><div class="l"><b>Mise en veille</b><span id="sleepHelp"></span></div></div>
 <div class="seg" id="sleepSeg"><button data-v="0">Batterie</button><button data-v="1">Écran éteint</button><button data-v="2">Permanent</button></div>
 <div class="set" style="margin-top:8px"><div class="l"><b>Durée d'affichage</b><span>avant la mise en veille, en secondes</span></div><input id="awakeS" type="number" min="10" max="3600"></div>
@@ -140,7 +150,8 @@ function pics(l){return h('span',{class:'pics'},modePic(l.mode),badge(l))}
 async function status(){const s=await api('/api/status');const T=$('st');T.innerHTML='';
 T.append(h('span',{class:'tag'},h('span',{class:'dot '+(s.sta?'ok':'err')}),s.sta?h('span',{},'Internet via ',h('b',{},s.ssid)):'Pas encore d\'accès Internet'));
 T.append(h('span',{class:'tag'},'Batterie ',h('b',{},s.battery+' %')));
-T.append(h('span',{class:'tag'},'Appels du jour ',h('b',{},s.quotaUsed+' / '+s.quota)));
+T.append(h('span',{class:'tag'},'Appels PRIM ',h('b',{},s.quotaUsed+' / '+s.quota)));
+if(C.sncfKeySet||s.sncfUsed)T.append(h('span',{class:'tag'},'Appels SNCF ',h('b',{},s.sncfUsed+' / '+s.sncfQuota)));
 T.append(h('span',{class:'tag'},'v'+s.version));$('n1').classList.toggle('done',!!s.sta);return s}
 function renderW(){const L=$('wl');L.innerHTML='';C.wifi.forEach((w,i)=>L.append(h('div',{class:'item'},h('span',{html:wifiIcon(-50)}),h('div',{class:'grow'},h('div',{class:'name'},w.ssid),h('div',{class:'meta'},w.pass?'Nouveau mot de passe':(w.hasPass?'Mot de passe enregistré':'Réseau ouvert'))),
 h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.wifi.splice(i,1);renderW()}}))));if(!C.wifi.length)L.append(h('div',{class:'empty'},'Aucun réseau enregistré pour l\'instant.'))}
@@ -149,10 +160,24 @@ L.append(h('div',{class:'item'},pics(li),h('div',{class:'grow'},h('div',{class:'
 i?h('button',{class:'icon',title:'Monter',html:ICON.up,onclick:()=>{C.favorites.splice(i-1,0,C.favorites.splice(i,1)[0]);renderF()}}):null,
 h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.favorites.splice(i,1);renderF()}})))});
 if(!C.favorites.length)L.append(h('div',{class:'empty'},'Aucun arrêt pour l\'instant : cherchez-en un ci-dessous.'));$('n3').classList.toggle('done',C.favorites.length>0)}
+const PARIS=[["stop_area:SNCF:87686006","Gare de Lyon"],["stop_area:SNCF:87271007","Gare du Nord"],["stop_area:SNCF:87113001","Gare de l'Est"],["stop_area:SNCF:87391003","Montparnasse"],["stop_area:SNCF:87384008","Saint-Lazare"],["stop_area:SNCF:87547000","Austerlitz"],["stop_area:SNCF:87686667","Bercy"]];
+function renderS(){const L=$('pl');L.innerHTML='';PARIS.forEach(([id,name])=>{const cb=h('input',{type:'checkbox'});cb.checked=C.stations.some(s=>s.id==id);
+cb.onchange=()=>{if(cb.checked){if(C.stations.length>=10){cb.checked=false;return}C.stations.push({id,name})}else C.stations=C.stations.filter(s=>s.id!=id);renderS()};
+L.append(h('div',{class:'item'},modePic('train'),h('div',{class:'grow name'},name),h('label',{class:'sw'},cb,h('span'))))});
+const O=$('ol');O.innerHTML='';const others=C.stations.filter(s=>!PARIS.some(p=>p[0]==s.id));$('otherLbl').style.display=others.length?'':'none';
+others.forEach(s=>O.append(h('div',{class:'item'},modePic('train'),h('div',{class:'grow name'},s.name),h('button',{class:'icon',title:'Retirer',html:ICON.x,onclick:()=>{C.stations=C.stations.filter(x=>x.id!=s.id);renderS()}}))));
+$('n4').classList.toggle('done',!!C.sncfKeySet&&C.stations.length>0)}
+$('sgo').onclick=async()=>{const q=$('sq').value.trim();if(!q)return;msg('smsg2','Recherche…');$('sres2').innerHTML='';
+const r=await api('/api/sncf/search?q='+encodeURIComponent(q)+'&key='+encodeURIComponent($('skey').value.trim()));if(r.error){msg('smsg2',r.error,'err');return}
+msg('smsg2',r.stations.length?'Touchez une gare pour l\'ajouter :':'Aucune gare trouvée.');
+r.stations.forEach(st=>$('sres2').append(h('div',{class:'item pick',onclick:()=>{if(!C.stations.some(x=>x.id==st.id)){if(C.stations.length>=10){msg('smsg2','10 gares au maximum.','err');return}C.stations.push(st)}
+renderS();$('sres2').innerHTML='';$('sq').value='';msg('smsg2','Gare ajoutée ✓','ok')}},modePic('train'),h('div',{class:'grow name'},st.name))))};
+$('sq').onkeydown=e=>{if(e.key=='Enter')$('sgo').click()};
 const SLEEP=['Veille profonde après la durée d\'affichage ; réveil par le bouton BOOT.','Sur secteur : l\'écran s\'éteint, un toucher le rallume.','Sur secteur, écran toujours allumé ; rafraîchissement étalé pour respecter le quota.'];
 function setSleep(v){C.sleepMode=+v;[...$('sleepSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.v==v));$('sleepHelp').textContent=SLEEP[v]}
 [...$('sleepSeg').children].forEach(b=>b.onclick=()=>setSleep(b.dataset.v));
 async function load(){C=await api('/api/config');C.favorites=C.favorites||[];C.wifi=C.wifi||[];
+C.stations=C.stations||[];$('skey').placeholder=C.sncfKeySet?'Enregistrée '+(C.sncfKeyHint||'')+' (vide = inchangée)':'Collez votre clé SNCF ici';$('mainlineOnly').checked=C.mainlineOnly!==false;renderS();
 $('key').placeholder=C.apiKeySet?'Enregistrée '+(C.apiKeyHint||'')+' (vide = inchangée)':'Collez votre jeton ici';$('n2').classList.toggle('done',!!C.apiKeySet);
 for(const k of['refreshS','awakeS','dailyQuota','brightness'])$(k).value=C[k];$('motionWake').checked=C.motionWake;$('flip').checked=C.flip;setSleep(C.sleepMode||0);
 renderW();renderF();status().catch(()=>{})}
@@ -184,7 +209,8 @@ $('addm').onclick=()=>{const r=$('mref').value.trim();if(!r)return;if(C.favorite
 C.favorites.push({stopRef:r,stopName:$('mlabel').value.trim()||r,line:$('mline').value.trim(),badge:$('mbadge').value.trim(),filter:$('mfilter').value.trim(),label:$('mlabel').value.trim()});renderF()};
 $('save').onclick=async()=>{const b={wifi:C.wifi.map(w=>({ssid:w.ssid,pass:w.pass||''})),favorites:C.favorites.map(({_line,...f})=>f),
 refreshS:+$('refreshS').value,awakeS:+$('awakeS').value,dailyQuota:+$('dailyQuota').value,brightness:+$('brightness').value,sleepMode:C.sleepMode,
-motionWake:$('motionWake').checked,flip:$('flip').checked};const k=$('key').value.trim();if(k)b.apiKey=k;
+motionWake:$('motionWake').checked,flip:$('flip').checked,stations:C.stations,mainlineOnly:$('mainlineOnly').checked};
+const k=$('key').value.trim();if(k)b.apiKey=k;const sk=$('skey').value.trim();if(sk)b.sncfKey=sk;
 const r=await api('/api/config',b);const T=$('toast');if(r.error){T.className='msg err';T.textContent=r.error;return}
 if(r.ready){T.className='msg ok';T.textContent='Enregistré ✓ L\'afficheur redémarre…';api('/api/reboot',{})}else{T.className='msg err';T.textContent='Enregistré. Il manque encore : '+r.missing+'.'}};
 $('reset').onclick=async()=>{if(confirm('Effacer le WiFi, la clé et les arrêts ?')){await api('/api/reset',{});$('toast').textContent='Réglages effacés, redémarrage…'}};

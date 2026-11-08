@@ -7,7 +7,7 @@
 // =============================================================================
 #pragma once
 
-#define FW_VERSION "1.0.0"
+#define FW_VERSION "1.1.0"
 
 // ---- Écran ST7789V2 (SPI) ---------------------------------------------------
 #define PIN_LCD_SCLK 10
@@ -42,6 +42,9 @@
 #define DEFAULT_BRIGHTNESS 180   // 0..255
 
 #define MAX_FAVORITES 4
+#define MAX_STATIONS 10           // gares SNCF suivies
+#define DEFAULT_SNCF_QUOTA 5000   // quota gratuit de l'API SNCF (requêtes par jour)
+#define TRAINS_REFRESH_MIN_S 60   // les tableaux SNCF changent moins vite
 #define MAX_WIFI 3
 #define CONFIG_AP_PREFIX "Metro-"
 #define MDNS_NAME "metro"  // http://metro.local en mode configuration

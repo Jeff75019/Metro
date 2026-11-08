@@ -10,6 +10,14 @@ Settings settings;
 
 static const char* NS = "metro";
 
+const ParisStation PARIS_STATIONS[] = {
+    {"stop_area:SNCF:87686006", "Gare de Lyon"},  {"stop_area:SNCF:87271007", "Gare du Nord"},
+    {"stop_area:SNCF:87113001", "Gare de l'Est"}, {"stop_area:SNCF:87391003", "Montparnasse"},
+    {"stop_area:SNCF:87384008", "Saint-Lazare"},  {"stop_area:SNCF:87547000", "Austerlitz"},
+    {"stop_area:SNCF:87686667", "Bercy"},
+};
+const int PARIS_STATION_COUNT = sizeof(PARIS_STATIONS) / sizeof(PARIS_STATIONS[0]);
+
 void settingsDefaults(Settings& s) {
   memset(&s, 0, sizeof(s));
   s.refreshS = DEFAULT_REFRESH_S;
@@ -19,6 +27,13 @@ void settingsDefaults(Settings& s) {
   s.sleepMode = SleepMode::Deep;
   s.motionWake = false;
   s.flip = false;
+  s.mainlineOnly = true;
+  s.sncfQuota = DEFAULT_SNCF_QUOTA;
+  for (int i = 0; i < PARIS_STATION_COUNT && i < MAX_STATIONS; i++) {
+    copyStr(s.stations[i].id, PARIS_STATIONS[i].id, sizeof(s.stations[i].id));
+    copyStr(s.stations[i].name, PARIS_STATIONS[i].name, sizeof(s.stations[i].name));
+    s.stationCount++;
+  }
 }
 
 void settingsLoad() {
@@ -51,9 +66,9 @@ void settingsErase() {
   settingsDefaults(settings);
 }
 
-bool settingsReady() {
-  return settings.wifi[0].ssid[0] && settings.apiKey[0] && settings.favCount > 0;
-}
+bool metroReady() { return settings.apiKey[0] && settings.favCount > 0; }
+bool trainsReady() { return settings.sncfKey[0] && settings.stationCount > 0; }
+bool settingsReady() { return settings.wifi[0].ssid[0] && (metroReady() || trainsReady()); }
 
 String normalizeStopRef(const String& raw) {
   String s = raw;
@@ -86,9 +101,21 @@ String settingsToJson(const Settings& s, bool hideSecrets) {
     size_t n = strlen(s.apiKey);
     doc["apiKeySet"] = n > 0;
     if (n > 4) doc["apiKeyHint"] = String("…") + (s.apiKey + n - 4);
+    n = strlen(s.sncfKey);
+    doc["sncfKeySet"] = n > 0;
+    if (n > 4) doc["sncfKeyHint"] = String("…") + (s.sncfKey + n - 4);
   } else {
     doc["apiKey"] = s.apiKey;
+    doc["sncfKey"] = s.sncfKey;
   }
+  JsonArray st = doc["stations"].to<JsonArray>();
+  for (int i = 0; i < s.stationCount; i++) {
+    JsonObject o = st.add<JsonObject>();
+    o["id"] = s.stations[i].id;
+    o["name"] = s.stations[i].name;
+  }
+  doc["mainlineOnly"] = s.mainlineOnly;
+  doc["sncfQuota"] = s.sncfQuota;
   JsonArray f = doc["favorites"].to<JsonArray>();
   for (int i = 0; i < s.favCount; i++) {
     const Favorite& fv = s.fav[i];
@@ -168,6 +195,25 @@ bool settingsFromJson(Settings& s, const char* json, String& err) {
     }
   }
 
+  const char* skey = doc["sncfKey"] | "";
+  if (*skey) {
+    String k = skey;
+    k.trim();
+    copyStr(s.sncfKey, k.c_str(), sizeof(s.sncfKey));
+  }
+  if (doc["stations"].is<JsonArrayConst>()) {
+    s.stationCount = 0;
+    memset(s.stations, 0, sizeof(s.stations));
+    for (JsonObjectConst o : doc["stations"].as<JsonArrayConst>()) {
+      const char* id = o["id"] | "";
+      if (!*id || s.stationCount >= MAX_STATIONS) continue;
+      Station& st = s.stations[s.stationCount++];
+      copyStr(st.id, id, sizeof(st.id));
+      copyStr(st.name, o["name"] | id, sizeof(st.name));
+    }
+  }
+  if (!doc["mainlineOnly"].isNull()) s.mainlineOnly = doc["mainlineOnly"].as<bool>();
+  if (!doc["sncfQuota"].isNull()) s.sncfQuota = clampU16(doc["sncfQuota"].as<long>(), 10, 60000);
   if (!doc["refreshS"].isNull()) s.refreshS = clampU16(doc["refreshS"].as<long>(), 10, 3600);
   if (!doc["awakeS"].isNull()) s.awakeS = clampU16(doc["awakeS"].as<long>(), 10, 3600);
   if (!doc["dailyQuota"].isNull()) s.dailyQuota = clampU16(doc["dailyQuota"].as<long>(), 10, 60000);

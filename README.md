@@ -1,11 +1,18 @@
 # Afficheur Métro
 
-Un petit afficheur de poche qui indique, en temps réel, l'attente des **deux prochains passages** de votre métro, RER, tram ou bus en Île-de-France, comme les écrans des quais.
+Un petit afficheur de poche avec deux programmes :
+
+- **Métro · RER · Tram** : l'attente des **deux prochains passages** à vos arrêts en Île-de-France, comme les écrans des quais ;
+- **Trains grandes lignes** : les **départs et arrivées** des gares SNCF (toutes les gares de Paris, et d'autres au choix), comme les tableaux des gares.
+
+On passe de l'un à l'autre en glissant le doigt vers le haut ou le bas.
 
 Matériel : **Waveshare ESP32-S3-Touch-LCD-1.9** (écran tactile 1,9" 170×320) et une batterie LiPo.
-Données : **API PRIM d'Île-de-France Mobilités** (gratuite, clé personnelle).
+Données : **API PRIM d'Île-de-France Mobilités** et **API SNCF** (gratuites, clé personnelle ; chacune est facultative).
 
 ![Aperçu des écrans](docs/apercu.png)
+
+![Programme Trains grandes lignes](docs/trains.png)
 
 *Rendus générés sur PC à partir du vrai code d'affichage (voir « Tests sur PC »).*
 
@@ -23,7 +30,14 @@ La configuration se fait depuis le téléphone :
 - Polices anti-aliasées avec tous les accents (« Château », « Défense », « Église »...).
 - **Batterie** : niveau affiché, veille profonde après 60 s, réveil par le bouton BOOT (ou en secouant l'afficheur, expérimental). Au réveil, les derniers horaires s'affichent immédiatement pendant la reconnexion.
 - Jusqu'à 3 réseaux WiFi (maison, bureau, partage de connexion du téléphone).
-- Respect du quota PRIM (compteur d'appels par jour).
+- Respect des quotas PRIM et SNCF (compteurs d'appels par jour).
+
+**Programme Trains grandes lignes**
+
+- Tableau des 4 prochains départs ou arrivées : heure, destination ou provenance, type de train (TGV INOUI, OUIGO, Intercités, TER, Eurostar, Lyria…) et numéro.
+- Retards (« +12 min », avec la nouvelle heure) et trains supprimés.
+- Les 7 grandes gares parisiennes proposées d'office (Gare de Lyon, Gare du Nord, Gare de l'Est, Montparnasse, Saint-Lazare, Austerlitz, Bercy), et jusqu'à 10 gares en tout, cherchées par leur nom.
+- Option « grandes lignes uniquement » qui masque RER, Transilien et autocars (activée par défaut).
 
 ## 1. Obtenir une clé API PRIM (gratuit)
 
@@ -32,6 +46,13 @@ La configuration se fait depuis le téléphone :
 3. Dans « Mon compte » → « Mes jetons d'authentification », générez un jeton. C'est votre **clé API**.
 
 > **Quota :** les comptes récents ont droit à **1000 appels par jour**. En usage « porte-clés » (on regarde l'écran 1 minute, il se rendort), on consomme 2 à 3 appels par consultation : c'est largement suffisant. Si vous voulez un affichage permanent, demandez une augmentation de quota à PRIM puis indiquez le nouveau quota dans les réglages.
+
+### Clé API SNCF (facultative, pour les trains grandes lignes)
+
+1. Remplissez le formulaire sur [numerique.sncf.com/startup/api/token-developpeur](https://numerique.sncf.com/startup/api/token-developpeur/).
+2. Vous recevez un jeton par e-mail : c'est votre **clé API SNCF**.
+
+> **Quota :** 5 000 requêtes par jour, gratuitement. Un tableau coûte 1 requête ; pour les arrivées, la gare de provenance de chaque nouveau train coûte 1 requête de plus (le résultat est mémorisé). Le tableau est rafraîchi au plus une fois par minute.
 
 ## 2. Installer le programme
 
@@ -89,7 +110,12 @@ Au premier démarrage, l'écran affiche un **QR code** et le nom d'un WiFi « Me
 2. **WiFi** : « Rechercher les réseaux », choisissez le vôtre, entrez le mot de passe, « Ajouter et se connecter ». Attendez « Connecté ✓ ».
 3. **Clé API PRIM** : collez votre jeton.
 4. **Mes arrêts** : tapez un nom de station (« Bastille »), choisissez-la, puis la ligne et, si vous voulez, le sens. Répétez pour 4 arrêts au plus.
-5. **Enregistrer et redémarrer**.
+5. **Trains grandes lignes** (facultatif) : collez la clé SNCF, cochez les gares de Paris voulues ; « Autre gare » permet d'en ajouter d'autres par leur nom.
+6. **Enregistrer et redémarrer**.
+
+Il suffit de configurer l'un des deux programmes (métro ou trains) pour que l'afficheur démarre.
+
+![Configuration des trains](docs/configuration-trains.png)
 
 Pour revenir plus tard à la configuration : **appui long (3 s) sur l'écran** ou **bouton BOOT maintenu 3 s**. Les réglages déjà enregistrés sont conservés ; mots de passe et clé ne sont jamais réaffichés (laisser le champ vide = garder l'ancien).
 
@@ -100,13 +126,15 @@ Pour revenir plus tard à la configuration : **appui long (3 s) sur l'écran** o
 
 | Geste | Effet |
 |---|---|
-| Toucher l'écran | Changer de sens (si l'arrêt en a plusieurs), sinon actualiser |
-| Glisser vers la gauche / la droite | Arrêt favori suivant / précédent |
+| Glisser vers le haut / le bas | Changer de programme : Métro ↔ Trains |
+| Glisser vers la gauche / la droite | Arrêt favori, ou gare, suivant / précédent |
+| Toucher l'écran | Métro : changer de sens (si l'arrêt en a plusieurs), sinon actualiser · Trains : Départs ↔ Arrivées |
 | Appui long sur l'écran (3 s) | Mode configuration |
 | Bouton BOOT (appui court) | Réveiller / mettre en veille |
 | Bouton BOOT maintenu 3 s | Mode configuration (ou en sortir) |
 
-Le pied d'écran indique l'âge des données (« Mis à jour il y a 12 s »), le sens affiché (« sens 1/2 ») et l'arrêt courant (points).
+Métro : le pied d'écran indique l'âge des données (« Il y a 12 s »), le sens affiché (« sens 1/2 ») et l'arrêt courant (points).
+Trains : bandeau bleu pour les départs, vert pour les arrivées ; la pastille à côté de l'heure est verte quand le tableau est à jour, et les points en bas indiquent la gare affichée. L'afficheur se rallume sur le dernier programme utilisé.
 
 ### Modes de veille (page de configuration)
 
@@ -121,6 +149,9 @@ Le pied d'écran indique l'âge des données (« Mis à jour il y a 12 s »), le
 | Image à l'envers | Réglages → « Retourner l'écran (180°) » |
 | « Clé API refusée (401/403) » | Vérifiez le jeton et l'abonnement à l'API « Prochains passages (requête unitaire) » |
 | « Quota PRIM dépassé (429) » | Quota du jour épuisé : attendre minuit, ou réduire le rafraîchissement |
+| « Clé SNCF refusée (401) » | Vérifiez le jeton reçu par e-mail de la SNCF |
+| Trains : « … » à la place de la provenance | Recherche en cours (une requête par train, quelques secondes) |
+| Trains : pas de numéro de voie | L'API ouverte de la SNCF ne fournit pas les voies |
 | « Aucun passage prévu » | Service terminé, ou temps réel indisponible sur cette ligne |
 | « Horaire théorique » | IDFM ne fournit pas de temps réel pour ce passage, c'est l'horaire prévu |
 | Le WiFi n'est pas trouvé | La carte ne gère que le WiFi 2,4 GHz |
@@ -132,11 +163,14 @@ Journal de fonctionnement : moniteur série à 115200 bauds.
 
 ```
 Metro/                  sketch Arduino (aussi le src_dir de PlatformIO)
-├── Metro.ino           programme principal : WiFi, rafraîchissement, gestes, veille
+├── Metro.ino           programme principal : WiFi, deux programmes, gestes, veille
 ├── config.h            broches de la carte et valeurs par défaut
 ├── board.h/.cpp        écran + tactile (LovyanGFX), batterie, IMU, veille profonde
 ├── siri.h/.cpp         décodage des réponses PRIM (SIRI Lite), choix des 2 passages
-├── prim.h/.cpp         requêtes HTTPS : PRIM, recherche d'arrêts, quota
+├── prim.h/.cpp         requêtes PRIM, recherche d'arrêts (open data IDFM)
+├── sncf.h/.cpp         décodage des tableaux SNCF (départs, arrivées, retards, suppressions)
+├── sncf_api.h/.cpp     requêtes API SNCF, provenances (avec cache), recherche de gares
+├── net.h/.cpp          HTTPS, quotas d'appels quotidiens, réglage de l'horloge
 ├── ui.h/.cpp           dessin des écrans (tampon mémoire, sans scintillement)
 ├── lines.h/.cpp        lignes connues : nom, couleurs officielles
 ├── settings.h/.cpp     réglages (JSON en mémoire flash)
@@ -162,11 +196,11 @@ test/                   tests sur PC (décodage + rendu des écrans en images)
 
 ## Tests sur PC
 
-Le décodage des réponses PRIM et le dessin des écrans se compilent aussi sur un PC Linux ou macOS, sans la carte :
+Le décodage des réponses PRIM et SNCF et le dessin des écrans se compilent aussi sur un PC Linux ou macOS, sans la carte :
 
 ```bash
 cd test
-make test   # tests du décodage (réponse d'exemple dans test/data/)
+make test   # tests du décodage (réponses d'exemple dans test/data/)
 make ui     # rendu des écrans dans test/out/*.png
 ```
 
@@ -178,8 +212,9 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 
 ## État et limites
 
-- Le décodage PRIM (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC.
-- Le firmware complet **compile sans erreur ni avertissement** (`-Wall -Wextra`) pour l'ESP32-S3 avec ESP-IDF 5.5.6 + cœur Arduino 3.3.12 + LovyanGFX 1.2.36 + ArduinoJson 7.4.3 (binaire d'environ 1,5 Mo, la moitié de la partition). Il **n'a pas encore été essayé sur la carte** : au premier essai, regardez le moniteur série et signalez les erreurs.
+- Le décodage PRIM et SNCF (tests avec sanitizers) et l'affichage (rendus ci-dessus) ont été vérifiés sur PC.
+- Le firmware complet **compile sans erreur ni avertissement** (`-Wall -Wextra`) pour l'ESP32-S3 avec ESP-IDF 5.5.6 + cœur Arduino 3.3.12 + LovyanGFX 1.2.36 + ArduinoJson 7.4.3 (binaire d'environ 1,7 Mo, un peu plus de la moitié de la partition). Il **n'a pas encore été essayé sur la carte** : au premier essai, regardez le moniteur série et signalez les erreurs.
+- Les réponses de l'API SNCF utilisées pour les tests sont reconstituées d'après sa documentation (format Navitia) et des clients existants ; je n'ai pas pu interroger l'API réelle. Les suppressions de trains sont repérées via les perturbations « NO_SERVICE » et les mentions « supprimé » : un train supprimé peut aussi simplement disparaître du tableau.
 - Le **réveil par secousse** est expérimental : la séquence de l'IMU vient de notes de la communauté, et la broche d'interruption n'est pas confirmée. Si l'afficheur se réveille tout seul dans une poche, il suspend ce réveil 30 minutes après 3 réveils sans utilisation.
 - Le sens d'affichage (paysage, USB à gauche ou à droite) dépend du montage : utilisez l'option « Retourner l'écran ».
 - Les connexions HTTPS vérifient les certificats avec le magasin intégré au cœur ESP32 (versions 3.3.x). Si la connexion échoue, l'afficheur refait un essai sans vérification pour ne pas rester bloqué.
@@ -187,6 +222,6 @@ Pour retoucher la page de configuration sans la carte : `python3 tools/portal_pr
 ## Licences et sources
 
 - Polices : [Barlow Semi Condensed et Barlow Condensed](https://github.com/jpt/barlow), SIL Open Font License 1.1 (`tools/fonts/OFL.txt`).
-- Données : API PRIM et open data d'Île-de-France Mobilités ; couleurs des lignes issues du référentiel des lignes IDFM.
+- Données : API PRIM et open data d'Île-de-France Mobilités (couleurs des lignes issues du référentiel IDFM) ; API SNCF (Navitia).
 - Bibliothèques : [LovyanGFX](https://github.com/lovyan03/LovyanGFX) (FreeBSD), [ArduinoJson](https://arduinojson.org) (MIT), [cœur Arduino ESP32](https://github.com/espressif/arduino-esp32) (LGPL 2.1).
-- Projet indépendant, sans lien avec la RATP, IDFM ou les fabricants d'afficheurs du commerce.
+- Projet indépendant, sans lien avec la RATP, IDFM, la SNCF ou les fabricants d'afficheurs du commerce.

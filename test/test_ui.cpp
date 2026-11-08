@@ -9,6 +9,7 @@
 
 #include "../Metro/lines.h"
 #include "../Metro/siri.h"
+#include "../Metro/sncf.h"
 #include "../Metro/ui.h"
 
 static void dump(const char* name) {
@@ -186,5 +187,62 @@ int main() {
   s.favCount = 3;
   uiDrawMain(s);
   dump("11_bus");
+
+  // 12) Programme Trains : départs de Paris Gare de Lyon
+  std::string dep = readFile("data/sncf_gdl_departures.json");
+  static Board bd;
+  parseNavitiaBoard(dep.data(), dep.size(), false, true, "Gare de Lyon", bd, err, sizeof(err));
+  BoardUi bu;
+  memset(&bu, 0, sizeof(bu));
+  bu.board = &bd;
+  bu.station = "Gare de Lyon";
+  bu.now = bd.serverTime;
+  bu.battery = 80;
+  bu.net = NetState::Online;
+  bu.ageS = 20;
+  bu.index = 0;
+  bu.count = 7;
+  uiDrawBoard(bu);
+  dump("12_trains_departs");
+
+  // 13) Arrivées à Paris Nord (une provenance encore en cours de recherche)
+  std::string arr = readFile("data/sncf_nord_arrivals.json");
+  static Board ba;
+  parseNavitiaBoard(arr.data(), arr.size(), true, true, "Gare du Nord", ba, err, sizeof(err));
+  // provenances complétées (comme après les requêtes /vehicle_journeys)
+  copyStr(ba.t[1].place, "Lille Flandres", TXT_LEN);
+  ba.t[1].flags &= ~TR_PLACE_PENDING;
+  copyStr(ba.t[2].place, "Amiens", TXT_LEN);
+  ba.t[2].flags &= ~TR_PLACE_PENDING;
+  bu.board = &ba;
+  bu.station = "Gare du Nord";
+  bu.arrivals = true;
+  bu.now = ba.serverTime;
+  bu.index = 1;
+  uiDrawBoard(bu);
+  dump("13_trains_arrivees");
+
+  // 14) Chargement, 15) aucun train
+  bu.board = nullptr;
+  bu.arrivals = false;
+  bu.station = "Paris Bercy Bourgogne - Pays d'Auvergne";
+  bu.ageS = -1;
+  bu.busy = true;
+  bu.index = 6;
+  uiDrawBoard(bu);
+  dump("14_trains_chargement");
+  static Board empty2;
+  memset(&empty2, 0, sizeof(empty2));
+  bu.board = &empty2;
+  bu.busy = false;
+  bu.station = "Austerlitz";
+  bu.index = 5;
+  uiDrawBoard(bu);
+  dump("15_trains_vide");
+
+  uiDrawAppTitle(true);
+  dump("16_titre_trains");
+  uiDrawAppTitle(false);
+  dump("17_titre_metro");
   return 0;
 }

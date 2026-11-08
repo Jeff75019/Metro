@@ -8,8 +8,10 @@
 
 #include "board.h"
 #include "lines.h"
+#include "net.h"
 #include "portal_html.h"
 #include "prim.h"
+#include "sncf_api.h"
 #include "settings.h"
 #include "ui.h"
 
@@ -83,8 +85,11 @@ static void handlePostConfig() {
   d["ready"] = settingsReady();
   String missing;
   if (!settings.wifi[0].ssid[0]) missing += "un réseau WiFi, ";
-  if (!settings.apiKey[0]) missing += "la clé API, ";
-  if (!settings.favCount) missing += "au moins un arrêt, ";
+  if (!metroReady() && !trainsReady()) {
+    if (settings.sncfKey[0] && !settings.stationCount) missing += "au moins une gare, ";
+    else if (settings.apiKey[0] && !settings.favCount) missing += "au moins un arrêt, ";
+    else missing += "une clé API (PRIM pour le métro ou SNCF pour les trains), ";
+  }
   if (missing.length()) missing.remove(missing.length() - 2);
   d["missing"] = missing;
   String out;
@@ -100,8 +105,10 @@ static void handleStatus() {
   d["rssi"] = staConnected() ? WiFi.RSSI() : 0;
   d["ap"] = apName;
   d["battery"] = batteryPercent(batteryMilliVolts());
-  d["quotaUsed"] = quotaUsedToday();
+  d["quotaUsed"] = quotaUsed(Api::Prim);
   d["quota"] = settings.dailyQuota;
+  d["sncfUsed"] = quotaUsed(Api::Sncf);
+  d["sncfQuota"] = settings.sncfQuota;
   d["version"] = FW_VERSION;
   String out;
   serializeJson(d, out);
@@ -169,6 +176,21 @@ static void handleLines() {
   sendJson(code == 200 ? 200 : 502, out);
 }
 
+static void handleSncfSearch() {
+  lastActivity = millis();
+  if (!staConnected()) return sendError(503, "Pas d'accès Internet : ajoutez d'abord un réseau WiFi (étape 1).");
+  String key = server.arg("key");
+  key.trim();
+  if (key.isEmpty()) key = settings.sncfKey;
+  if (key.isEmpty()) return sendError(400, "Saisissez d'abord votre clé API SNCF.");
+  String q = server.arg("q");
+  q.trim();
+  if (q.length() < 2) return sendError(400, "Tapez au moins 2 lettres");
+  String out;
+  int code = sncfSearchJson(q, key.c_str(), out);
+  sendJson(code == 200 ? 200 : 502, out);
+}
+
 static void handleReboot() {
   sendJson(200, "{\"ok\":true}");
   delay(500);
@@ -219,6 +241,7 @@ void portalStart() {
   server.on("/api/connect", HTTP_POST, handleConnect);
   server.on("/api/search", HTTP_GET, handleSearch);
   server.on("/api/lines", HTTP_GET, handleLines);
+  server.on("/api/sncf/search", HTTP_GET, handleSncfSearch);
   server.on("/api/reboot", HTTP_POST, handleReboot);
   server.on("/api/reset", HTTP_POST, handleReset);
   server.onNotFound(handleNotFound);

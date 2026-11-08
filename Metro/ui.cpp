@@ -158,8 +158,8 @@ static bool wrap2(const char* s, int maxW, const lgfx::IFont* f, char* l1, char*
 //  Éléments graphiques
 // ============================================================================
 // Pastille de texte (À quai, Supprimé...). xRight = bord droit. Renvoie la largeur.
-static int pill(int xRight, int cy, const char* s, const lgfx::IFont* f, uint16_t fg, uint16_t bg) {
-  const int h = 28, padX = 12;
+static int pill(int xRight, int cy, const char* s, const lgfx::IFont* f, uint16_t fg, uint16_t bg, int h = 28) {
+  const int padX = h / 2 - 2;
   const int w = textW(s, f) + padX * 2;
   canvas.fillSmoothRoundRect(xRight - w, cy - h / 2, w, h, h / 2, bg);
   text(s, xRight - w / 2, cy + 1, f, fg, lgfx::middle_center);
@@ -364,8 +364,9 @@ static void drawSkeletonRow(int y0, int64_t now, int phase) {
   canvas.fillSmoothRoundRect(W - MARGIN - 62, cy - 14, 62, 28, 8, c);
 }
 
-static void drawBodyMessage(bool alert, const char* title, const char* sub, uint32_t color) {
-  const int cx = W / 2, top = HEADER_H + 1, bottom = 156;
+static void drawBodyMessage(bool alert, const char* title, const char* sub, uint32_t color,
+                            int top = HEADER_H + 1, int bottom = 156) {
+  const int cx = W / 2;
   const int cy = (top + bottom) / 2;
   if (alert) iconAlert(cx, cy - 26, color);
   else iconClock(cx, cy - 26);
@@ -533,5 +534,161 @@ void uiDrawSplash(const char* version) {
   snprintf(buf, sizeof(buf), "Version %s", version);
   text(buf, W / 2, 146, &fTiny, MUTED, lgfx::middle_center);
   drawSignature(H - 4, 4);
+  present();
+}
+
+// ============================================================================
+//  Programme « Trains » : tableau des départs / arrivées d'une gare SNCF
+// ============================================================================
+static constexpr uint32_t C_DEP = 0x1A4CA8;  // bandeau des départs (bleu)
+static constexpr uint32_t C_ARR = 0x0E7A4B;  // bandeau des arrivées (vert)
+static constexpr int B_HEADER = 32;
+static constexpr int B_ROW = 33;
+
+static void drawTrainRow(int y0, const Train& t, int64_t now) {
+  const int cy = y0 + B_ROW / 2;
+  const int xr = W - MARGIN;
+  const bool cancelled = t.flags & TR_CANCELLED;
+  const int delayMin = (int)((t.real - t.base) / 60);
+
+  // Heure prévue
+  char hhmm[16];
+  localHHMM(t.base, hhmm, sizeof(hhmm));
+  text(hhmm, MARGIN, cy + 1, &fMedium, cancelled ? MUTED : AMBER, lgfx::middle_left);
+  if (cancelled) canvas.fillRect(MARGIN, cy + 1, textW(hhmm, &fMedium), 2, MUTED);
+
+  // État à droite
+  int rightW = 0;
+  if (cancelled) {
+    rightW = pill(xr, cy, "Supprimé", &fTiny, RED, tint(C_RED, 55), 22);
+  } else if (delayMin >= 1) {
+    // retard, et nouvelle heure en dessous
+    char d[16], nt[24];
+    snprintf(d, sizeof(d), "+%d min", delayMin);
+    localHHMM(t.real, hhmm, sizeof(hhmm));
+    snprintf(nt, sizeof(nt), "%s", hhmm);
+    text(d, xr, cy - 6, &fSmall, ORANGE, lgfx::middle_right);
+    text(nt, xr, cy + 10, &fTiny, ORANGE, lgfx::middle_right);
+    // petite flèche « → » dessinée devant la nouvelle heure
+    const int ax = xr - textW(nt, &fTiny) - 4, ay = cy + 10;
+    canvas.drawWideLine(ax - 9, ay, ax - 1, ay, 0.7f, ORANGE);
+    canvas.drawWideLine(ax - 4, ay - 3, ax - 1, ay, 0.7f, ORANGE);
+    canvas.drawWideLine(ax - 4, ay + 3, ax - 1, ay, 0.7f, ORANGE);
+    rightW = textW(d, &fSmall);
+  } else if (t.flags & TR_REALTIME) {
+    text("à l'heure", xr, cy + 1, &fTiny, GREEN, lgfx::middle_right);
+    rightW = textW("à l'heure", &fTiny);
+  }
+
+  // Destination / provenance, puis type et numéro du train
+  const int tx = MARGIN + 60;
+  const int maxW = xr - (rightW ? rightW + 10 : 0) - tx;
+  char buf[64];
+  const char* place = t.place;
+  uint16_t pc = cancelled ? MUTED : TEXT;
+  if (!place[0]) {
+    place = (t.flags & TR_PLACE_PENDING) ? "\xE2\x80\xA6" : "Provenance non communiquée";
+    pc = MUTED;
+  }
+  fitText(buf, sizeof(buf), place, maxW, &fCondS);
+  text(buf, tx, cy - 6, &fCondS, pc, lgfx::middle_left);
+
+  int x = tx;
+  if (t.mode[0]) {
+    const int cw = textW(t.mode, &fTiny) + 8;
+    canvas.fillSmoothRoundRect(x, cy + 4, cw, 13, 3, cancelled ? FAINT : rgb(t.color));
+    text(t.mode, x + cw / 2, cy + 11, &fTiny, TEXT, lgfx::middle_center);
+    x += cw + 5;
+  }
+  if (t.number[0]) text(t.number, x, cy + 11, &fTiny, MUTED, lgfx::middle_left);
+}
+
+void uiDrawBoard(const BoardUi& s) {
+  canvas.fillScreen(BG);
+
+  // --- Bandeau : Départs / Arrivées · gare ..................... heure
+  const uint32_t band = s.arrivals ? C_ARR : C_DEP;
+  canvas.fillRect(0, 0, W, B_HEADER, rgb(band));
+  const int hy = B_HEADER / 2;
+  const char* title = s.arrivals ? "Arrivées" : "Départs";
+  text(title, MARGIN, hy + 1, &fMedium, TEXT, lgfx::middle_left);
+  int x = MARGIN + textW(title, &fMedium) + 8;
+  canvas.fillSmoothCircle(x, hy + 1, 2, rgb(mix(band, C_TEXT, 150)));
+  x += 8;
+
+  char clock[16] = "";
+  if (s.now > 1700000000) localHHMM(s.now, clock, sizeof(clock));
+  int right = W - MARGIN;
+  if (clock[0]) {
+    text(clock, right, hy + 1, &fMedium, TEXT, lgfx::middle_right);
+    right -= textW(clock, &fMedium) + 10;
+  }
+  // Pastille d'état : vert = à jour, ambre = ancien, orange = erreur, clignote pendant la mise à jour
+  uint16_t dot = rgb(mix(band, C_TEXT, 90));
+  if (s.busy) dot = (s.now & 1) ? TEXT : rgb(mix(band, C_TEXT, 90));
+  else if (s.status && *s.status) dot = ORANGE;
+  else if (s.ageS >= 0) dot = s.ageS > 180 ? AMBER : GREEN;
+  canvas.fillSmoothCircle(right - 3, hy + 1, 3, dot);
+  right -= 12;
+  if (s.battery >= 0 && s.battery <= 15) {
+    drawBattery(right, hy, s.battery);
+    right -= 64;
+  }
+  char buf[64];
+  const lgfx::IFont* tf = textW(s.station, &fMedium) <= right - x ? &fMedium : &fCond;
+  fitText(buf, sizeof(buf), s.station ? s.station : "", right - x, tf);
+  text(buf, x, hy + 1, tf, TEXT, lgfx::middle_left);
+
+  // --- Trains
+  const Board* b = s.board;
+  const int top = B_HEADER;
+  if (b && b->count > 0) {
+    const int n = b->count < BOARD_ROWS ? b->count : BOARD_ROWS;
+    for (int i = 0; i < n; i++) {
+      const int y0 = top + i * B_ROW;
+      if (i) canvas.drawFastHLine(MARGIN, y0, W - 2 * MARGIN, HAIR);
+      drawTrainRow(y0, b->t[i], s.now);
+    }
+  } else if (b) {
+    drawBodyMessage(false, s.arrivals ? "Aucune arrivée annoncée" : "Aucun départ annoncé",
+                    "dans les prochaines heures", C_TEXT, top, H - 6);
+  } else if (s.status && *s.status) {
+    drawBodyMessage(true, s.status, "Nouvel essai dans quelques secondes", C_ORANGE, top, H - 6);
+  } else {
+    for (int i = 0; i < BOARD_ROWS; i++) {
+      const int y0 = top + i * B_ROW, cy = y0 + B_ROW / 2;
+      const uint16_t c = ((s.now + i) & 1) ? SKEL : rgb(mix(C_SKEL, C_HAIR, 128));
+      if (i) canvas.drawFastHLine(MARGIN, y0, W - 2 * MARGIN, HAIR);
+      canvas.fillSmoothRoundRect(MARGIN, cy - 7, 46, 14, 7, c);
+      canvas.fillSmoothRoundRect(MARGIN + 60, cy - 10, i & 1 ? 120 : 160, 11, 5, c);
+      canvas.fillSmoothRoundRect(MARGIN + 60, cy + 4, 60, 9, 4, c);
+    }
+  }
+
+  // --- Gares (points) en bas
+  if (s.count > 1) {
+    const int step = 8, y = H - 3;
+    const int x0 = W / 2 - (s.count - 1) * step / 2;
+    for (int i = 0; i < s.count; i++)
+      canvas.fillSmoothCircle(x0 + i * step, y, i == s.index ? 2 : 1, i == s.index ? TEXT : FAINT);
+  }
+  present();
+}
+
+void uiDrawAppTitle(bool trains) {
+  canvas.fillScreen(BG);
+  const int cx = W / 2, cy = 58;
+  if (trains) {
+    canvas.fillSmoothRoundRect(cx - 44, cy - 20, 88, 40, 10, TEXT);
+    text("TRAIN", cx, cy + 1, &fMedium, BG, lgfx::middle_center);
+    text("Trains grandes lignes", cx, 108, &fMedium, TEXT, lgfx::middle_center);
+    text("Départs et arrivées des gares SNCF", cx, 134, &fSmall, MUTED, lgfx::middle_center);
+  } else {
+    canvas.fillSmoothCircle(cx, cy, 26, TEXT);
+    text("M", cx, cy + 3, &fLarge, BG, lgfx::middle_center);
+    text("Métro · RER · Tram", cx, 108, &fMedium, TEXT, lgfx::middle_center);
+    text("Prochains passages à vos arrêts", cx, 134, &fSmall, MUTED, lgfx::middle_center);
+  }
+  drawSignature(H - 3, 3);
   present();
 }
