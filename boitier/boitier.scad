@@ -63,6 +63,8 @@ jeu = 0.25;        // jeu autour de la vitre (ajustez selon votre imprimante)
 recouvrement = 1.4;// rebord de la face avant sur la vitre
 rayon = 4.0;       // arrondi des angles extérieurs
 cordon = true;     // passant pour une dragonne, côté opposé à l'USB-C
+boutons_souples = true;  // BOOT et RST : boutons intégrés à la paroi (false : simples trous)
+course = 0.5;      // saillie du poussoir vers le bouton de la carte (0,3 à 0,8 selon la carte)
 
 $fn = 48;
 
@@ -79,6 +81,15 @@ z_bat = z_support + support_ep;         // la batterie se pose ici
 coque_ep = z_bat + bat_ep + 0.6;        // face intérieure du fond (0,6 mm de jeu)
 usb_z = z_dos + usb_h / 2;              // centre de la prise USB-C
 bouton_z = z_dos + 0.9;                 // centre des boutons latéraux
+btn_cx = x0 + retrait_carte + bouton_x;  // centre des boutons (X)
+// Bouton intégré : languette souple découpée dans la paroi (fente en U), amincie
+// côté extérieur, avec une pastille sous le doigt et un poussoir côté intérieur.
+// Orientée le long de la paroi (dans le sens des couches) : elle plie sans casser.
+lang_h = 5.0;                           // hauteur de la languette
+lang_l = 13.0;                          // longueur (bout libre sur le bouton)
+lang_x0 = btn_cx - 2.5;                 // bout libre, côté USB-C
+fente = 0.7;
+creux = 0.6;                            // amincissement : languette de 1 mm
 levre = 3.0;                            // pattes du fond qui entrent dans la coque
 clip_z = coque_ep - levre / 2;          // hauteur des clips du fond
 jl = 0.15;                              // jeu des pièces glissées dans la coque
@@ -117,9 +128,17 @@ module coque() {
       linear_extrude(paroi + 0.1) offset(1.2) offset(-1.2) square([usb_h + 1.2, usb_l + 1.0], center = true);
       linear_extrude(0.8) offset(2) offset(-2) square([usb_h + 4.0, usb_l + 4.0], center = true);
     }
-    // BOOT et RST : un passage sur chaque grand côté (appui à l'ongle ou avec un trombone)
-    for (y = [-0.01, ext_h - paroi - 0.01])
-      translate([x0 + retrait_carte + bouton_x - 2.0, y, bouton_z - 1.75]) cube([4.0, paroi + 0.02, 3.5]);
+    // BOOT et RST, un sur chaque grand côté : boutons intégrés ou simples trous
+    for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0]) {
+      if (boutons_souples) {
+        for (z = [bouton_z + lang_h / 2, bouton_z - lang_h / 2 - fente])  // fentes du haut et du bas
+          translate([lang_x0 - fente, -0.01, z]) cube([lang_l + fente, paroi + 0.02, fente]);
+        translate([lang_x0 - fente, -0.01, bouton_z - lang_h / 2 - fente]) cube([fente, paroi + 0.02, lang_h + 2 * fente]);
+        translate([lang_x0, -0.01, bouton_z - lang_h / 2]) cube([lang_l, creux + 0.01, lang_h]);  // creux extérieur
+      } else {
+        translate([btn_cx - 2.0, -0.01, bouton_z - 1.75]) cube([4.0, paroi + 0.02, 3.5]);
+      }
+    }
     // rainures des clips du support (grands côtés)
     for (y = [paroi - 0.5, ext_h - paroi - 0.01])
       translate([ext_l / 2 - 9, y, z_support + support_ep / 2 - 0.6]) cube([18, 0.51, 1.2]);
@@ -129,6 +148,16 @@ module coque() {
     // encoche pour ouvrir (grand côté, au ras du fond)
     translate([ext_l - 22, -0.01, coque_ep - 1.2]) cube([10, paroi + 0.02, 1.21]);
   }
+  // boutons intégrés : pastille sous le doigt (affleurante) et poussoir intérieur,
+  // en rampe côté fond pour que la vitre écarte la languette en passant au montage
+  if (boutons_souples)
+    for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0]) {
+      translate([btn_cx, creux, bouton_z]) rotate([90, 0, 0]) cylinder(r = 1.6, h = creux);
+      hull() {
+        translate([btn_cx - 1.5, paroi - 0.01, bouton_z - 1.2]) cube([3, course + 0.01, 2.4]);
+        translate([btn_cx - 1.5, paroi - 0.01, bouton_z + 2.4]) cube([3, 0.02, 0.01]);
+      }
+    }
   // passant pour une dragonne (au ras de la face avant : posé sur le plateau, sans support)
   if (cordon)
     translate([ext_l - 0.5, ext_h / 2, 0]) difference() {
