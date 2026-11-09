@@ -198,7 +198,7 @@ Journal de fonctionnement : moniteur série à 115200 bauds.
 
 ## Boîtier imprimable en 3D
 
-Un boîtier de poche en trois pièces (coque, plaque de maintien de la carte et fond clipsés, logement pour une batterie 803040, ouverture USB-C, boutons BOOT et RST actionnables du doigt) est dans [`boitier/`](boitier/) : fichiers STL prêts à imprimer, modèle OpenSCAD paramétrique et notice de montage.
+Un boîtier de poche en trois pièces (coque, plaque de maintien de la carte et fond clipsés, place pour les broches soudées au dos, logement pour une batterie 803040, ouverture USB-C, boutons BOOT et RST actionnables du doigt) est dans [`boitier/`](boitier/) : fichiers STL prêts à imprimer, modèle OpenSCAD paramétrique et notice de montage.
 
 ![Boîtier](boitier/apercus/planche.png)
 
