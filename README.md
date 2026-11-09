@@ -196,6 +196,12 @@ Au réveil, l'afficheur reprend l'écran laissé (la station ou la gare choisie,
 
 Journal de fonctionnement : moniteur série à 115200 bauds.
 
+## Boîtier imprimable en 3D
+
+Un boîtier de poche (coque + fond clipsé, logement de batterie, ouvertures USB-C, BOOT et RST) est dans [`boitier/`](boitier/) : fichiers STL prêts à imprimer, modèle OpenSCAD paramétrique et notice de montage.
+
+![Boîtier](boitier/apercus/planche.png)
+
 ## Organisation du code
 
 ```
