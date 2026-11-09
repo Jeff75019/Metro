@@ -101,6 +101,10 @@ levre = 3.0;                            // pattes du fond qui entrent dans la co
 clip_z = coque_ep - levre / 2;          // hauteur des clips du fond
 jl = 0.15;                              // jeu des pièces glissées dans la coque
 patte = 1.2;                            // épaisseur des pattes du fond
+rainure_l = 16;                         // rainures des clips du fond (petits côtés)
+clip_l = rainure_l - 0.6;               // ergots des pattes : 0,3 mm de jeu à chaque bout
+// butées du fond contre les grands côtés, dans la place libre côté USB-C
+but_x0 = paroi + jl + patte + 1.0;
 // Batterie contre le petit côté opposé à l'USB-C (place pour une patte du fond) ;
 // le surplus de câble se range côté USB-C
 bat_x = paroi + int_l - (jl + patte + 0.3) - bat_long;
@@ -154,7 +158,7 @@ module coque() {
       translate([ext_l / 2 - 9, y, z_support + support_ep / 2 - 0.6]) cube([18, 0.51, 1.2]);
     // rainures des clips du fond (petits côtés)
     for (x = [paroi - 0.5, ext_l - paroi - 0.01])
-      translate([x, ext_h / 2 - 8, clip_z - 0.6]) cube([0.51, 16, 1.2]);
+      translate([x, ext_h / 2 - rainure_l / 2, clip_z - 0.6]) cube([0.51, rainure_l, 1.2]);
     // encoche pour ouvrir (grand côté, au ras du fond)
     translate([ext_l - 22, -0.01, coque_ep - 1.2]) cube([10, paroi + 0.02, 1.21]);
   }
@@ -211,13 +215,22 @@ module fond() {
     translate([11, ext_h / 2, -0.01]) mirror([0, 1, 0]) linear_extrude(0.6)
       text("USB-C", size = 4.5, halign = "center", valign = "center", font = "Liberation Sans:style=Bold");
   }
-  // pattes de clipsage (petits côtés), avec leur bossage
+  // pattes de clipsage (petits côtés) : elles calent le fond en longueur, et leur
+  // ergot remplit la rainure de la coque sur toute sa longueur, ce qui le cale en travers
   for (s = [0, 1]) {
     px = s ? ext_l - paroi - jl - patte : paroi + jl;
-    translate([px, ext_h / 2 - 7, fond_ep - ancr]) cube([patte, 14, levre + ancr]);
-    translate([s ? ext_l - paroi - jl - 0.01 : paroi + jl - 0.39, ext_h / 2 - 6, fond_ep + levre / 2 - 0.4])
-      cube([0.4, 12, 0.8]);
+    translate([px, ext_h / 2 - clip_l / 2, fond_ep - ancr]) cube([patte, clip_l, levre + ancr]);
+    translate([s ? ext_l - paroi - jl - 0.01 : paroi + jl - 0.39, ext_h / 2 - clip_l / 2, fond_ep + levre / 2 - 0.4])
+      cube([0.4, clip_l, 0.8]);
   }
+  // butées contre les grands côtés (côté USB-C, où la batterie laisse de la place),
+  // chanfreinées pour guider le fond : il ne glisse plus en travers
+  but_l = min(8.5, bat_x - 1.6 - 0.8 - but_x0);
+  for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0])
+    hull() {
+      translate([but_x0, paroi + jl, fond_ep - ancr]) cube([but_l, 1.6, levre - 0.6 + ancr]);
+      translate([but_x0, paroi + jl + 0.6, fond_ep - ancr]) cube([but_l, 1.0, levre + ancr]);
+    }
   // nervures qui calent la batterie (côté câble, et en haut et en bas)
   translate([0, 0, fond_ep - ancr]) {
     translate([bat_x - 1.6, ext_h / 2 - 6, 0]) cube([1.2, 12, 2.5 + ancr]);

@@ -4,7 +4,7 @@ Boîtier de poche pour la carte **Waveshare ESP32-S3-Touch-LCD-1.9** (livrée av
 
 - la **coque** (avant et côtés) ;
 - le **support**, une plaque clipsée dans la coque derrière les broches de la carte : ses 4 plots appuient sur les entretoises M2 et tiennent la carte contre la vitre, une fenêtre laisse passer le câble de la batterie ;
-- le **fond**, qui se clipse par les petits côtés et cale la batterie.
+- le **fond**, qui se clipse par les petits côtés et cale la batterie. Ses pattes le calent en longueur ; en travers, leurs ergots remplissent les rainures de la coque et deux butées appuient contre les grands côtés : il ne bouge plus une fois clipsé.
 
 ![Aperçus : monté, vue éclatée, support, dos, intérieur de la coque, fond](apercus/planche.png)
 
@@ -68,7 +68,7 @@ openscad -D 'piece="fond"'    -o fond.stl    boitier.scad
 2. Posez la carte dans la coque, écran en premier, la prise USB-C en face de son ouverture. Elle doit descendre seule jusqu'au rebord de la fenêtre et y rester à plat : si un bout reste en l'air, quelque chose frotte, ne forcez pas.
 3. Branchez la batterie sur la carte et passez son câble par la fenêtre du support.
 4. Enfoncez le support, plots vers la carte : les plots viennent sur le bout des entretoises (il ne se monte que dans un sens) et la plaque se clipse dans la coque, juste derrière les pointes des broches.
-5. Posez la batterie à plat sur le support, **le côté des fils vers l'USB-C** : le surplus de câble se range dans la place libre de ce côté, sans être pincé.
+5. Posez la batterie à plat sur le support, **le côté des fils vers l'USB-C** : le surplus de câble se range dans la place libre de ce côté, au milieu, pour ne pas être pincé par les butées du fond le long des grands côtés.
 6. Clipsez le fond, « USB-C » gravé du côté de la prise.
 7. Pour ouvrir : glissez un ongle ou un tournevis plat dans l'encoche du grand côté.
 
@@ -76,5 +76,5 @@ BOOT et RST s'actionnent du doigt, par les pastilles rondes des grands côtés (
 
 ## Limites
 
-- Version 2, corrigée après un premier essai (broches et entretoises au dos, carte de travers à cause des poussoirs des boutons). Établie d'après le plan du fabricant et des photos de la carte : la longueur des broches (9,6 mm) et la position des boutons sont mesurées sur ces images, à quelques dixièmes de millimètre près.
+- Version 2, corrigée après un premier essai (broches et entretoises au dos, carte de travers à cause des poussoirs des boutons, fond qui glissait en travers). Établie d'après le plan du fabricant et des photos de la carte : la longueur des broches (9,6 mm) et la position des boutons sont mesurées sur ces images, à quelques dixièmes de millimètre près.
 - Ne comprimez pas et ne percez pas la batterie : laissez-lui un peu de jeu (prévu : 0,6 mm), et ne la posez jamais directement contre les pointes des broches.
