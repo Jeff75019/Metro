@@ -19,12 +19,20 @@ Tableau de bord des prochains passages en Île-de-France pour Windows 10 et 11, 
 ## Installation
 
 1. Téléchargez [`Metro.exe`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/Metro.exe) (moins de 1 Mo, un seul fichier, sans installation ni droits d'administrateur).
-2. Double-cliquez dessus. L'application n'est pas signée : au premier lancement, Windows affiche « Windows a protégé votre ordinateur ». Cliquez sur **Informations complémentaires**, puis sur **Exécuter quand même**.
+2. Avant le premier lancement, **débloquez le fichier** : clic droit sur `Metro.exe` → **Propriétés** → en bas de l'onglet Général, cochez **Débloquer** → **OK**. Windows ne l'affichera plus comme suspect (voir plus bas). Double-cliquez ensuite dessus.
 3. Collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous), puis cherchez une station.
 
 L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\Metro`.
 
 **Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez [`Metro.html`](dist/Metro.html) dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan ».
+
+## Pourquoi Windows se méfie, et comment l'éviter
+
+Windows (SmartScreen) avertit pour tout programme **téléchargé** qui n'est pas **signé** par un éditeur connu. Cela ne veut pas dire qu'un virus a été trouvé : Windows ne connaît simplement pas ce programme. Trois solutions, de la plus simple à la plus complète :
+
+- **Débloquer le fichier** (pour vous, une fois pour toutes) : clic droit → Propriétés → cocher **Débloquer**. Ou, dans PowerShell, dans le dossier du fichier : `Unblock-File .\Metro.exe`. Windows retire alors la marque « téléchargé depuis Internet » de ce fichier. Sur un poste d'entreprise, ce réglage peut être interdit par le service informatique : il peut alors autoriser le programme, ou vous pouvez utiliser `Metro.html` dans Edge.
+- **Cliquer sur « Exécuter quand même »** dans l'avertissement (Informations complémentaires → Exécuter quand même) : Windows ne redemande pas pour ce fichier.
+- **Faire disparaître l'avertissement pour tout le monde** : signer l'exécutable avec un certificat de signature de code (payant, délivré après vérification d'identité, par exemple via le service de signature de Microsoft), ou publier l'application dans le Microsoft Store (compte développeur Microsoft). Même signé, un programme peu téléchargé peut encore être signalé quelque temps, le temps que sa réputation s'établisse.
 
 ## Clé PRIM (gratuite)
 
