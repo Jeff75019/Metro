@@ -84,7 +84,7 @@ function whenText(begin, end) {
 // =============================================================================
 //  Réglages, quota, fenêtre native
 // =============================================================================
-const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0 };
+const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto' };
 const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
 const saveSettings = () => store.set('settings', settings);
 
@@ -301,6 +301,11 @@ const lineAlert = (id, stopName) => traffic.items.find(it => it.active && it.lin
 const TN = 'https://api.trainnomade.fr/gare/';
 const TRAIN_CAT = { highSpeedRail: 'TGV', interregionalRail: 'Intercités', regionalRail: 'TER', local: 'TER',
   suburbanRailway: 'Transilien', tramTrain: 'Tram-train', railShuttle: 'Navette', longDistance: 'Grande ligne' };
+// Grandes gares de Paris : une carte, une gare par onglet
+const PARIS_GARES = SNCF_STATIONS.slice(0, 7).map(([name, uics]) => ({ name, uics, short: name.replace(/^Gare (de l'|de |du )/, '') }));
+const parisModel = () => ({ type: 'paris', key: 'paris', station: 0, arrivals: false });
+const isTrainCard = m => m.type === 'gare' || m.type === 'paris';
+
 const cleanStation = s => (s || '').replace(/\s+(RER|Transilien|Grandes Lignes|Surface|Souterrain)$/i, '').trim();
 
 function parseTrainNomade(j, arrivals) {
@@ -337,14 +342,21 @@ class Card {
     this.err = null;
     this.loading = false;
     this.fetchedAt = 0;
-    this.el = el('article', { class: 'card' + (model.type === 'gare' ? ' wide' : ''), 'data-key': model.key });
+    this.cache = {};   // tableaux SNCF déjà reçus, par gare (changement d'onglet immédiat)
+    this.el = el('article', { class: 'card' + (isTrainCard(model) ? ' wide' : ''), 'data-key': model.key });
     if (!this.preview) this.dragAndDrop();
     this.render();
   }
 
   get requests() { return this.m.type === 'stop' ? this.m.refs.length : 0; }
 
-  interval() { return this.m.type === 'gare' ? 60 : stopInterval(); }
+  interval() { return isTrainCard(this.m) ? 60 : stopInterval(); }
+
+  // Gare affichée (carte d'une gare, ou onglet choisi des grandes gares de Paris)
+  get gare() {
+    if (this.m.type !== 'paris') return { name: this.m.name, uics: this.m.uics };
+    return PARIS_GARES[Math.min(PARIS_GARES.length - 1, Math.max(0, this.m.station | 0))];
+  }
 
   due() { return !this.loading && now() - this.fetchedAt >= this.interval() * 1000; }
 
@@ -352,6 +364,7 @@ class Card {
     if (this.loading) return;
     this.loading = true;
     if (!this.data) this.render();
+    const gare = this.m.type === 'paris' ? this.m.station : null;
     try {
       if (this.m.type === 'stop') {
         const all = [];
@@ -362,31 +375,39 @@ class Card {
         const uniq = new Map(all.map(v => [v.id, v]));
         this.data = [...uniq.values()].sort((a, b) => a.t - b.t);
       } else {
+        const uics = this.gare.uics;
         let r;
-        try { r = await fetch(TN + this.m.uics + '.json'); } catch { throw new ApiError('net', 'Train Nomade injoignable'); }
+        try { r = await fetch(TN + uics + '.json'); } catch { throw new ApiError('net', 'Train Nomade injoignable'); }
         if (!r.ok) throw new ApiError('http', `Train Nomade indisponible (${r.status})`);
-        this.raw = await r.json();
-        this.data = parseTrainNomade(this.raw, this.m.arrivals);
+        const raw = await r.json();
+        this.cache[uics] = { raw, at: now() };
+        if (uics === this.gare.uics) {   // sinon : un autre onglet a été choisi entre-temps
+          this.raw = raw;
+          this.data = parseTrainNomade(this.raw, this.m.arrivals);
+        }
       }
       this.err = null;
     } catch (e) {
       this.err = e;
     }
-    this.fetchedAt = now();
     this.loading = false;
+    if (gare !== null && gare !== this.m.station) return this.refresh();   // autre onglet entre-temps
+    this.fetchedAt = now();
     this.render();
   }
 
   render() {
     const m = this.m;
     const lines = this.lineIds();
+    const train = isTrainCard(m), name = train ? this.gare.name : m.name;
     const head = el('header', { class: 'card-head', draggable: this.preview ? null : 'true' },
       el('div', { class: 'card-title' },
-        el('div', { class: 'mode' }, icon(m.type === 'gare' ? 'm-train' : MODE_ICON[this.mainMode()] || 'm-bus'),
-          m.type === 'gare' ? 'Train · ' + (m.arrivals ? 'Arrivées' : 'Départs') : m.sub || MODE_LABEL[this.mainMode()] || 'Arrêt'),
-        el('div', { class: 'card-name', title: m.name }, m.name)),
+        el('div', { class: 'mode' }, icon(train ? 'm-train' : MODE_ICON[this.mainMode()] || 'm-bus'),
+          m.type === 'paris' ? 'Train · Grandes gares de Paris' : train ? 'Train · ' + (m.arrivals ? 'Arrivées' : 'Départs')
+            : m.sub || MODE_LABEL[this.mainMode()] || 'Arrêt'),
+        el('div', { class: 'card-name', title: name }, name)),
       m.type === 'stop' ? el('div', { class: 'lbs' }, lines.slice(0, 6).map(id => badge(id, 'lg'))) : null,
-      m.type === 'gare' ? el('div', { class: 'seg', role: 'group' },
+      train ? el('div', { class: 'seg', role: 'group' },
         el('button', { 'aria-pressed': String(!m.arrivals), onclick: () => this.setArrivals(false) }, 'Départs'),
         el('button', { 'aria-pressed': String(!!m.arrivals), onclick: () => this.setArrivals(true) }, 'Arrivées')) : null,
       el('div', { class: 'card-acts' },
@@ -395,7 +416,10 @@ class Card {
 
     const bar = el('div', { class: 'card-bar' },
       (lines.length ? lines : ['']).slice(0, 8).map(id => el('i', { style: `background:${(lineInfo(id) || {}).c || '#ffb400'}` })));
-    if (m.type === 'gare') bar.replaceChildren(el('i', { style: 'background:var(--amber)' }));
+    if (train) bar.replaceChildren(el('i', { style: 'background:var(--amber)' }));
+    const tabs = m.type === 'paris' ? el('nav', { class: 'gtabs', role: 'tablist' }, PARIS_GARES.map((g, i) =>
+      el('button', { class: 'gtab', role: 'tab', 'aria-pressed': String(i === (m.station | 0)), title: g.name,
+        onclick: () => this.setStation(i) }, g.short))) : null;
 
     const alerts = lines.map(id => lineAlert(id, m.name)).filter(Boolean);
     const alert = alerts.length ? el('div', { class: 'card-alert l' + Math.max(...alerts.map(a => a.level)),
@@ -406,9 +430,9 @@ class Card {
       el('span', { class: 'grow' + (this.err && this.data ? ' err' : '') },
         this.err && this.data ? '⚠ ' + this.err.message
           : this.fetchedAt ? 'Mis à jour à ' + hm(this.fetchedAt) : ''),
-      m.type === 'gare' ? el('span', {}, 'Train Nomade · SNCF') : el('span', {}, 'PRIM · IDFM'));
+      train ? el('span', {}, 'Train Nomade · SNCF') : el('span', {}, 'PRIM · IDFM'));
 
-    this.el.replaceChildren(...[bar, head, alert, el('div', { class: 'card-body' }, this.body()), foot].filter(Boolean));
+    this.el.replaceChildren(...[bar, head, tabs, alert, el('div', { class: 'card-body' }, this.body()), foot].filter(Boolean));
   }
 
   mainMode() {
@@ -424,13 +448,33 @@ class Card {
     return [...ids].sort((a, b) => lineRank(a) - lineRank(b));
   }
 
-  setArrivals(arr) {
+  setArrivals(arr) {   // départs et arrivées sont dans la même réponse
     if (!!this.m.arrivals === arr) return;
     this.m.arrivals = arr;
     if (!this.preview) savePins();
     this.data = this.raw ? parseTrainNomade(this.raw, arr) : null;
-    this.fetchedAt = 0;
-    this.refresh();
+    if (!this.data) this.fetchedAt = 0;
+    this.render();
+  }
+
+  setStation(i) {
+    if ((this.m.station | 0) === i) return;
+    this.m.station = i;
+    if (!this.preview) savePins();
+    const c = this.cache[this.gare.uics];
+    if (c && now() - c.at < 60e3) {
+      this.raw = c.raw;
+      this.data = parseTrainNomade(c.raw, this.m.arrivals);
+      this.fetchedAt = c.at;
+      this.err = null;
+    } else {
+      this.raw = null;
+      this.data = null;
+      this.err = null;
+      this.fetchedAt = 0;
+      this.refresh();
+    }
+    this.render();
   }
 
   body() {
@@ -591,7 +635,7 @@ function renderAll() {
 }
 
 // ---- Bandeau « clé PRIM » et tableau vide ---------------------------------------------
-const SUGGEST = [['Châtelet', 'stop'], ['Gare de Lyon', 'stop'], ['La Défense', 'stop'], ['Gare du Nord', 'gare']];
+const SUGGEST = [['Châtelet', 'stop'], ['Gare de Lyon', 'stop'], ['La Défense', 'stop'], ['Grandes gares de Paris', 'paris']];
 
 function renderBoardChrome() {
   const banner = $('#keyBanner');
@@ -614,9 +658,9 @@ function renderBoardChrome() {
       el('div', { class: 'big' }, 'Votre ', el('em', {}, 'tableau'), ' est vide'),
       el('p', {}, 'Cherchez une station, une gare ou un arrêt de bus en haut de la fenêtre, puis épinglez-le : ses prochains passages s’affichent ici, côte à côte.'),
       el('div', { class: 'chips' }, SUGGEST.map(([name, type]) => {
-        const model = type === 'gare' ? gareModel(SNCF_STATIONS.find(s => s[0] === name)) : stationModel(findStation(name));
+        const model = type === 'paris' ? parisModel() : type === 'gare' ? gareModel(SNCF_STATIONS.find(s => s[0] === name)) : stationModel(findStation(name));
         return model ? el('button', { class: 'sug', onclick: () => openPreview(model) },
-          type === 'gare' ? el('span', { class: 'chip' }, 'Train') : (model.lines || []).slice(0, 3).map(id => badge(id, 'sm')), name) : null;
+          type !== 'stop' ? el('span', { class: 'chip' }, 'Train') : (model.lines || []).slice(0, 3).map(id => badge(id, 'sm')), name) : null;
       })));
     empty.hidden = false;
   } else empty.hidden = true;
@@ -687,6 +731,7 @@ function renderResults() {
   const ga = localSearch(GARES, q, 4);
   const known = new Set(ga.map(g => g.uics));
   const gares = ga.concat(searchUi.onlineGares.filter(g => !known.has(g.uics))).slice(0, 6);
+  const parisHit = ['grandes gares de paris', 'gares de paris', 'paris', 'sncf', 'trains'].some(k => score(k, q) < 9);
   const stNames = new Set(st.map(s => s.key));
   const bus = searchUi.online.filter(o => !(o.type !== 'bus' && stNames.has(norm(o.name)))).slice(0, 8);
   const items = [];
@@ -704,7 +749,10 @@ function renderResults() {
   };
   add('Métro · RER · Tram', st, s => ({ model: stationModel(s), node: [
     el('div', { class: 'rname' }, s.name), el('div', { class: 'rlines' }, s.lines.slice(0, 8).map(id => badge(id, 'sm')))] }));
-  add('Gares SNCF', gares, g => ({ model: gareModel(g), node: [
+  if (parisHit) gares.unshift({ paris: true });
+  add('Gares SNCF', gares, g => g.paris ? ({ model: parisModel(), node: [
+    el('span', { class: 'chip' }, 'Train'), el('div', { class: 'rname' }, 'Grandes gares de Paris'),
+    el('span', { class: 'rsub' }, PARIS_GARES.map(x => x.short).join(' · '))] }) : ({ model: gareModel(g), node: [
     el('span', { class: 'chip' }, 'Train'), el('div', { class: 'rname' }, g.name), el('span', { class: 'rsub' }, 'Départs · arrivées')] }));
   add('Arrêts de bus et autres', bus, o => ({ model: { type: 'stop', key: 'stop:' + o.zda, name: o.name, sub: o.label + (o.town ? ' · ' + o.town : ''), refs: [o.zda], lines: [], mode: o.type },
     node: [icon(MODE_ICON[o.type] || 'm-bus'), el('div', { class: 'rname' }, o.name), el('span', { class: 'rsub' }, [o.label, o.town].filter(Boolean).join(' · '))] }));
@@ -763,7 +811,11 @@ function choose(i) {
 // =============================================================================
 const dlg = $('#dlg');
 dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
-dlg.addEventListener('close', () => { preview = null; });
+let onDialogClose = null;   // réglages fermés sans enregistrer : thème d'origine
+dlg.addEventListener('close', () => {
+  preview = null;
+  if (onDialogClose) { const f = onDialogClose; onDialogClose = null; f(); }
+});
 
 function openDialog(title, lead, body, foot, wide) {
   dlg.style.width = wide ? 'min(1000px, calc(100vw - 40px))' : '';
@@ -778,10 +830,10 @@ function openDialog(title, lead, body, foot, wide) {
 function openPreview(model) {
   preview = new Card(JSON.parse(JSON.stringify(model)), { preview: true });
   const pinned = isPinned(model.key);
-  openDialog(model.type === 'gare' ? 'Gare' : 'Prochains passages', null, preview.el,
+  openDialog(model.type === 'paris' ? 'Grandes gares de Paris' : model.type === 'gare' ? 'Gare' : 'Prochains passages', null, preview.el,
     [el('button', { class: 'btn', onclick: () => dlg.close() }, 'Fermer'),
       el('button', { class: 'btn pri', disabled: pinned, onclick: () => { pin(preview.m); dlg.close(); } },
-        pinned ? 'Déjà sur le tableau' : 'Épingler au tableau')], model.type === 'gare');
+        pinned ? 'Déjà sur le tableau' : 'Épingler au tableau')], isTrainCard(model));
   preview.refresh();
 }
 
@@ -803,6 +855,15 @@ function openSettings() {
     placeholder: s.apiKey ? 'Enregistrée ••••' + s.apiKey.slice(-4) + ' (vide = inchangée)' : 'Collez votre clé PRIM' });
   const seg = el('div', { class: 'seg ctl' }, [30, 60, 120].map(v => el('button', { 'aria-pressed': String(s.refresh === v),
     onclick: e => { s.refresh = v; seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === e.currentTarget))); } }, v + ' s')));
+  const themeSeg = el('div', { class: 'seg ctl' }, [['auto', 'Automatique'], ['dark', 'Sombre'], ['light', 'Clair']].map(([v, label]) =>
+    el('button', { 'aria-pressed': String(s.theme === v), onclick: e => {
+      s.theme = v;
+      themeSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === e.currentTarget)));
+      settings.theme = v;   // aperçu immédiat
+      applyTheme();
+    } }, label)));
+  const themeBefore = settings.theme;
+  let saved = false;
   const budget = el('input', { class: 'inp ctl', type: 'number', min: '50', max: '1000000', value: String(s.budget), style: 'min-width:0;width:130px' });
   const sw = (prop, onchange) => {
     const b = el('button', { class: 'sw ctl', role: 'switch', 'aria-checked': String(!!s[prop]) });
@@ -820,16 +881,19 @@ function openSettings() {
     el('div', { class: 'set' }, el('b', {}, 'Quota d’appels par jour'),
       el('span', {}, `Passages : ${used} appel${used > 1 ? 's' : ''} aujourd’hui · info trafic : ${quota.used('trafic')}. Partagé avec l’afficheur si la clé est la même.`,
         el('div', { class: 'meter' }, el('i', { style: `width:${pct}%` }))), budget),
+    el('div', { class: 'set' }, el('b', {}, 'Thème'),
+      el('span', {}, 'Automatique : comme Windows (clair le jour si Windows est en mode clair). Touche L pour basculer.'), themeSeg),
     el('div', { class: 'set' }, el('b', {}, 'Trains : grandes lignes uniquement'),
       el('span', {}, 'Masquer RER, Transilien et navettes dans les tableaux SNCF.'), sw('mainlineOnly')),
     NATIVE ? el('div', { class: 'set' }, el('b', {}, 'Toujours au premier plan'),
       el('span', {}, 'La fenêtre reste visible au-dessus des autres (touche T).'), sw('onTop')) : null,
     el('div', { class: 'about' }, 'Métro pour Windows · données PRIM et open data Île-de-France Mobilités, SNCF (ODbL), Train Nomade. ',
-      'Raccourcis : Ctrl K recherche · M mode compact · T premier plan · F5 actualiser · Échap fermer.'),
+      'Raccourcis : Ctrl K recherche · M mode compact · T premier plan · L thème clair ou sombre · F5 actualiser · Échap fermer.'),
   ];
   openDialog('Réglages', icon('i-gear'), body, [
     el('button', { class: 'btn', onclick: () => dlg.close() }, 'Annuler'),
     el('button', { class: 'btn pri', onclick: () => {
+      saved = true;
       const k = key.value.trim();
       const b = Math.max(50, Math.min(1000000, parseInt(budget.value, 10) || DEFAULTS.budget));
       const keyChanged = k && k !== settings.apiKey;
@@ -840,9 +904,10 @@ function openSettings() {
       applyWindow();
       dlg.close();
       if (keyChanged) setKey(k);
-      if (trainsChanged) cards.forEach(c => { if (c.m.type === 'gare' && c.raw) { c.data = parseTrainNomade(c.raw, c.m.arrivals); c.render(); } });
+      if (trainsChanged) cards.forEach(c => { if (isTrainCard(c.m) && c.raw) { c.data = parseTrainNomade(c.raw, c.m.arrivals); c.render(); } });
       toast('Réglages enregistrés');
     } }, 'Enregistrer')]);
+  onDialogClose = () => { if (!saved && settings.theme !== themeBefore) { settings.theme = themeBefore; applyTheme(); } };
 }
 
 // =============================================================================
@@ -922,6 +987,24 @@ function applyWindow() {
   renderTicker(traffic.items.filter(it => it.active && it.level >= 2));
 }
 
+// ---- Thème : automatique (comme Windows), sombre ou clair ---------------------------------
+const lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+const currentTheme = () => settings.theme === 'light' || (settings.theme === 'auto' && lightQuery.matches) ? 'light' : 'dark';
+function applyTheme() {
+  const t = currentTheme();
+  document.documentElement.dataset.theme = t;
+  const b = $('#bTheme');
+  b.replaceChildren(icon(t === 'light' ? 'i-moon' : 'i-sun'));
+  b.title = t === 'light' ? 'Passer en thème sombre (L)' : 'Passer en thème clair (L)';
+  native('theme', t);   // barre de titre de la fenêtre assortie
+}
+function toggleTheme() {
+  settings.theme = currentTheme() === 'light' ? 'dark' : 'light';
+  saveSettings();
+  applyTheme();
+}
+lightQuery.addEventListener('change', () => { if (settings.theme === 'auto') applyTheme(); });
+
 function toggleCompact() {
   settings.compact = !settings.compact;
   saveSettings();
@@ -953,6 +1036,7 @@ function setupUi() {
   $('#pNext').addEventListener('click', () => pageCard(1));
   $('#bCompact').addEventListener('click', toggleCompact);
   $('#bTop').addEventListener('click', toggleTop);
+  $('#bTheme').addEventListener('click', toggleTheme);
   if (!NATIVE) $('#bTop').hidden = true;
   document.addEventListener('keydown', e => {
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
@@ -961,6 +1045,7 @@ function setupUi() {
     else if (!typing && !dlg.open && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'm') toggleCompact();
     else if (!typing && !dlg.open && settings.compact && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) pageCard(e.key === 'ArrowLeft' ? -1 : 1);
     else if (!typing && !dlg.open && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 't' && NATIVE) toggleTop();
+    else if (!typing && !dlg.open && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'l') toggleTheme();
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadTraffic(); });
   document.addEventListener('contextmenu', e => { if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName) && !e.target.closest('.msg')) e.preventDefault(); });
@@ -989,7 +1074,12 @@ tick.n = 0;
 // =============================================================================
 async function start() {
   if (/[?&]demo\b/.test(location.search)) await demoMode();
+  if (!store.get('parisAdded', false)) {   // une fois : les grandes gares de Paris sur le tableau
+    if (!pins.some(p => p.type === 'paris')) { pins.push(parisModel()); savePins(); }
+    store.set('parisAdded', true);
+  }
   setupUi();
+  applyTheme();
   native('compact', !!settings.compact);   // la fenêtre suit le dernier mode choisi
   applyWindow();
   syncCards();

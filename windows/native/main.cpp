@@ -163,11 +163,13 @@ static LRESULT CALLBACK subclass(HWND h, UINT msg, WPARAM wp, LPARAM lp, UINT_PT
   return DefSubclassProc(h, msg, wp, lp);
 }
 
-// Barre de titre assortie à l'application (Windows 11 ; ignoré ailleurs)
-static void darkTitleBar() {
-  BOOL dark = TRUE;
+// Barre de titre assortie au thème de l'application (couleurs : Windows 11 ; ignorées ailleurs)
+static void titleBar(bool light) {
+  BOOL dark = light ? FALSE : TRUE;
   DwmSetWindowAttribute(win, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
-  COLORREF caption = RGB(0x0a, 0x0f, 0x19), text = RGB(0xf3, 0xf5, 0xf9), border = RGB(0x1a, 0x23, 0x32);
+  COLORREF caption = light ? RGB(0xff, 0xff, 0xff) : RGB(0x0a, 0x0f, 0x19);
+  COLORREF text = light ? RGB(0x0b, 0x12, 0x20) : RGB(0xf3, 0xf5, 0xf9);
+  COLORREF border = light ? RGB(0xd8, 0xde, 0xe8) : RGB(0x1a, 0x23, 0x32);
   DwmSetWindowAttribute(win, 35 /* DWMWA_CAPTION_COLOR */, &caption, sizeof(caption));
   DwmSetWindowAttribute(win, 36 /* DWMWA_TEXT_COLOR */, &text, sizeof(text));
   DwmSetWindowAttribute(win, 34 /* DWMWA_BORDER_COLOR */, &border, sizeof(border));
@@ -203,6 +205,7 @@ static std::string nativeCall(const std::string& req) {
   parseRequest(req, cmd, arg);
   if (cmd == "ontop") setOnTop(arg == "true");
   else if (cmd == "compact") setCompact(arg == "true");
+  else if (cmd == "theme") titleBar(arg == "\"light\"");
   else if (cmd == "open" && arg.size() > 2 && arg.front() == '"' && arg.back() == '"') {
     std::string url = arg.substr(1, arg.size() - 2);  // adresse web seulement
     if (url.rfind("https://", 0) == 0 || url.rfind("http://", 0) == 0)
@@ -243,7 +246,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     HICON small = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
     if (big) SendMessageW(win, WM_SETICON, ICON_BIG, (LPARAM)big);
     if (small) SendMessageW(win, WM_SETICON, ICON_SMALL, (LPARAM)small);
-    darkTitleBar();
+    titleBar(false);
     SetWindowSubclass(win, subclass, 1, 0);
 
     // Taille et position : celles de la dernière fois, sinon 1360 x 860 au centre

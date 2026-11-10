@@ -1,18 +1,20 @@
 # Métro pour Windows
 
-Tableau de bord des prochains passages en Île-de-France pour Windows 10 et 11, dans l'esprit des écrans de quai : fond sombre, très grands chiffres, couleurs des lignes.
+Tableau de bord des prochains passages en Île-de-France pour Windows 10 et 11, dans l'esprit des écrans de quai : très grands chiffres, couleurs des lignes, thème sombre ou clair.
 
 ![Tableau de bord](apercus/tableau.png)
 
 - **Recherche libre :** n'importe quelle station de métro, de RER ou de tram, une gare SNCF ou un arrêt de bus (`Ctrl K`). Un aperçu s'ouvre, et le bouton **Épingler** l'ajoute au tableau.
 - **Tableau :** les arrêts épinglés côte à côte, avec les minutes avant chaque passage, les missions et les voies du RER, « À QUAI », « APPROCHE » et « SUPPRIMÉ ». On les réordonne en les faisant glisser par leur titre.
-- **Trains SNCF :** départs et arrivées d'une gare (TGV, Intercités, TER), avec l'heure, la voie, le retard ou la suppression.
+- **Grandes gares de Paris :** une carte, présente d'office sur le tableau, avec un onglet par gare (Lyon, Nord, Est, Montparnasse, Saint-Lazare, Austerlitz, Bercy). On y voit les départs ou les arrivées des grandes lignes : heure, destination ou provenance, train, voie, retard ou suppression. Elle ne demande pas de clé.
+- **Autres gares SNCF :** n'importe quelle gare, par la recherche, avec les mêmes informations.
 - **État du trafic :** toutes les lignes de métro, de RER, de Transilien et de tram, avec une pastille de couleur par ligne. Un clic donne le détail des messages. Un bandeau défilant rappelle les perturbations en cours.
+- **Thème clair ou sombre (`L`) :** le bouton soleil ou lune de l'en-tête bascule entre les deux. Dans les réglages, « Automatique » suit le thème de Windows.
 - **Mode compact (`M`) :** une petite fenêtre en haut à droite de l'écran, une carte à la fois (flèches ← →). L'option « toujours au premier plan » (`T`) la garde visible par-dessus vos autres fenêtres.
 
-| Recherche | Détail d'une ligne | Mode compact |
-|---|---|---|
-| ![Recherche](apercus/recherche.png) | ![Détail](apercus/ligne.png) | ![Compact](apercus/compact.png) |
+| Thème clair | Recherche | Détail d'une ligne | Mode compact |
+|---|---|---|---|
+| ![Thème clair](apercus/clair.png) | ![Recherche](apercus/recherche.png) | ![Détail](apercus/ligne.png) | ![Compact](apercus/compact.png) |
 
 ## Installation
 
@@ -50,6 +52,7 @@ La même clé peut servir à l'afficheur ESP32 : le quota du jour est alors part
 | `M` | mode compact / tableau complet |
 | `←` `→` | carte précédente / suivante (mode compact) |
 | `T` | toujours au premier plan |
+| `L` | thème clair / sombre |
 | `F5` | actualiser |
 | `Échap` | fermer |
 | `Ctrl` + molette | agrandir ou réduire l'affichage |
