@@ -196,6 +196,12 @@ Au réveil, l'afficheur reprend l'écran laissé (la station ou la gare choisie,
 
 Journal de fonctionnement : moniteur série à 115200 bauds.
 
+## Application Windows
+
+**Métro pour Windows** est un tableau de bord pour l'écran de l'ordinateur, conçu à part, avec une interface neuve inspirée des écrans de quai. On y épingle des arrêts trouvés par la recherche libre (métro, RER, tram, bus, gares SNCF), avec l'état du trafic de toutes les lignes, et un mode compact toujours au premier plan. C'est un seul fichier `Metro.exe` de moins de 1 Mo, sans installation : voir [`windows/`](windows/).
+
+![Métro pour Windows](windows/apercus/tableau.png)
+
 ## Boîtier imprimable en 3D
 
 Un boîtier de poche en trois pièces (coque, plaque de maintien de la carte et fond clipsés, place pour les broches soudées au dos, logement pour une batterie 803040, ouverture USB-C, boutons BOOT et RST actionnables du doigt) est dans [`boitier/`](boitier/) : fichiers STL prêts à imprimer, modèle OpenSCAD paramétrique et notice de montage.

@@ -1,0 +1,28 @@
+#include <winver.h>
+1 ICON "metro.ico"
+1 24 "metro.manifest"
+100 RCDATA "../dist/Metro.html"
+1 VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040C04B0"
+    BEGIN
+      VALUE "CompanyName", "Projet Metro"
+      VALUE "FileDescription", "Métro - prochains passages en Île-de-France"
+      VALUE "ProductName", "Métro pour Windows"
+      VALUE "FileVersion", "1.0.0"
+      VALUE "ProductVersion", "1.0.0"
+      VALUE "OriginalFilename", "Metro.exe"
+      VALUE "LegalCopyright", "Données : IDFM, SNCF (ODbL), Train Nomade. Polices Barlow (OFL)."
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x040C, 1200
+  END
+END
