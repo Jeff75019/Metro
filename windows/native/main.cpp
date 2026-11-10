@@ -24,7 +24,9 @@ static const int ID_PAGE = 100;  // ressource : la page (metro.rc)
 
 static HWND win = nullptr;
 static ICoreWebView2Controller* controller = nullptr;
-static bool compact = false, onTop = false, startCompact = false;
+static bool compact = false, onTop = false, startCompact = false, fullscreen = false;
+static LONG_PTR savedStyle = 0, savedExStyle = 0;            // fenêtre avant le plein écran
+static WINDOWPLACEMENT savedPlacement{sizeof(WINDOWPLACEMENT)};
 static RECT normalRect{}, compactRect{};
 static bool maximized = false;
 static std::wstring dataDir;
@@ -102,7 +104,8 @@ static void loadState() {
 static void saveState() {
   if (!win) return;
   WINDOWPLACEMENT wp{sizeof(wp)};
-  if (GetWindowPlacement(win, &wp)) {
+  if (fullscreen) wp = savedPlacement;  // en plein écran : on garde la fenêtre d'avant
+  if (fullscreen || GetWindowPlacement(win, &wp)) {
     if (compact) compactRect = wp.rcNormalPosition;
     else {
       normalRect = wp.rcNormalPosition;
@@ -121,8 +124,11 @@ static void place(const RECT& r) {
   SetWindowPos(win, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+static void setFullscreen(bool on);
+
 static void setCompact(bool on) {
   if (on == compact) return;
+  if (on && fullscreen) setFullscreen(false);
   WINDOWPLACEMENT wp{sizeof(wp)};
   GetWindowPlacement(win, &wp);
   if (on) {
@@ -144,6 +150,33 @@ static void setCompact(bool on) {
     if (maximized) ShowWindow(win, SW_MAXIMIZE);
   }
   saveState();
+}
+
+// Plein écran : fenêtre sans bordure ni barre de titre, sur tout l'écran (barre des tâches comprise)
+static void setFullscreen(bool on) {
+  if (on == fullscreen) return;
+  if (on) {
+    if (compact) setCompact(false);
+    savedPlacement.length = sizeof(savedPlacement);
+    GetWindowPlacement(win, &savedPlacement);
+    savedStyle = GetWindowLongPtrW(win, GWL_STYLE);
+    savedExStyle = GetWindowLongPtrW(win, GWL_EXSTYLE);
+    MONITORINFO mi{sizeof(mi)};
+    GetMonitorInfoW(MonitorFromWindow(win, MONITOR_DEFAULTTONEAREST), &mi);
+    fullscreen = true;
+    SetWindowLongPtrW(win, GWL_STYLE, savedStyle & ~(WS_CAPTION | WS_THICKFRAME));
+    SetWindowLongPtrW(win, GWL_EXSTYLE,
+                      savedExStyle & ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE));
+    SetWindowPos(win, onTop ? HWND_TOPMOST : HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                 mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
+                 SWP_NOACTIVATE | SWP_FRAMECHANGED);
+  } else {
+    fullscreen = false;
+    SetWindowLongPtrW(win, GWL_STYLE, savedStyle);
+    SetWindowLongPtrW(win, GWL_EXSTYLE, savedExStyle);
+    SetWindowPos(win, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    SetWindowPlacement(win, &savedPlacement);
+  }
 }
 
 static void setOnTop(bool on) {
@@ -205,6 +238,10 @@ static std::string nativeCall(const std::string& req) {
   parseRequest(req, cmd, arg);
   if (cmd == "ontop") setOnTop(arg == "true");
   else if (cmd == "compact") setCompact(arg == "true");
+  else if (cmd == "fullscreen") {
+    setFullscreen(arg == "true");
+    return fullscreen ? "true" : "false";
+  }
   else if (cmd == "theme") titleBar(arg == "\"light\"");
   else if (cmd == "open" && arg.size() > 2 && arg.front() == '"' && arg.back() == '"') {
     std::string url = arg.substr(1, arg.size() - 2);  // adresse web seulement

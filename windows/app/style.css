@@ -286,6 +286,8 @@ body.compact .gtab{font-size:14px;padding:6px 9px 5px}
 .about{font-size:12.5px;color:var(--dim);line-height:1.5;margin-top:14px}
 
 /* ---- Mode compact (petite fenêtre, une carte) ---------------------------------------------- */
+/* Plein écran : curseur masqué après quelques secondes sans bouger la souris */
+body.fs.idle,body.fs.idle *{cursor:none!important}
 body.compact{--r:0px}
 body.compact .top{padding:8px 12px;gap:10px}
 body.compact .brand-name,body.compact .search,body.compact .traffic,body.compact .ticker,body.compact .banner{display:none}

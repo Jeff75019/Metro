@@ -10,6 +10,7 @@ Tableau de bord des prochains passages en Île-de-France pour Windows 10 et 11, 
 - **Autres gares SNCF :** n'importe quelle gare, par la recherche, avec les mêmes informations.
 - **État du trafic :** toutes les lignes de métro, de RER, de Transilien et de tram, avec une pastille de couleur par ligne. Un clic donne le détail des messages. Un bandeau défilant rappelle les perturbations en cours.
 - **Thème clair ou sombre (`L`) :** le bouton soleil ou lune de l'en-tête bascule entre les deux. Dans les réglages, « Automatique » suit le thème de Windows.
+- **Plein écran (`F11`) :** tout l'écran, par-dessus la barre des tâches, sans bordure ni barre de titre (bouton à quatre coins de l'en-tête), pour un écran dédié. Le curseur se cache après 3 secondes sans bouger la souris. On en sort par `F11`, `Échap` ou le même bouton. Si vous fermez l'application en plein écran, elle se rouvre ainsi.
 - **Mode compact (`M`) :** une petite fenêtre en haut à droite de l'écran, une carte à la fois (flèches ← →). L'option « toujours au premier plan » (`T`) la garde visible par-dessus vos autres fenêtres.
 
 | Thème clair | Recherche | Détail d'une ligne | Mode compact |
@@ -57,12 +58,13 @@ La même clé peut servir à l'afficheur ESP32 : le quota du jour est alors part
 |---|---|
 | `Ctrl K` ou `/` | rechercher |
 | `↑` `↓` `Entrée` | choisir un résultat |
+| `F11` | plein écran (par-dessus la barre des tâches) |
+| `Échap` | quitter le plein écran, fermer une fenêtre |
 | `M` | mode compact / tableau complet |
 | `←` `→` | carte précédente / suivante (mode compact) |
 | `T` | toujours au premier plan |
 | `L` | thème clair / sombre |
 | `F5` | actualiser |
-| `Échap` | fermer |
 | `Ctrl` + molette | agrandir ou réduire l'affichage |
 
 ## Au travail : réseau et pare-feu

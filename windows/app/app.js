@@ -84,7 +84,7 @@ function whenText(begin, end) {
 // =============================================================================
 //  Réglages, quota, fenêtre native
 // =============================================================================
-const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto' };
+const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto', fullscreen: false };
 const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
 const saveSettings = () => store.set('settings', settings);
 
@@ -888,7 +888,7 @@ function openSettings() {
     NATIVE ? el('div', { class: 'set' }, el('b', {}, 'Toujours au premier plan'),
       el('span', {}, 'La fenêtre reste visible au-dessus des autres (touche T).'), sw('onTop')) : null,
     el('div', { class: 'about' }, 'Métro pour Windows · données PRIM et open data Île-de-France Mobilités, SNCF (ODbL), Train Nomade. ',
-      'Raccourcis : Ctrl K recherche · M mode compact · T premier plan · L thème clair ou sombre · F5 actualiser · Échap fermer.'),
+      'Raccourcis : Ctrl K recherche · F11 plein écran · M mode compact · T premier plan · L thème clair ou sombre · F5 actualiser · Échap fermer.'),
   ];
   openDialog('Réglages', icon('i-gear'), body, [
     el('button', { class: 'btn', onclick: () => dlg.close() }, 'Annuler'),
@@ -979,7 +979,7 @@ function tickClock() {
 function applyWindow() {
   document.body.classList.toggle('compact', !!settings.compact);
   $('#bCompact').setAttribute('aria-pressed', String(!!settings.compact));
-  $('#bCompact').replaceChildren(icon(settings.compact ? 'i-expand' : 'i-compact'));
+  $('#bCompact').replaceChildren(icon(settings.compact ? 'i-board' : 'i-compact'));
   $('#bCompact').title = settings.compact ? 'Tableau complet (M)' : 'Mode compact (M)';
   $('#bTop').setAttribute('aria-pressed', String(!!settings.onTop));
   renderPager();
@@ -1005,7 +1005,39 @@ function toggleTheme() {
 }
 lightQuery.addEventListener('change', () => { if (settings.theme === 'auto') applyTheme(); });
 
+// ---- Plein écran : toute la surface de l'écran, par-dessus la barre des tâches ------------------
+let fullscreen = false;
+async function setFullscreen(on) {
+  if (on && settings.compact) toggleCompact();
+  if (NATIVE) fullscreen = (await native('fullscreen', on)) === true;
+  else {   // dans le navigateur : plein écran de la page
+    try {
+      if (on && !document.fullscreenElement) await document.documentElement.requestFullscreen();
+      if (!on && document.fullscreenElement) await document.exitFullscreen();
+    } catch { /* refusé par le navigateur */ }
+    fullscreen = !!document.fullscreenElement;
+  }
+  settings.fullscreen = fullscreen && NATIVE;   // rouvert en plein écran (application seulement)
+  saveSettings();
+  renderFullscreen();
+}
+function renderFullscreen() {
+  document.body.classList.toggle('fs', fullscreen);
+  const b = $('#bFull');
+  b.setAttribute('aria-pressed', String(fullscreen));
+  b.replaceChildren(icon(fullscreen ? 'i-unexpand' : 'i-expand'));
+  b.title = fullscreen ? 'Quitter le plein écran (F11 ou Échap)' : 'Plein écran (F11)';
+}
+document.addEventListener('fullscreenchange', () => { if (!NATIVE) { fullscreen = !!document.fullscreenElement; renderFullscreen(); } });
+let idleTimer;
+document.addEventListener('mousemove', () => {
+  document.body.classList.remove('idle');
+  clearTimeout(idleTimer);
+  if (fullscreen) idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
+});
+
 function toggleCompact() {
+  if (!settings.compact && fullscreen) { setFullscreen(false); }
   settings.compact = !settings.compact;
   saveSettings();
   native('compact', settings.compact);
@@ -1037,10 +1069,13 @@ function setupUi() {
   $('#bCompact').addEventListener('click', toggleCompact);
   $('#bTop').addEventListener('click', toggleTop);
   $('#bTheme').addEventListener('click', toggleTheme);
+  $('#bFull').addEventListener('click', () => setFullscreen(!fullscreen));
   if (!NATIVE) $('#bTop').hidden = true;
   document.addEventListener('keydown', e => {
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
     if ((e.ctrlKey && e.key.toLowerCase() === 'k') || (!typing && e.key === '/')) { e.preventDefault(); if (settings.compact) toggleCompact(); q.focus(); q.select(); }
+    else if (e.key === 'F11') { e.preventDefault(); setFullscreen(!fullscreen); }
+    else if (e.key === 'Escape' && fullscreen && !typing && !dlg.open) setFullscreen(false);
     else if (e.key === 'F5') { e.preventDefault(); cards.forEach(c => { c.fetchedAt = 0; }); loadTraffic(true); toast('Actualisation…', 1200); }
     else if (!typing && !dlg.open && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'm') toggleCompact();
     else if (!typing && !dlg.open && settings.compact && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) pageCard(e.key === 'ArrowLeft' ? -1 : 1);
@@ -1081,6 +1116,7 @@ async function start() {
   setupUi();
   applyTheme();
   native('compact', !!settings.compact);   // la fenêtre suit le dernier mode choisi
+  if (NATIVE && settings.fullscreen && !settings.compact) setFullscreen(true);
   applyWindow();
   syncCards();
   renderTraffic();
