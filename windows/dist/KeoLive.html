@@ -85,14 +85,29 @@ svg{width:20px;height:20px;flex:none}
 kbd{font:600 11px var(--sans);color:var(--mut);border:1px solid var(--edge2);border-bottom-width:2px;border-radius:6px;padding:2px 6px;flex:none}
 .clock{font:600 40px/1 var(--cond);letter-spacing:.02em;font-variant-numeric:tabular-nums;flex:none;min-width:98px;text-align:right}
 .top-end{display:flex;align-items:center;gap:22px;justify-self:end}
-/* Fenêtre étroite : KeoLive à gauche, la recherche prend la place restante */
-@media (max-width:1340px){.top{grid-template-columns:auto minmax(0,1fr) auto}}
 .clock .sep{color:var(--time);animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:.25}}
 .tools{display:flex;gap:6px;flex:none}
 .tool{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:var(--mut);border:1px solid transparent;transition:.15s}
 .tool:hover{background:var(--panel2);color:var(--txt);border-color:var(--edge2)}
 .tool[aria-pressed=true]{color:#111;background:var(--amber)}
+/* Fenêtre plus étroite (par exemple un écran à 125 ou 150 %) : la recherche reste au centre, KeoLive à sa
+   gauche ; ce sont l'horloge et les boutons qui rapetissent pour laisser de la place à la recherche. */
+@media (max-width:1500px){
+  .top{grid-template-columns:minmax(340px,1fr) minmax(0,640px) minmax(340px,1fr)}
+  .top-end{gap:14px}
+  .clock{font-size:34px;min-width:84px}
+  .tools{gap:4px}
+  .tool{width:36px;height:36px}
+}
+@media (max-width:1040px){
+  .top{grid-template-columns:minmax(290px,1fr) minmax(0,640px) minmax(290px,1fr);column-gap:12px;padding:10px 16px}
+  .top-end{gap:10px}
+  .clock{font-size:30px;min-width:74px}
+  .tools{gap:2px}
+  .tool{width:32px;height:32px}
+  .search kbd{display:none}
+}
 
 /* ---- Résultats de recherche ---------------------------------------------------- */
 .results{position:absolute;left:0;right:0;top:54px;max-height:min(70vh,560px);overflow:auto;padding:8px;
@@ -349,6 +364,7 @@ body.fs.idle,body.fs.idle *{cursor:none!important}
 body.compact{--r:0px}
 body.compact .top{display:flex;padding:8px 12px;gap:10px}
 body.compact .top-end{gap:10px}
+body.compact .tools{gap:6px}
 body.compact .ktext,body.compact .search,body.compact .traffic,body.compact .ticker,body.compact .banner{display:none}
 body.compact .brand{flex:1}
 body.compact .clock{font-size:30px;min-width:0}
@@ -460,7 +476,7 @@ const SNCF_STATIONS = [["Gare de Lyon","87686006,87686030"],["Gare du Nord","872
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '1.5.3', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.5.4', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
