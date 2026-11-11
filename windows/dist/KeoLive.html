@@ -530,7 +530,7 @@ const SNCF_STATIONS = [["Gare de Lyon","87686006,87686030"],["Gare du Nord","872
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '1.6.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.6.1', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -827,11 +827,16 @@ async function loadTraffic(force) {
   cards.forEach(c => c.render());
 }
 // Alerte sur une carte : perturbation de la ligne entière, ou de cette station
-// Ligne pas encore ouverte (Grand Paris Express) : année d'ouverture prévue, sinon 0
-function futureYear(id) {
-  const l = NETWORK.find(x => x.id === id);
-  return l && l.year > parisParts(now()).y ? l.year : 0;
-}
+// Lignes du Grand Paris Express pas encore ouvertes : grisées dans la colonne Trafic, avec l'échéance
+// prévue (novembre 2026 : 18 pas avant 2027, d'après l'exploitation de la ligne ; 16 et 17 repoussées à
+// l'automne 2028 par la Société des grands projets). Une ligne reste dans cette liste tant qu'elle n'a
+// pas ouvert, même si l'échéance est dépassée : à retirer à son ouverture.
+const NOT_OPEN = {
+  C02833: { when: 'en 2027', first: 'Massy-Palaiseau – Christ de Saclay' },                          // 18
+  M16: { when: 'à l’automne 2028', first: 'Saint-Denis Pleyel – Parc du Blanc-Mesnil' },
+  M17: { when: 'à l’automne 2028', first: 'Saint-Denis Pleyel – Le Bourget Aéroport – Parc des Expositions' },
+};
+const futureLine = id => NOT_OPEN[id] || null;
 const lineAlert = (id, stopName) => traffic.items.find(it => it.active && it.line === id && it.level >= 2 &&
   (!it.stops.length || !stopName || it.stops.includes(norm(stopName))));
 
@@ -1380,12 +1385,12 @@ function openPreview(model) {
 
 function openLine(id) {
   const li = lineInfo(id) || { n: '?', m: 'bus' };
-  const year = futureYear(id);
-  if (year) {   // ligne en construction : pas encore de trafic
+  const future = futureLine(id);
+  if (future) {   // ligne en construction : pas encore de trafic
     const stops = (NETWORK.find(x => x.id === id) || { stops: [] }).stops;
     return openDialog(`${MODE_LABEL[li.m] || ''} ${li.n}`, badge(id, 'lg'), el('div', { class: 'msg l1' },
       el('h4', {}, 'Ligne en construction'),
-      el('div', { class: 'when' }, `Ouverture prévue en ${year} · Grand Paris Express`),
+      el('div', { class: 'when' }, `Ouverture prévue ${future.when} · ${future.first} · Grand Paris Express`),
       el('p', {}, 'Les prochains passages et l’info trafic apparaîtront ici dès sa mise en service.'),
       el('div', { class: 'stops-list' }, stops.map(st => el('span', {}, st[1])))));
   }
@@ -1644,9 +1649,9 @@ function renderTraffic() {
     kids.push(el('div', { class: 'tr-group' }, el('div', { class: 'tr-label' }, label),
       el('div', { class: 'tr-badges' }, ids.map(id => {
         const s = traffic.status[id] || { level: 0 };
-        const year = futureYear(id);
-        return el('button', { class: year ? 'tb s0 future' : `tb s${s.level}${s.works && s.level < 2 ? ' w' : ''}`,
-          title: `${label} ${LINES[id].n}` + (year ? ` · ouverture prévue en ${year}` : ''),
+        const future = futureLine(id);
+        return el('button', { class: future ? 'tb s0 future' : `tb s${s.level}${s.works && s.level < 2 ? ' w' : ''}`,
+          title: `${label} ${LINES[id].n}` + (future ? ` · en construction, ouverture prévue ${future.when}` : ''),
           onclick: () => openLine(id) }, badge(id), el('span', { class: 'dot' }));
       }))));
   }
