@@ -1,6 +1,6 @@
-# Métro pour Windows
+# KeoLive
 
-Tableau de bord des prochains passages en Île-de-France pour Windows 10 et 11, dans l'esprit des écrans de quai : très grands chiffres, couleurs des lignes, thème sombre ou clair.
+**KeoLive** est un tableau de bord des prochains passages en Île-de-France pour Windows 10 et 11, dans l'esprit des écrans de quai : très grands chiffres, couleurs des lignes, thème sombre ou clair.
 
 ![Tableau de bord](apercus/tableau.png)
 
@@ -8,30 +8,35 @@ Tableau de bord des prochains passages en Île-de-France pour Windows 10 et 11, 
 - **Tableau :** les arrêts épinglés côte à côte, avec les minutes avant chaque passage, les missions et les voies du RER, « À QUAI », « APPROCHE » et « SUPPRIMÉ ». On les réordonne en les faisant glisser par leur titre.
 - **Grandes gares de Paris :** une carte, présente d'office sur le tableau, avec un onglet par gare (Lyon, Nord, Est, Montparnasse, Saint-Lazare, Austerlitz, Bercy). On y voit les départs ou les arrivées des grandes lignes : heure, destination ou provenance, train, voie, retard ou suppression. Elle ne demande pas de clé.
 - **Autres gares SNCF :** n'importe quelle gare, par la recherche, avec les mêmes informations.
-- **État du trafic :** toutes les lignes de métro, de RER, de Transilien et de tram, avec une pastille de couleur par ligne. Un clic donne le détail des messages. Un bandeau défilant rappelle les perturbations en cours.
+- **État du trafic :** toutes les lignes de métro, de RER, de Transilien et de tram, avec une pastille de couleur par ligne. Les lignes 16 et 17, en construction, y figurent en pointillés avec leur année d'ouverture prévue et leurs stations. Un clic donne le détail des messages. Un bandeau défilant rappelle les perturbations en cours.
+- **À propos (bouton ⓘ, ou clic sur le logo) :** version de l'application, propriétaire et entreprise.
 - **Thème clair ou sombre (`L`) :** le bouton soleil ou lune de l'en-tête bascule entre les deux. Dans les réglages, « Automatique » suit le thème de Windows.
 - **Plein écran (`F11`) :** tout l'écran, par-dessus la barre des tâches, sans bordure ni barre de titre (bouton à quatre coins de l'en-tête), pour un écran dédié. Le curseur se cache après 3 secondes sans bouger la souris. On en sort par `F11`, `Échap` ou le même bouton. Si vous fermez l'application en plein écran, elle se rouvre ainsi.
 - **Mode compact (`M`) :** une petite fenêtre en haut à droite de l'écran, une carte à la fois (flèches ← →). L'option « toujours au premier plan » (`T`) la garde visible par-dessus vos autres fenêtres.
 
-| Thème clair | Recherche | Détail d'une ligne | Mode compact |
-|---|---|---|---|
-| ![Thème clair](apercus/clair.png) | ![Recherche](apercus/recherche.png) | ![Détail](apercus/ligne.png) | ![Compact](apercus/compact.png) |
+| Thème clair | Recherche | Détail d'une ligne |
+|---|---|---|
+| ![Thème clair](apercus/clair.png) | ![Recherche](apercus/recherche.png) | ![Détail](apercus/ligne.png) |
+
+| À propos | Mode compact |
+|---|---|
+| ![À propos](apercus/apropos.png) | ![Compact](apercus/compact.png) |
 
 ## Installation
 
-1. Téléchargez [`Metro.exe`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/Metro.exe) (moins de 1 Mo, un seul fichier, sans installation ni droits d'administrateur).
-2. Avant le premier lancement, **débloquez le fichier** : clic droit sur `Metro.exe` → **Propriétés** → en bas de l'onglet Général, cochez **Débloquer** → **OK**. Windows ne l'affichera plus comme suspect (voir plus bas). Double-cliquez ensuite dessus.
+1. Téléchargez [`KeoLive.exe`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.exe) (environ 1 Mo, un seul fichier, sans installation ni droits d'administrateur).
+2. Avant le premier lancement, **débloquez le fichier** : clic droit sur `KeoLive.exe` → **Propriétés** → en bas de l'onglet Général, cochez **Débloquer** → **OK**. Windows ne l'affichera plus comme suspect (voir plus bas). Double-cliquez ensuite dessus.
 3. Collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous), puis cherchez une station.
 
-L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\Metro`.
+L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive`.
 
-**Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez [`Metro.html`](dist/Metro.html) dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan ».
+**Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez [`KeoLive.html`](dist/KeoLive.html) dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan ».
 
 ## Pourquoi Windows se méfie, et comment l'éviter
 
 Windows (SmartScreen) avertit pour tout programme **téléchargé** qui n'est pas **signé** par un éditeur connu. Cela ne veut pas dire qu'un virus a été trouvé : Windows ne connaît simplement pas ce programme. Trois solutions, de la plus simple à la plus complète :
 
-- **Débloquer le fichier** (pour vous, une fois pour toutes) : clic droit → Propriétés → cocher **Débloquer**. Ou, dans PowerShell, dans le dossier du fichier : `Unblock-File .\Metro.exe`. Windows retire alors la marque « téléchargé depuis Internet » de ce fichier. Sur un poste d'entreprise, ce réglage peut être interdit par le service informatique : il peut alors autoriser le programme, ou vous pouvez utiliser `Metro.html` dans Edge.
+- **Débloquer le fichier** (pour vous, une fois pour toutes) : clic droit → Propriétés → cocher **Débloquer**. Ou, dans PowerShell, dans le dossier du fichier : `Unblock-File .\KeoLive.exe`. Windows retire alors la marque « téléchargé depuis Internet » de ce fichier. Sur un poste d'entreprise, ce réglage peut être interdit par le service informatique : il peut alors autoriser le programme, ou vous pouvez utiliser `KeoLive.html` dans Edge.
 - **Cliquer sur « Exécuter quand même »** dans l'avertissement (Informations complémentaires → Exécuter quand même) : Windows ne redemande pas pour ce fichier.
 - **Faire disparaître l'avertissement pour tout le monde** : signer l'exécutable avec un certificat de signature de code (payant, délivré après vérification d'identité, par exemple via le service de signature de Microsoft), ou publier l'application dans le Microsoft Store (compte développeur Microsoft). Même signé, un programme peu téléchargé peut encore être signalé quelque temps, le temps que sa réputation s'établisse.
 
@@ -85,7 +90,7 @@ app/            l'application (HTML, CSS, JavaScript, polices Barlow sous licenc
   data.js       lignes, stations et gares, générées depuis le projet (tools/)
 native/         la fenêtre Windows (C++, WebView2) : icône, premier plan, mode compact
 tools/          bundle.py (application en un seul fichier), make_data.py, dump_reseau.cpp
-dist/           Metro.exe et Metro.html, prêts à l'emploi
+dist/           KeoLive.exe et KeoLive.html, prêts à l'emploi
 ```
 
 - **Compiler sous Linux :** `make`. Il faut MinGW-w64 (`g++-mingw-w64-x86-64-posix`), la bibliothèque [webview](https://github.com/webview/webview) 0.12 et le SDK WebView2 (paquet NuGet `Microsoft.Web.WebView2`). Les chemins sont en tête du `Makefile`.

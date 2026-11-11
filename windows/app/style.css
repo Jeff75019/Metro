@@ -57,9 +57,8 @@ svg{width:20px;height:20px;flex:none}
 /* ---- En-tête ---------------------------------------------------------------- */
 .top{display:flex;align-items:center;gap:22px;padding:12px 22px;border-bottom:1px solid var(--edge);
   background:linear-gradient(var(--top1),var(--top2));position:relative;z-index:20}
-.brand{display:flex;align-items:center;gap:12px;flex:none}
-.logo{width:38px;height:38px;border-radius:11px;background:var(--amber);color:#111;display:grid;place-items:center;
-  font:700 27px/1 var(--cond);box-shadow:0 0 0 1px #ffd77a inset,0 6px 18px rgba(255,180,0,.25)}
+.brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex:none;padding:0;border-radius:12px}
+.logo{width:40px;height:40px;display:block;flex:none;border-radius:50%;box-shadow:0 4px 14px var(--shadow)}
 .brand-name{font:700 25px/1 var(--cond);letter-spacing:.14em;text-transform:uppercase}
 .search{flex:1;max-width:640px;margin:0 auto;position:relative;display:flex;align-items:center;gap:10px;
   height:46px;padding:0 14px;border-radius:23px;background:var(--panel2);border:1px solid var(--edge2);transition:border-color .15s,background .15s}
@@ -285,6 +284,22 @@ body.compact .gtab{font-size:14px;padding:6px 9px 5px}
 .meter i{display:block;height:100%;background:var(--amber)}
 .about{font-size:12.5px;color:var(--dim);line-height:1.5;margin-top:14px}
 
+/* ---- À propos ---------------------------------------------------------------------------- */
+.about-top{display:flex;align-items:center;gap:18px;padding:6px 0 18px}
+.about-top img{width:84px;height:84px;border-radius:50%;box-shadow:0 8px 24px var(--shadow)}
+.about-name{font:700 44px/1 var(--cond);letter-spacing:.06em;text-transform:uppercase}
+.about-ver{margin-top:6px;font:600 15px var(--sans);color:var(--mut)}
+.about-rows{display:grid;grid-template-columns:auto 1fr;gap:14px 22px;align-items:center;padding:18px 0;border-top:1px solid var(--edge);border-bottom:1px solid var(--edge)}
+.about-rows dt{font:700 12px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+.about-rows dd{margin:0;font:600 22px/1.1 var(--cond);letter-spacing:.02em}
+.about-rows .plate{display:inline-flex;padding:12px 18px;border-radius:12px;background:#fff;border:1px solid var(--edge2)}
+.about-rows .plate img{height:30px;width:auto;display:block}
+/* Lignes en construction (colonne Trafic) */
+.tb.future .lb{opacity:.45;filter:saturate(.6)}
+.tb.future::after{content:"";position:absolute;inset:1px;border-radius:12px;border:1px dashed var(--edge2);pointer-events:none}
+.stops-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.stops-list span{font:600 15px var(--cond);letter-spacing:.02em;padding:4px 9px;border-radius:999px;background:var(--panel3);border:1px solid var(--edge)}
+
 /* ---- Mode compact (petite fenêtre, une carte) ---------------------------------------------- */
 /* Plein écran : curseur masqué après quelques secondes sans bouger la souris */
 body.fs.idle,body.fs.idle *{cursor:none!important}
@@ -292,7 +307,7 @@ body.compact{--r:0px}
 body.compact .top{padding:8px 12px;gap:10px}
 body.compact .brand-name,body.compact .search,body.compact .traffic,body.compact .ticker,body.compact .banner{display:none}
 body.compact .brand{flex:1}
-body.compact .logo{width:30px;height:30px;font-size:21px;border-radius:9px}
+body.compact .logo{width:30px;height:30px}
 body.compact .clock{font-size:30px;min-width:0}
 body.compact .tool{width:34px;height:34px}
 body.compact .layout{grid-template-columns:1fr}

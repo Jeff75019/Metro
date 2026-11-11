@@ -1,6 +1,9 @@
-/* Métro — tableau de bord des prochains passages en Île-de-France
+/* KeoLive — tableau de bord des prochains passages en Île-de-France
    Données : PRIM (Île-de-France Mobilités), open data IDFM et SNCF, Train Nomade. */
 'use strict';
+
+// L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
+const APP = { name: 'KeoLive', version: '1.3.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -292,6 +295,11 @@ async function loadTraffic(force) {
   cards.forEach(c => c.render());
 }
 // Alerte sur une carte : perturbation de la ligne entière, ou de cette station
+// Ligne pas encore ouverte (Grand Paris Express) : année d'ouverture prévue, sinon 0
+function futureYear(id) {
+  const l = NETWORK.find(x => x.id === id);
+  return l && l.year > parisParts(now()).y ? l.year : 0;
+}
 const lineAlert = (id, stopName) => traffic.items.find(it => it.active && it.line === id && it.level >= 2 &&
   (!it.stops.length || !stopName || it.stops.includes(norm(stopName))));
 
@@ -683,7 +691,7 @@ function setKey(k) {
 const STATIONS = (() => {
   const map = new Map();
   for (const l of NETWORK) {
-    if (l.year || !LINES[l.id]) continue;
+    if (!LINES[l.id]) continue;   // les stations sans zone d'arrêt (pas encore ouvertes) sont écartées ci-dessous
     for (const [zda, name, , year] of l.stops) {
       if (!zda || year) continue;
       const k = norm(name);
@@ -839,6 +847,15 @@ function openPreview(model) {
 
 function openLine(id) {
   const li = lineInfo(id) || { n: '?', m: 'bus' };
+  const year = futureYear(id);
+  if (year) {   // ligne en construction : pas encore de trafic
+    const stops = (NETWORK.find(x => x.id === id) || { stops: [] }).stops;
+    return openDialog(`${MODE_LABEL[li.m] || ''} ${li.n}`, badge(id, 'lg'), el('div', { class: 'msg l1' },
+      el('h4', {}, 'Ligne en construction'),
+      el('div', { class: 'when' }, `Ouverture prévue en ${year} · Grand Paris Express`),
+      el('p', {}, 'Les prochains passages et l’info trafic apparaîtront ici dès sa mise en service.'),
+      el('div', { class: 'stops-list' }, stops.map(st => el('span', {}, st[1])))));
+  }
   const items = traffic.items.filter(it => it.line === id);
   const body = items.length ? items.map(it => el('div', { class: 'msg l' + it.level + (it.works ? ' w' : '') },
     el('h4', {}, it.title || it.short),
@@ -847,6 +864,22 @@ function openLine(id) {
     el('p', {}, it.msg || it.short)))
     : el('div', { class: 'state' }, icon('i-check'), el('b', {}, 'Trafic normal'), 'Aucune perturbation annoncée sur cette ligne.');
   openDialog(`${MODE_LABEL[li.m] || ''} ${li.n}`, badge(id, 'lg'), body);
+}
+
+function openAbout() {
+  const keolis = $('#imgKeolis').cloneNode();
+  keolis.hidden = false;
+  keolis.removeAttribute('id');
+  openDialog('À propos', icon('i-info'), [
+    el('div', { class: 'about-top' }, el('img', { src: $('.logo').src, alt: '' }),
+      el('div', {}, el('div', { class: 'about-name' }, APP.name), el('div', { class: 'about-ver' }, 'Version ' + APP.version))),
+    el('dl', { class: 'about-rows' },
+      el('dt', {}, 'Propriétaire'), el('dd', {}, APP.owner),
+      el('dt', {}, 'Mise en place pour'), el('dd', {}, el('span', { class: 'plate', title: APP.company }, keolis))),
+    el('div', { class: 'about' }, 'Prochains passages et état du trafic en Île-de-France, départs et arrivées des trains. ',
+      'Données : PRIM et open data Île-de-France Mobilités, SNCF (ODbL), Train Nomade. Polices Barlow (licence OFL). ',
+      'Affichage : Microsoft Edge WebView2.'),
+  ], el('button', { class: 'btn pri', onclick: () => dlg.close() }, 'Fermer'));
 }
 
 function openSettings() {
@@ -887,7 +920,7 @@ function openSettings() {
       el('span', {}, 'Masquer RER, Transilien et navettes dans les tableaux SNCF.'), sw('mainlineOnly')),
     NATIVE ? el('div', { class: 'set' }, el('b', {}, 'Toujours au premier plan'),
       el('span', {}, 'La fenêtre reste visible au-dessus des autres (touche T).'), sw('onTop')) : null,
-    el('div', { class: 'about' }, 'Métro pour Windows · données PRIM et open data Île-de-France Mobilités, SNCF (ODbL), Train Nomade. ',
+    el('div', { class: 'about' }, `${APP.name} ${APP.version} · données PRIM et open data Île-de-France Mobilités, SNCF (ODbL), Train Nomade. `,
       'Raccourcis : Ctrl K recherche · F11 plein écran · M mode compact · T premier plan · L thème clair ou sombre · F5 actualiser · Échap fermer.'),
   ];
   openDialog('Réglages', icon('i-gear'), body, [
@@ -925,11 +958,13 @@ function renderTraffic() {
   else kids.push(el('div', { class: 'tr-sum bad' }, icon('i-warn'), `${bad.length} ligne${bad.length > 1 ? 's' : ''} perturbée${bad.length > 1 ? 's' : ''}`));
 
   for (const [mode, label] of [['metro', 'Métro'], ['rer', 'RER'], ['train', 'Transilien'], ['tram', 'Tramway']]) {
-    const ids = LINE_ORDER.filter(id => LINES[id].m === mode && /^C\d{5}$/.test(id));
+    const ids = LINE_ORDER.filter(id => LINES[id].m === mode);
     kids.push(el('div', { class: 'tr-group' }, el('div', { class: 'tr-label' }, label),
       el('div', { class: 'tr-badges' }, ids.map(id => {
         const s = traffic.status[id] || { level: 0 };
-        return el('button', { class: `tb s${s.level}${s.works && s.level < 2 ? ' w' : ''}`, title: `${label} ${LINES[id].n}`,
+        const year = futureYear(id);
+        return el('button', { class: year ? 'tb s0 future' : `tb s${s.level}${s.works && s.level < 2 ? ' w' : ''}`,
+          title: `${label} ${LINES[id].n}` + (year ? ` · ouverture prévue en ${year}` : ''),
           onclick: () => openLine(id) }, badge(id), el('span', { class: 'dot' }));
       }))));
   }
@@ -1064,6 +1099,8 @@ function setupUi() {
     else if (e.key === 'Escape') { q.value = ''; searchUi.q = ''; renderResults(); q.blur(); }
   });
   $('#bSettings').addEventListener('click', openSettings);
+  $('#bAbout').addEventListener('click', openAbout);
+  $('#bBrand').addEventListener('click', openAbout);
   $('#pPrev').addEventListener('click', () => pageCard(-1));
   $('#pNext').addEventListener('click', () => pageCard(1));
   $('#bCompact').addEventListener('click', toggleCompact);

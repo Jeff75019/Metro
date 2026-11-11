@@ -1,7 +1,7 @@
-// Métro pour Windows — fenêtre native qui affiche l'application (dossier app/),
+// KeoLive pour Windows — fenêtre native qui affiche l'application (dossier app/),
 // avec WebView2, le moteur d'Edge présent dans Windows 10/11.
 //
-//   - la page (Metro.html, un seul fichier) est embarquée dans l'exécutable et
+//   - la page (KeoLive.html, un seul fichier) est embarquée dans l'exécutable et
 //     servie depuis https://app.metro.example/ (origine fixe : les réglages,
 //     gardés par la page, sont conservés d'une fois sur l'autre) ;
 //   - barre de titre sombre, icône, position et taille de la fenêtre mémorisées ;
@@ -59,7 +59,7 @@ static bool writeIfChanged(const std::wstring& path, const void* data, DWORD siz
   return ok && w == size;
 }
 
-// La page embarquée est recopiée dans %LOCALAPPDATA%\Metro\app\index.html
+// La page embarquée est recopiée dans %LOCALAPPDATA%\KeoLive\app\index.html
 static bool extractPage(const std::wstring& dir) {
   HRSRC r = FindResourceW(nullptr, MAKEINTRESOURCEW(ID_PAGE), MAKEINTRESOURCEW(10 /* RT_RCDATA */));
   if (!r) return false;
@@ -254,9 +254,9 @@ static std::string nativeCall(const std::string& req) {
 // ---- Démarrage -----------------------------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
   // Une seule fenêtre : un second lancement ramène la première au premier plan
-  HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\MetroPourWindows");
+  HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\KeoLivePourWindows");
   if (single && GetLastError() == ERROR_ALREADY_EXISTS) {
-    HWND other = FindWindowW(L"webview", L"Métro");
+    HWND other = FindWindowW(L"webview", L"KeoLive");
     if (other) {
       ShowWindow(other, SW_RESTORE);
       SetForegroundWindow(other);
@@ -264,11 +264,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     return 0;
   }
 
-  dataDir = localAppData() + L"\\Metro";
+  dataDir = localAppData() + L"\\KeoLive";
+  // Réglages de l'ancienne version (dossier « Metro ») : repris tels quels
+  const std::wstring oldDir = localAppData() + L"\\Metro";
+  if (GetFileAttributesW(dataDir.c_str()) == INVALID_FILE_ATTRIBUTES &&
+      GetFileAttributesW(oldDir.c_str()) != INVALID_FILE_ATTRIBUTES && !MoveFileW(oldDir.c_str(), dataDir.c_str()))
+    dataDir = oldDir;  // déplacement impossible : on continue dans l'ancien dossier
   CreateDirectoryW(dataDir.c_str(), nullptr);
   const std::wstring pageDir = dataDir + L"\\app";
   if (!extractPage(pageDir)) {
-    MessageBoxW(nullptr, L"Impossible de préparer l'application (dossier %LOCALAPPDATA%\\Metro).", L"Métro", MB_ICONERROR);
+    MessageBoxW(nullptr, L"Impossible de préparer l'application (dossier %LOCALAPPDATA%\\KeoLive).", L"KeoLive", MB_ICONERROR);
     return 1;
   }
   // Données de WebView2 (réglages de la page, cache) : à côté, plutôt qu'à côté de l'exécutable
@@ -278,7 +283,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
   try {
     webview::webview w(false, nullptr);
     win = (HWND)w.window().value();
-    SetWindowTextW(win, L"Métro");
+    SetWindowTextW(win, L"KeoLive");
     HICON big = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0);
     HICON small = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
     if (big) SendMessageW(win, WM_SETICON, ICON_BIG, (LPARAM)big);
@@ -334,7 +339,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
                     L"Le moteur WebView2 de Microsoft est introuvable sur cet ordinateur.\n\n"
                     L"Il est inclus dans Windows 11 ; sinon, installez « Microsoft Edge WebView2 Runtime » "
                     L"(gratuit). Ouvrir la page de téléchargement ?",
-                    L"Métro", MB_ICONWARNING | MB_YESNO) == IDYES)
+                    L"KeoLive", MB_ICONWARNING | MB_YESNO) == IDYES)
       ShellExecuteW(nullptr, L"open", L"https://developer.microsoft.com/microsoft-edge/webview2/", nullptr, nullptr,
                     SW_SHOWNORMAL);
     return 1;

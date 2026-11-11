@@ -196,11 +196,11 @@ Au réveil, l'afficheur reprend l'écran laissé (la station ou la gare choisie,
 
 Journal de fonctionnement : moniteur série à 115200 bauds.
 
-## Application Windows
+## Application Windows : KeoLive
 
-**Métro pour Windows** est un tableau de bord pour l'écran de l'ordinateur, conçu à part, avec une interface neuve inspirée des écrans de quai. On y épingle des arrêts trouvés par la recherche libre (métro, RER, tram, bus, gares SNCF), avec l'état du trafic de toutes les lignes, et un mode compact toujours au premier plan. C'est un seul fichier `Metro.exe` de moins de 1 Mo, sans installation : voir [`windows/`](windows/).
+**KeoLive** est un tableau de bord pour l'écran de l'ordinateur, conçu à part, avec une interface neuve inspirée des écrans de quai. On y épingle des arrêts trouvés par la recherche libre (métro, RER, tram, bus, gares SNCF), avec les grandes gares de Paris, l'état du trafic de toutes les lignes, un plein écran et un mode compact toujours au premier plan. C'est un seul fichier `KeoLive.exe` d'environ 1 Mo, sans installation : voir [`windows/`](windows/).
 
-![Métro pour Windows](windows/apercus/tableau.png)
+![KeoLive](windows/apercus/tableau.png)
 
 ## Boîtier imprimable en 3D
 
