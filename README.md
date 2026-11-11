@@ -198,7 +198,7 @@ Journal de fonctionnement : moniteur série à 115200 bauds.
 
 ## Application Windows : KeoLive
 
-**KeoLive** est un tableau de bord pour l'écran de l'ordinateur, conçu à part, avec une interface neuve inspirée des écrans de quai. On y épingle des arrêts trouvés par la recherche libre (métro, RER, tram, bus, gares SNCF), avec les grandes gares de Paris, l'état du trafic de toutes les lignes, des alertes dès qu'un incident touche une ligne, un plein écran et un mode compact toujours au premier plan. Elle tient dans `KeoLive.zip` (environ 550 Ko, sans installation) : un lanceur `KeoLive.exe` qui ne change plus d'une version à l'autre, et l'application `KeoLive.html` à côté. Voir [`windows/`](windows/).
+**KeoLive** est un tableau de bord pour l'écran de l'ordinateur, conçu à part, avec une interface neuve inspirée des écrans de quai. On y épingle des arrêts trouvés par la recherche libre (métro, RER, tram, bus, gares SNCF), avec les grandes gares de Paris, l'état du trafic de toutes les lignes, des alertes dès qu'un incident touche une ligne, un plein écran et un mode compact toujours au premier plan. C'est un seul fichier `KeoLive.exe` d'environ 750 Ko, sans installation : voir [`windows/`](windows/).
 
 ![KeoLive](windows/apercus/tableau.png)
 

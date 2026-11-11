@@ -19,7 +19,7 @@ def inline_script(name):
     return f'<script>\n{js}\n</script>'
 
 html = html.replace('<link rel="stylesheet" href="style.css">', f'<style>\n{css}\n</style>')
-html = html.replace('<link rel="icon" href="icon.png">', f'<link rel="icon" href="data:image/png;base64,{b64("icon.png")}">')
+html = html.replace('<link rel="icon" href="favicon.png">', f'<link rel="icon" href="data:image/png;base64,{b64("favicon.png")}">')
 html = re.sub(r'src="([\w.-]+\.png)"', lambda m: f'src="data:image/png;base64,{b64(m.group(1))}"', html)  # images
 html = html.replace('<script src="data.js"></script>', inline_script('data.js'))
 html = html.replace('<script src="app.js"></script>', inline_script('app.js'))

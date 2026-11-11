@@ -26,31 +26,35 @@
 
 ## Installation
 
-1. Téléchargez [`KeoLive.zip`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.zip) (environ 550 Ko, sans installation ni droits d'administrateur).
-2. Clic droit sur le fichier → **Extraire tout**, dans un dossier à vous (par exemple `Documents\KeoLive`). Il contient deux fichiers qui doivent rester **côte à côte** :
-   - `KeoLive.exe`, le **lanceur** : la fenêtre Windows ;
-   - `KeoLive.html`, l'**application** elle-même, que le lanceur affiche.
-3. Double-cliquez sur `KeoLive.exe`, puis collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous) et cherchez une station.
+1. Téléchargez [`KeoLive.exe`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.exe) : environ 750 Ko, **un seul fichier**, sans installation ni droits d'administrateur.
+2. Double-cliquez dessus, puis collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous) et cherchez une station.
 
-**Mettre à jour l'application :** remplacez seulement `KeoLive.html` par la nouvelle version ([lien direct](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.html), clic droit → « Enregistrer le lien sous »), puis appuyez sur `F5` dans KeoLive. Le lanceur ne change pas : Windows et l'antivirus le connaissent déjà (voir plus bas). La notice signale les rares fois où le lanceur lui-même change.
+L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive` : remplacer l'exécutable par une nouvelle version ne les efface pas. Les anciennes versions y recopiaient la page, dans un sous-dossier `app` que vous pouvez supprimer. Un fichier `KeoLive.html` laissé à côté de l'exécutable par la version 2.0.0 ne sert plus.
 
-L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive` : remplacer les fichiers ne les efface pas. Les anciennes versions y recopiaient la page, dans un sous-dossier `app` que vous pouvez supprimer.
-
-**Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez `KeoLive.html` dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan » ni les notifications de Windows.
+**Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez [`KeoLive.html`](dist/KeoLive.html) dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan » ni les notifications de Windows.
 
 ## Si Windows se méfie ou annonce un virus
 
-**Pourquoi.** Windows juge un programme d'abord sur sa **réputation** : un fichier `.exe` jamais vu, téléchargé et **non signé** par un éditeur connu est traité comme suspect. Les détections de Microsoft Defender dont le nom finit par `!ml` (par exemple `Trojan:Win32/Wacatac.H!ml`) sont des suppositions d'un modèle automatique sur ce genre de fichier, pas la reconnaissance d'un virus connu. Exemple : les versions 1.5.4 et 1.5.5 avaient exactement le même code ; seule la page embarquée changeait, et l'une est passée, l'autre a été détectée.
+**Pourquoi.** Windows juge un programme d'abord sur sa **réputation** : un `.exe` jamais vu, téléchargé et **non signé** par un éditeur connu est traité comme suspect. Les détections de Microsoft Defender dont le nom finit par `!ml` (par exemple `Trojan:Win32/Wacatac.H!ml`) sont des suppositions d'un modèle automatique sur ce genre de fichier, pas la reconnaissance d'un virus connu. Exemple : les versions 1.5.4 et 1.5.5 avaient exactement le même code ; seule la page incluse changeait, et l'une est passée, l'autre a été détectée.
 
-**Ce qui a changé avec le lanceur (2.0.0).** Jusqu'à la 1.5.5, chaque retouche de l'interface produisait un nouvel `.exe`, donc un nouveau fichier inconnu de Windows. Désormais, l'exécutable ne contient plus la page et **ne change plus** quand l'interface évolue ; sa compilation est reproductible (les mêmes sources redonnent exactement le même fichier). Il suffit donc de le faire reconnaître **une seule fois** :
+**Ce qui a été fait (version 2.1.0)** pour que l'exécutable ait la forme d'un programme Windows ordinaire :
+
+- **édition des liens par lld**, l'éditeur de liens de LLVM (celui de Chrome, Firefox ou Rust) : en-tête et sections comme les programmes Windows courants, au lieu de la disposition propre à l'outil GNU, fréquente chez les logiciels malveillants compilés sous Linux ;
+- **la page incluse comme une simple donnée**, et non plus comme une ressource opaque de 530 Ko (la forme habituelle des programmes qui en déposent un autre) ; elle est aussi **allégée** : 340 Ko, polices limitées à l'alphabet latin, images à la taille où elles s'affichent ;
+- **aucune fonction sensible** : pas de bibliothèque qui suspend des processus ou modifie leur exécution, aucune écriture de fichier en dehors de la position de la fenêtre ;
+- **compilation reproductible** : les mêmes sources redonnent exactement le même fichier.
+
+Cela réduit nettement le risque sans pouvoir l'annuler : sans signature, chaque nouvelle version reste un fichier que Windows n'a jamais vu.
+
+**Si Defender le signale quand même :**
 
 1. **Vérifiez que c'est bien le fichier publié :** dans PowerShell, `Get-FileHash .\KeoLive.exe` doit donner l'empreinte écrite dans [`dist/KeoLive.exe.sha256`](dist/KeoLive.exe.sha256).
-2. **Signalez le faux positif à Microsoft :** sur [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission), envoyez `KeoLive.exe` (« Incorrectly detected as malware ») en indiquant le nom de la détection : Sécurité Windows → Protection contre les virus et menaces → **Historique de protection**. Microsoft répond en général en quelques jours et retire la détection pour tout le monde. Comme le lanceur ne change plus, la démarche n'est pas à refaire à chaque mise à jour de l'interface.
-3. **Sur un poste Keolis,** l'antivirus est géré par le service informatique : il peut autoriser `KeoLive.exe` par son empreinte, ou le signer avec le certificat de code de l'entreprise, ce qui règle aussi l'avertissement SmartScreen. Ne désactivez pas l'antivirus.
+2. **Signalez le faux positif à Microsoft :** sur [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission), envoyez `KeoLive.exe` (« Incorrectly detected as malware ») avec le nom de la détection (Sécurité Windows → Protection contre les virus et menaces → **Historique de protection**). Microsoft répond en général en quelques jours et retire la détection pour ce fichier, pour tout le monde.
+3. **Sur un poste Keolis,** l'antivirus est géré par le service informatique : il peut autoriser `KeoLive.exe`, ou le signer avec le certificat de code de l'entreprise, ce qui règle durablement la détection et l'avertissement SmartScreen. Ne désactivez pas l'antivirus.
 
-**L'avertissement SmartScreen** (« Windows a protégé votre ordinateur ») n'est pas une détection de virus : Windows ne connaît pas encore le programme. **Informations complémentaires → Exécuter quand même**, ou, avant le premier lancement, clic droit sur `KeoLive.exe` → Propriétés → cocher **Débloquer**. Il ne disparaît pour tout le monde qu'avec une signature de code (certificat payant, délivré après vérification d'identité) ou une publication dans le Microsoft Store.
+**L'avertissement SmartScreen** (« Windows a protégé votre ordinateur ») n'est pas une détection de virus : Windows ne connaît pas encore le programme. **Informations complémentaires → Exécuter quand même**, ou, avant le premier lancement, clic droit sur `KeoLive.exe` → Propriétés → cocher **Débloquer**.
 
-**Ce que fait le lanceur :** il ouvre une fenêtre, y affiche `KeoLive.html` avec WebView2 et enregistre la position de la fenêtre. Il ne modifie ni le registre ni les autres programmes, n'écrit aucun autre fichier et ne se lance pas au démarrage de Windows. Il n'embarque pas de bibliothèque capable de suspendre un processus ou de modifier son exécution. Les seules adresses contactées sont celles de la section « Au travail : réseau et pare-feu », plus bas. Le code source complet est dans ce dossier (`native/main.cpp` et `app/`).
+**Ce que fait l'exécutable :** il ouvre une fenêtre, y affiche la page de l'application avec WebView2 et enregistre la position de la fenêtre. Il ne modifie ni le registre ni les autres programmes, n'écrit aucun autre fichier et ne se lance pas au démarrage de Windows. Les seules adresses contactées sont celles de la section « Au travail : réseau et pare-feu », plus bas. Le code source complet est dans ce dossier (`native/` et `app/`).
 
 ## Clé PRIM (gratuite)
 
@@ -113,17 +117,18 @@ Si une carte affiche « PRIM injoignable (réseau ou pare-feu) », c'est que le 
 ```
 app/            l'application (HTML, CSS, JavaScript, polices Barlow sous licence OFL)
   data.js       lignes, stations et gares, générées depuis le projet (tools/)
-native/         le lanceur Windows (C++, WebView2) : fenêtre, icône, premier plan, mode compact
-tools/          bundle.py (application en un seul fichier), make_zip.py, make_data.py, dump_reseau.cpp
-dist/           KeoLive.zip (à distribuer) : KeoLive.exe, le lanceur, et KeoLive.html, l'application
+native/         la fenêtre Windows (C++, WebView2) : icône, premier plan, mode compact ; page.S inclut la page
+tools/          bundle.py (application en un seul fichier), make_data.py, dump_reseau.cpp
+sources/        icône et logo Keolis en grand format (l'application en utilise des versions réduites)
+dist/           KeoLive.exe (l'application complète) et KeoLive.html (la même, pour un navigateur)
 ```
 
-- **Compiler sous Linux :** `make`. Il faut MinGW-w64 en version « win32 » (`g++-mingw-w64-x86-64-win32`, et non « posix », dont la bibliothèque de threads ressemble pour les antivirus à un programme qui s'injecte dans d'autres), la bibliothèque [webview](https://github.com/webview/webview) 0.12 et le SDK WebView2 (paquet NuGet `Microsoft.Web.WebView2`). Les chemins sont en tête du `Makefile`. Une modification de `app/` ne reconstruit que `KeoLive.html` et le zip ; `KeoLive.exe` n'est recompilé que si `native/` change, et toujours à l'identique (date fixée par `SOURCE_DATE_EPOCH`, sans horodatage).
+- **Compiler sous Linux :** `make`. Il faut MinGW-w64 en version « win32 » (`g++-mingw-w64-x86-64-win32`, et non « posix », dont la bibliothèque de threads ressemble pour les antivirus à un programme qui s'injecte dans d'autres), lld, l'éditeur de liens de LLVM (paquet `lld`), la bibliothèque [webview](https://github.com/webview/webview) 0.12 et le SDK WebView2 (paquet NuGet `Microsoft.Web.WebView2`). Les chemins et les choix de fabrication sont expliqués en tête du `Makefile`. La compilation est reproductible (date fixée par `SOURCE_DATE_EPOCH`, à avancer à chaque version).
 - **Essayer l'interface dans un navigateur :** servez la racine du dépôt (`python3 -m http.server`) et ouvrez `windows/app/index.html`. Avec `?demo`, les réponses PRIM sont remplacées par des réponses réelles enregistrées (`test/data/`) et remises à l'heure.
 - **Mettre à jour les stations :** `g++ -I../Metro -I<ArduinoJson>/src tools/dump_reseau.cpp ../Metro/reseau.cpp ../Metro/lines.cpp ../Metro/siri.cpp -o dump`, puis `./dump | python3 tools/make_data.py ../Metro/lines.cpp > app/data.js`.
 
 ## Limites
 
-- **Essais :** l'interface a été essayée dans Chromium, le moteur de WebView2, de 360 à 1920 pixels de large, avec des réponses PRIM réelles enregistrées et les données SNCF en direct. L'exécutable tourne sur Windows 11 (version 1.5.4 : la page servie depuis la mémoire s'affiche). Les notifications de Windows et le son n'ont pas encore été vérifiés sur un vrai poste.
+- **Essais :** l'interface a été essayée dans Chromium, le moteur de WebView2, de 360 à 1920 pixels de large, avec des réponses PRIM réelles enregistrées et les données SNCF en direct. L'exécutable tourne sur Windows 11 (version 1.5.4 : la page servie depuis la mémoire s'affiche). La version 2.1.0, fabriquée avec lld, a été lancée sous Wine (démarrage, page incluse vérifiée octet par octet, message prévu quand WebView2 manque), pas encore sur un vrai Windows. Les notifications de Windows et le son n'ont pas encore été vérifiés sur un vrai poste.
 - PRIM est protégé par un filtre anti-robots (Cloudflare). Depuis un poste normal, il laisse passer l'application comme le navigateur ; s'il bloquait un réseau d'entreprise, les cartes afficheraient « PRIM injoignable ».
 - Données : Île-de-France Mobilités (PRIM, open data), SNCF (ODbL), Train Nomade.

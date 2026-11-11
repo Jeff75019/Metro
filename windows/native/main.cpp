@@ -1,12 +1,9 @@
-// KeoLive pour Windows — le lanceur : une fenêtre native qui affiche l'application avec
-// WebView2, le moteur d'Edge présent dans Windows 10/11.
+// KeoLive pour Windows — fenêtre native qui affiche l'application avec WebView2, le moteur
+// d'Edge présent dans Windows 10/11. Un seul fichier, KeoLive.exe :
 //
-//   - la page (KeoLive.html, un seul fichier) est posée à côté de KeoLive.exe. Le lanceur
-//     la lit et la sert depuis la mémoire, sous https://app.metro.example/ (origine fixe :
-//     les réglages, gardés par la page, sont conservés d'une fois sur l'autre).
-//     Les nouvelles versions de l'interface ne changent que KeoLive.html : l'exécutable,
-//     lui, reste le même fichier (même empreinte), ce qui évite qu'un antivirus le
-//     découvre comme un programme inconnu à chaque mise à jour.
+//   - la page (KeoLive.html, un seul fichier) est incluse dans l'exécutable comme une simple
+//     donnée (native/page.S), et servie depuis la mémoire sous https://app.metro.example/
+//     (origine fixe : les réglages, gardés par la page, sont conservés d'une fois sur l'autre).
 //     Rien n'est écrit sur le disque à part la position de la fenêtre ;
 //   - barre de titre sombre, icône, position et taille de la fenêtre mémorisées ;
 //   - fonctions appelées par la page : premier plan, mode compact, liens externes.
@@ -26,7 +23,9 @@
 #include "webview/webview.h"
 
 static const wchar_t* HOST = L"app.metro.example";
-static const char* LAUNCHER_VERSION = "2.0.0";  // version du lanceur (metro.rc), pas de l'interface
+
+// La page, incluse par native/page.S
+extern "C" const char keolive_page[], keolive_page_end[];
 
 static HWND win = nullptr;
 static ICoreWebView2Controller* controller = nullptr;
@@ -44,37 +43,9 @@ static std::wstring localAppData() {
   return L".";
 }
 
-// ---- La page : KeoLive.html, à côté de l'exécutable, servie depuis la mémoire -----------------------
-// WebView2 demande https://app.metro.example/index.html ; le lanceur lui répond avec le contenu de
-// KeoLive.html, relu à chaque chargement (F5 suffit après avoir remplacé le fichier).
-static std::wstring pagePath;
-static std::string page;  // dernier contenu lu
-
-static std::wstring exeDir() {
-  wchar_t p[MAX_PATH];
-  const DWORD n = GetModuleFileNameW(nullptr, p, MAX_PATH);
-  std::wstring s(p, n < MAX_PATH ? n : 0);
-  const size_t k = s.find_last_of(L"\\/");
-  return k == std::wstring::npos ? std::wstring(L".") : s.substr(0, k);
-}
-
-static bool readPage() {
-  HANDLE f = CreateFileW(pagePath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (f == INVALID_HANDLE_VALUE) return false;
-  LARGE_INTEGER size{};
-  bool ok = GetFileSizeEx(f, &size) && size.QuadPart > 0 && size.QuadPart < 64LL * 1024 * 1024;
-  std::string buf;
-  if (ok) {
-    buf.resize((size_t)size.QuadPart);
-    DWORD got = 0;
-    ok = ReadFile(f, &buf[0], (DWORD)buf.size(), &got, nullptr) && got == buf.size();
-  }
-  CloseHandle(f);
-  if (ok) page.swap(buf);
-  return ok;
-}
-
+// ---- La page : servie depuis la mémoire ---------------------------------------------------------------
+// WebView2 demande https://app.metro.example/index.html ; l'application lui répond avec la page
+// incluse dans l'exécutable, sans la recopier dans un fichier.
 class PageServer final : public ICoreWebView2WebResourceRequestedEventHandler {
  public:
   explicit PageServer(ICoreWebView2Environment* env) : env_(env) { env_->AddRef(); }
@@ -114,9 +85,7 @@ class PageServer final : public ICoreWebView2WebResourceRequestedEventHandler {
     path = h == std::wstring::npos ? std::wstring(L"?") : path.substr(h + wcslen(HOST));
     path = path.substr(0, path.find_first_of(L"?#"));
     const bool isPage = path.empty() || path == L"/" || path == L"/index.html";
-    if (isPage) readPage();  // fichier remplacé entre-temps : nouvelle version ; illisible : la précédente
-
-    IStream* body = isPage ? SHCreateMemStream((const BYTE*)page.data(), (UINT)page.size()) : nullptr;
+    IStream* body = isPage ? SHCreateMemStream((const BYTE*)keolive_page, (UINT)(keolive_page_end - keolive_page)) : nullptr;
     ICoreWebView2WebResourceResponse* resp = nullptr;
     if (SUCCEEDED(env_->CreateWebResourceResponse(body, isPage ? 200 : 404, isPage ? L"OK" : L"Not Found",
                                                   isPage ? L"Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store"
@@ -419,7 +388,6 @@ static std::string nativeCall(const std::string& req) {
     if (url.rfind("https://", 0) == 0 || url.rfind("http://", 0) == 0)
       ShellExecuteW(nullptr, L"open", widen(url).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
   }
-  else if (cmd == "version") return std::string("\"") + LAUNCHER_VERSION + "\"";
   return "true";
 }
 
@@ -436,14 +404,6 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     return 0;
   }
 
-  pagePath = exeDir() + L"\\KeoLive.html";
-  if (!readPage()) {
-    const std::wstring msg = L"Le fichier KeoLive.html est introuvable.\n\nIl doit se trouver dans le même dossier que "
-                             L"KeoLive.exe :\n" + exeDir() + L"\n\nTéléchargez KeoLive.zip et utilisez « Extraire tout » "
-                             L"avant de lancer KeoLive.exe.";
-    MessageBoxW(nullptr, msg.c_str(), L"KeoLive", MB_ICONERROR);
-    return 1;
-  }
   dataDir = localAppData() + L"\\KeoLive";
   CreateDirectoryW(dataDir.c_str(), nullptr);
   // Données de WebView2 (réglages de la page, cache) : à côté, plutôt qu'à côté de l'exécutable
