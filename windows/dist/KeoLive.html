@@ -65,15 +65,17 @@ svg{width:20px;height:20px;flex:none}
 ::-webkit-scrollbar-track{background:transparent}
 
 /* ---- En-tête ---------------------------------------------------------------- */
-.top{display:flex;align-items:center;gap:22px;padding:12px 22px;border-bottom:1px solid var(--edge);
+/* Trois colonnes : la recherche au centre de la fenêtre, KeoLive collé à sa gauche, horloge et boutons
+   à droite. Les deux côtés ont la même largeur (celle du groupe de droite) pour que le centre soit exact. */
+.top{display:grid;grid-template-columns:minmax(410px,1fr) minmax(0,640px) minmax(410px,1fr);align-items:center;column-gap:16px;
+  padding:12px 22px;border-bottom:1px solid var(--edge);
   background:linear-gradient(var(--top1),var(--top2));position:relative;z-index:20}
-.brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex:none;padding:0;border-radius:12px}
+.brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex:none;padding:0;border-radius:12px;justify-self:end}
 .brand-name{font:700 27px/1.1 var(--cond);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 /* Le « K » du nom reprend celui du logo Keolis (hauteur des capitales, posé sur la ligne de base) */
 .kmark{height:1.12em;width:1.413em;vertical-align:baseline;margin-right:.2em;color:#41a8be;overflow:visible}
 .ktext{font-size:.66em;font-weight:600;letter-spacing:.2em}   /* le reste du nom, plus petit, sur la même ligne de base */
-/* La recherche suit directement le nom KeoLive ; horloge et boutons restent calés à droite */
-.search{flex:1;max-width:640px;margin:0 0 0 -6px;position:relative;display:flex;align-items:center;gap:10px;
+.search{flex:1;min-width:0;position:relative;display:flex;align-items:center;gap:10px;
   height:46px;padding:0 14px;border-radius:23px;background:var(--panel2);border:1px solid var(--edge2);transition:border-color .15s,background .15s}
 .search:focus-within{border-color:var(--amber);background:var(--field-focus)}
 .search .ico{color:var(--mut)}
@@ -81,7 +83,10 @@ svg{width:20px;height:20px;flex:none}
 .search input::placeholder{color:var(--dim)}
 .search input::-webkit-search-cancel-button{display:none}
 kbd{font:600 11px var(--sans);color:var(--mut);border:1px solid var(--edge2);border-bottom-width:2px;border-radius:6px;padding:2px 6px;flex:none}
-.clock{font:600 40px/1 var(--cond);letter-spacing:.02em;font-variant-numeric:tabular-nums;flex:none;min-width:98px;text-align:right;margin-left:auto}
+.clock{font:600 40px/1 var(--cond);letter-spacing:.02em;font-variant-numeric:tabular-nums;flex:none;min-width:98px;text-align:right}
+.top-end{display:flex;align-items:center;gap:22px;justify-self:end}
+/* Fenêtre étroite : KeoLive à gauche, la recherche prend la place restante */
+@media (max-width:1340px){.top{grid-template-columns:auto minmax(0,1fr) auto}}
 .clock .sep{color:var(--time);animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:.25}}
 .tools{display:flex;gap:6px;flex:none}
@@ -342,7 +347,8 @@ body.compact .alert h4{font-size:22px}
 /* Plein écran : curseur masqué après quelques secondes sans bouger la souris */
 body.fs.idle,body.fs.idle *{cursor:none!important}
 body.compact{--r:0px}
-body.compact .top{padding:8px 12px;gap:10px}
+body.compact .top{display:flex;padding:8px 12px;gap:10px}
+body.compact .top-end{gap:10px}
 body.compact .ktext,body.compact .search,body.compact .traffic,body.compact .ticker,body.compact .banner{display:none}
 body.compact .brand{flex:1}
 body.compact .clock{font-size:30px;min-width:0}
@@ -405,6 +411,7 @@ body.compact .empty .big{font-size:30px}
     <kbd>Ctrl K</kbd>
     <div id="results" class="results" role="listbox" hidden></div>
   </div>
+  <div class="top-end">
   <div class="clock" id="clock" aria-label="Heure">--:--</div>
   <div class="pager" id="pager" hidden>
     <button class="ibtn" id="pPrev" title="Carte précédente (←)">‹</button><span id="pNum">1/1</span><button class="ibtn" id="pNext" title="Carte suivante (→)">›</button>
@@ -417,6 +424,7 @@ body.compact .empty .big{font-size:30px}
     <button class="tool" id="bSettings" title="Réglages"><svg><use href="#i-gear"/></svg></button>
     <button class="tool" id="bAbout" title="À propos"><svg><use href="#i-info"/></svg></button>
   </nav>
+  </div>
 </header>
 
 <div class="layout">
@@ -452,7 +460,7 @@ const SNCF_STATIONS = [["Gare de Lyon","87686006,87686030"],["Gare du Nord","872
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '1.5.2', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.5.3', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
