@@ -872,7 +872,8 @@ function openAbout() {
   keolis.removeAttribute('id');
   openDialog('À propos', icon('i-info'), [
     el('div', { class: 'about-top' }, el('img', { src: $('.logo').src, alt: '' }),
-      el('div', {}, el('div', { class: 'about-name' }, APP.name), el('div', { class: 'about-ver' }, 'Version ' + APP.version))),
+      el('div', {}, el('div', { class: 'about-name', 'aria-label': APP.name }, icon('k-keolis', 'kmark'), APP.name.slice(1)),
+        el('div', { class: 'about-ver' }, 'Version ' + APP.version))),
     el('dl', { class: 'about-rows' },
       el('dt', {}, 'Propriétaire'), el('dd', {}, APP.owner),
       el('dt', {}, 'Mise en place pour'), el('dd', {}, el('span', { class: 'plate', title: APP.company }, keolis))),

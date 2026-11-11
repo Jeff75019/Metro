@@ -59,7 +59,9 @@ svg{width:20px;height:20px;flex:none}
   background:linear-gradient(var(--top1),var(--top2));position:relative;z-index:20}
 .brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex:none;padding:0;border-radius:12px}
 .logo{width:40px;height:40px;display:block;flex:none;border-radius:50%;box-shadow:0 4px 14px var(--shadow)}
-.brand-name{font:700 25px/1 var(--cond);letter-spacing:.14em;text-transform:uppercase}
+.brand-name{font:700 25px/1 var(--cond);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+/* Le « K » du nom reprend celui du logo Keolis (hauteur des capitales, posé sur la ligne de base) */
+.kmark{height:.7em;width:.883em;vertical-align:baseline;margin-right:.15em;color:#41a8be;overflow:visible}
 .search{flex:1;max-width:640px;margin:0 auto;position:relative;display:flex;align-items:center;gap:10px;
   height:46px;padding:0 14px;border-radius:23px;background:var(--panel2);border:1px solid var(--edge2);transition:border-color .15s,background .15s}
 .search:focus-within{border-color:var(--amber);background:var(--field-focus)}
