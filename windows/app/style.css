@@ -62,7 +62,8 @@ svg{width:20px;height:20px;flex:none}
 /* Le « K » du nom reprend celui du logo Keolis (hauteur des capitales, posé sur la ligne de base) */
 .kmark{height:1.12em;width:1.413em;vertical-align:baseline;margin-right:.2em;color:#41a8be;overflow:visible}
 .ktext{font-size:.66em;font-weight:600;letter-spacing:.2em}   /* le reste du nom, plus petit, sur la même ligne de base */
-.search{flex:1;max-width:640px;margin:0 auto;position:relative;display:flex;align-items:center;gap:10px;
+/* La recherche suit directement le nom KeoLive ; horloge et boutons restent calés à droite */
+.search{flex:1;max-width:640px;margin:0 0 0 -6px;position:relative;display:flex;align-items:center;gap:10px;
   height:46px;padding:0 14px;border-radius:23px;background:var(--panel2);border:1px solid var(--edge2);transition:border-color .15s,background .15s}
 .search:focus-within{border-color:var(--amber);background:var(--field-focus)}
 .search .ico{color:var(--mut)}
@@ -70,7 +71,7 @@ svg{width:20px;height:20px;flex:none}
 .search input::placeholder{color:var(--dim)}
 .search input::-webkit-search-cancel-button{display:none}
 kbd{font:600 11px var(--sans);color:var(--mut);border:1px solid var(--edge2);border-bottom-width:2px;border-radius:6px;padding:2px 6px;flex:none}
-.clock{font:600 40px/1 var(--cond);letter-spacing:.02em;font-variant-numeric:tabular-nums;flex:none;min-width:98px;text-align:right}
+.clock{font:600 40px/1 var(--cond);letter-spacing:.02em;font-variant-numeric:tabular-nums;flex:none;min-width:98px;text-align:right;margin-left:auto}
 .clock .sep{color:var(--time);animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:.25}}
 .tools{display:flex;gap:6px;flex:none}

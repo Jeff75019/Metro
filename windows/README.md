@@ -29,7 +29,7 @@
 2. Avant le premier lancement, **débloquez le fichier** : clic droit sur `KeoLive.exe` → **Propriétés** → en bas de l'onglet Général, cochez **Débloquer** → **OK**. Windows ne l'affichera plus comme suspect (voir plus bas). Double-cliquez ensuite dessus.
 3. Collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous), puis cherchez une station.
 
-L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive`.
+L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive`. La page de l'application reste dans l'exécutable : rien d'autre n'est écrit sur le disque. Les versions précédentes y recopiaient la page, dans un sous-dossier `app` que vous pouvez supprimer.
 
 **Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez [`KeoLive.html`](dist/KeoLive.html) dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan ».
 
@@ -40,6 +40,16 @@ Windows (SmartScreen) avertit pour tout programme **téléchargé** qui n'est pa
 - **Débloquer le fichier** (pour vous, une fois pour toutes) : clic droit → Propriétés → cocher **Débloquer**. Ou, dans PowerShell, dans le dossier du fichier : `Unblock-File .\KeoLive.exe`. Windows retire alors la marque « téléchargé depuis Internet » de ce fichier. Sur un poste d'entreprise, ce réglage peut être interdit par le service informatique : il peut alors autoriser le programme, ou vous pouvez utiliser `KeoLive.html` dans Edge.
 - **Cliquer sur « Exécuter quand même »** dans l'avertissement (Informations complémentaires → Exécuter quand même) : Windows ne redemande pas pour ce fichier.
 - **Faire disparaître l'avertissement pour tout le monde** : signer l'exécutable avec un certificat de signature de code (payant, délivré après vérification d'identité, par exemple via le service de signature de Microsoft), ou publier l'application dans le Microsoft Store (compte développeur Microsoft). Même signé, un programme peu téléchargé peut encore être signalé quelque temps, le temps que sa réputation s'établisse.
+
+### Si Windows annonce un virus
+
+Un message **« Menace détectée »** de Sécurité Windows (Microsoft Defender) est différent de l'avertissement SmartScreen ci-dessus : le fichier est mis en quarantaine. Pour un programme récent, non signé et peu téléchargé comme KeoLive, il s'agit presque toujours d'un **faux positif**. Le nom de la menace se termine alors souvent par `!ml` (par exemple `Trojan:Win32/Wacatac.H!ml`) : c'est une supposition d'un modèle automatique, pas la reconnaissance d'un virus connu.
+
+- **Ce que fait l'exécutable :** il ouvre une fenêtre, y affiche la page de l'application avec WebView2 et enregistre la position de la fenêtre. Il ne modifie ni le registre ni les autres programmes, et ne se lance pas au démarrage de Windows. Les seules adresses contactées sont celles de la section « Au travail : réseau et pare-feu », plus bas. Le code source complet est dans ce dossier (`native/main.cpp` et `app/`).
+- **Depuis la version 1.5.2,** l'exécutable évite ce qui ressemble à un logiciel malveillant pour un antivirus : il n'écrit plus sa page sur le disque (elle est lue directement en mémoire) et n'embarque plus de bibliothèque qui suspend des processus ou modifie leur contexte d'exécution.
+- **Vérifier que c'est bien le fichier publié :** dans PowerShell, `Get-FileHash .\KeoLive.exe` doit donner l'empreinte écrite dans [`dist/KeoLive.exe.sha256`](dist/KeoLive.exe.sha256).
+- **Signaler le faux positif à Microsoft :** sur [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission), envoyez `KeoLive.exe` en indiquant le nom de la détection (Sécurité Windows → Protection contre les virus et menaces → Historique de protection). Microsoft répond en général en quelques jours et retire la détection pour tout le monde. Chaque nouvelle version est un nouveau fichier : la démarche est à refaire.
+- **Sur un poste Keolis :** l'antivirus est géré par le service informatique. Lui seul peut autoriser KeoLive (par son empreinte) ou le signer avec le certificat de l'entreprise, ce qui règle aussi l'avertissement SmartScreen. Ne désactivez pas l'antivirus. En attendant, `KeoLive.html` dans Edge fonctionne sans exécutable.
 
 ## Clé PRIM (gratuite)
 
@@ -61,7 +71,7 @@ La même clé peut servir à l'afficheur ESP32 : le quota du jour est alors part
 - **Ensuite :** une fenêtre par nouvel incident, puis « Aggravation » s'il passe de perturbé à interrompu, et « Trafic rétabli » à la fin. Une fenêtre se ferme seule au bout d'environ une minute (elle attend tant que la souris est dessus) ; « Voir la ligne » ouvre tous les messages de la ligne.
 - **Quelles lignes :** dans ⚙ Réglages, « Alertes d'incident » : **Toutes** (par défaut), **Mes lignes** ou **Aucune**. « Mes lignes » regroupe les lignes des arrêts épinglés et celles que vous suivez : ouvrez la fiche d'une ligne (clic sur sa pastille dans la colonne Trafic) et cliquez sur **Suivre cette ligne**.
 - **En arrière-plan :** fenêtre réduite ou cachée derrière d'autres, KeoLive continue de lire l'info trafic et prévient par une notification de Windows ; son bouton clignote dans la barre des tâches. Une icône KeoLive reste près de l'horloge : un clic dessus ramène la fenêtre.
-- **Essai :** `KeoLive.exe --essai-notification` affiche une notification d'essai pendant 8 secondes, sans ouvrir l'application. Si rien n'apparaît, les notifications sont coupées dans Windows (Paramètres → Système → Notifications, ou mode « Ne pas déranger »).
+- **Pas de notification de Windows ?** Elles sont sans doute coupées : Paramètres → Système → Notifications, ou mode « Ne pas déranger ».
 - **Délai :** l'info trafic est relue toutes les 2 minutes quand les alertes sont actives. Une alerte arrive donc au plus 2 minutes après la publication de l'incident par Île-de-France Mobilités.
 
 ## Quota et rafraîchissement
@@ -107,12 +117,12 @@ tools/          bundle.py (application en un seul fichier), make_data.py, dump_r
 dist/           KeoLive.exe et KeoLive.html, prêts à l'emploi
 ```
 
-- **Compiler sous Linux :** `make`. Il faut MinGW-w64 (`g++-mingw-w64-x86-64-posix`), la bibliothèque [webview](https://github.com/webview/webview) 0.12 et le SDK WebView2 (paquet NuGet `Microsoft.Web.WebView2`). Les chemins sont en tête du `Makefile`.
+- **Compiler sous Linux :** `make`. Il faut MinGW-w64 en version « win32 » (`g++-mingw-w64-x86-64-win32`, et non « posix », dont la bibliothèque de threads ressemble pour les antivirus à un programme qui s'injecte dans d'autres), la bibliothèque [webview](https://github.com/webview/webview) 0.12 et le SDK WebView2 (paquet NuGet `Microsoft.Web.WebView2`). Les chemins sont en tête du `Makefile`.
 - **Essayer l'interface dans un navigateur :** servez la racine du dépôt (`python3 -m http.server`) et ouvrez `windows/app/index.html`. Avec `?demo`, les réponses PRIM sont remplacées par des réponses réelles enregistrées (`test/data/`) et remises à l'heure.
 - **Mettre à jour les stations :** `g++ -I../Metro -I<ArduinoJson>/src tools/dump_reseau.cpp ../Metro/reseau.cpp ../Metro/lines.cpp ../Metro/siri.cpp -o dump`, puis `./dump | python3 tools/make_data.py ../Metro/lines.cpp > app/data.js`.
 
 ## Limites
 
-- **Pas encore lancée sur un vrai Windows.** L'interface a été essayée dans Chromium, le moteur de WebView2, avec des réponses PRIM réelles enregistrées et les données SNCF en direct. L'exécutable a été démarré sous Wine (sans WebView2) : il prépare la page et affiche correctement le message prévu quand le moteur manque. Le premier essai réel se fera sur votre PC.
+- **Pas encore lancée sur un vrai Windows.** L'interface a été essayée dans Chromium, le moteur de WebView2, avec des réponses PRIM réelles enregistrées et les données SNCF en direct. L'exécutable a été démarré sous Wine (sans WebView2) : il trouve la page embarquée et affiche correctement le message prévu quand le moteur manque. Le premier essai réel se fera sur votre PC. La version 1.5.2 sert la page depuis la mémoire, par la méthode décrite par Microsoft (« WebResourceRequested ») : si la fenêtre restait vide, dites-le-moi.
 - PRIM est protégé par un filtre anti-robots (Cloudflare). Depuis un poste normal, il laisse passer l'application comme le navigateur ; s'il bloquait un réseau d'entreprise, les cartes afficheraient « PRIM injoignable ».
 - Données : Île-de-France Mobilités (PRIM, open data), SNCF (ODbL), Train Nomade.

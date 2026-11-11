@@ -2,8 +2,9 @@
 // avec WebView2, le moteur d'Edge présent dans Windows 10/11.
 //
 //   - la page (KeoLive.html, un seul fichier) est embarquée dans l'exécutable et
-//     servie depuis https://app.metro.example/ (origine fixe : les réglages,
-//     gardés par la page, sont conservés d'une fois sur l'autre) ;
+//     servie directement depuis la mémoire, sous https://app.metro.example/ (origine
+//     fixe : les réglages, gardés par la page, sont conservés d'une fois sur l'autre).
+//     Rien n'est écrit sur le disque à part la position de la fenêtre ;
 //   - barre de titre sombre, icône, position et taille de la fenêtre mémorisées ;
 //   - fonctions appelées par la page : premier plan, mode compact, liens externes.
 #include <windows.h>
@@ -11,9 +12,11 @@
 #include <dwmapi.h>
 #include <shellapi.h>
 #include <shlobj.h>
+#include <shlwapi.h>
 
 #include <algorithm>
 #include <cstdio>
+#include <stdexcept>
 #include <string>
 
 #include "WebView2.h"
@@ -31,44 +34,105 @@ static RECT normalRect{}, compactRect{};
 static bool maximized = false;
 static std::wstring dataDir;
 
-// ---- Fichiers ---------------------------------------------------------------------------------
+// ---- Dossier des réglages ------------------------------------------------------------------------
 static std::wstring localAppData() {
   wchar_t p[MAX_PATH];
   if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, p))) return p;
   return L".";
 }
 
-static bool writeIfChanged(const std::wstring& path, const void* data, DWORD size) {
-  HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-  if (f != INVALID_HANDLE_VALUE) {
-    LARGE_INTEGER sz;
-    bool same = GetFileSizeEx(f, &sz) && sz.QuadPart == size;
-    if (same) {
-      std::string cur(size, '\0');
-      DWORD got = 0;
-      same = ReadFile(f, &cur[0], size, &got, nullptr) && got == size && memcmp(cur.data(), data, size) == 0;
-    }
-    CloseHandle(f);
-    if (same) return true;
-  }
-  f = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (f == INVALID_HANDLE_VALUE) return false;
-  DWORD w = 0;
-  BOOL ok = WriteFile(f, data, size, &w, nullptr);
-  CloseHandle(f);
-  return ok && w == size;
+// ---- La page : servie depuis la mémoire ---------------------------------------------------------------
+// WebView2 demande https://app.metro.example/index.html ; l'application lui répond avec la page
+// embarquée (ressource 100), sans la recopier dans un fichier.
+static const BYTE* pageData = nullptr;
+static DWORD pageSize = 0;
+
+static bool loadPage() {
+  HRSRC r = FindResourceW(nullptr, MAKEINTRESOURCEW(ID_PAGE), MAKEINTRESOURCEW(10 /* RT_RCDATA */));
+  HGLOBAL g = r ? LoadResource(nullptr, r) : nullptr;
+  pageData = g ? (const BYTE*)LockResource(g) : nullptr;
+  pageSize = r ? SizeofResource(nullptr, r) : 0;
+  return pageData && pageSize;
 }
 
-// La page embarquée est recopiée dans %LOCALAPPDATA%\KeoLive\app\index.html
-static bool extractPage(const std::wstring& dir) {
-  HRSRC r = FindResourceW(nullptr, MAKEINTRESOURCEW(ID_PAGE), MAKEINTRESOURCEW(10 /* RT_RCDATA */));
-  if (!r) return false;
-  HGLOBAL g = LoadResource(nullptr, r);
-  const void* data = g ? LockResource(g) : nullptr;
-  DWORD size = SizeofResource(nullptr, r);
-  if (!data || !size) return false;
-  CreateDirectoryW(dir.c_str(), nullptr);
-  return writeIfChanged(dir + L"\\index.html", data, size);
+class PageServer final : public ICoreWebView2WebResourceRequestedEventHandler {
+ public:
+  explicit PageServer(ICoreWebView2Environment* env) : env_(env) { env_->AddRef(); }
+
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** out) override {
+    if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ICoreWebView2WebResourceRequestedEventHandler)) {
+      *out = static_cast<ICoreWebView2WebResourceRequestedEventHandler*>(this);
+      AddRef();
+      return S_OK;
+    }
+    *out = nullptr;
+    return E_NOINTERFACE;
+  }
+  ULONG STDMETHODCALLTYPE AddRef() override { return (ULONG)InterlockedIncrement(&refs_); }
+  ULONG STDMETHODCALLTYPE Release() override {
+    const LONG n = InterlockedDecrement(&refs_);
+    if (n == 0) {
+      env_->Release();
+      delete this;
+    }
+    return (ULONG)n;
+  }
+
+  HRESULT STDMETHODCALLTYPE Invoke(ICoreWebView2*, ICoreWebView2WebResourceRequestedEventArgs* args) override {
+    std::wstring path;
+    ICoreWebView2WebResourceRequest* req = nullptr;
+    if (SUCCEEDED(args->get_Request(&req)) && req) {
+      LPWSTR uri = nullptr;
+      if (SUCCEEDED(req->get_Uri(&uri)) && uri) {
+        path = uri;
+        CoTaskMemFree(uri);
+      }
+      req->Release();
+    }
+    // « https://app.metro.example/index.html?… » -> « /index.html »
+    const size_t h = path.find(HOST);
+    path = h == std::wstring::npos ? std::wstring(L"?") : path.substr(h + wcslen(HOST));
+    path = path.substr(0, path.find_first_of(L"?#"));
+    const bool page = path.empty() || path == L"/" || path == L"/index.html";
+
+    IStream* body = page ? SHCreateMemStream(pageData, pageSize) : nullptr;
+    ICoreWebView2WebResourceResponse* resp = nullptr;
+    if (SUCCEEDED(env_->CreateWebResourceResponse(body, page ? 200 : 404, page ? L"OK" : L"Not Found",
+                                                  page ? L"Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store"
+                                                       : L"Content-Type: text/plain",
+                                                  &resp)) &&
+        resp) {
+      args->put_Response(resp);
+      resp->Release();
+    }
+    if (body) body->Release();
+    return S_OK;
+  }
+
+ private:
+  ICoreWebView2Environment* env_;
+  LONG refs_ = 1;
+};
+
+// Branche la page sur la vue ; faux si le moteur WebView2 est trop ancien
+static bool servePage(ICoreWebView2* core) {
+  bool ok = false;
+  ICoreWebView2_2* core2 = nullptr;
+  if (SUCCEEDED(core->QueryInterface(IID_ICoreWebView2_2, (void**)&core2)) && core2) {
+    ICoreWebView2Environment* env = nullptr;
+    if (SUCCEEDED(core2->get_Environment(&env)) && env) {
+      const std::wstring filter = std::wstring(L"https://") + HOST + L"/*";
+      if (SUCCEEDED(core->AddWebResourceRequestedFilter(filter.c_str(), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL))) {
+        PageServer* server = new PageServer(env);
+        EventRegistrationToken token{};
+        ok = SUCCEEDED(core->add_WebResourceRequested(server, &token));
+        server->Release();
+      }
+      env->Release();
+    }
+    core2->Release();
+  }
+  return ok;
 }
 
 // ---- Fenêtre : position, taille, mode compact ---------------------------------------------------------
@@ -337,37 +401,8 @@ static std::string nativeCall(const std::string& req) {
   return "true";
 }
 
-// « KeoLive.exe --essai-notification » : affiche une notification d'essai pendant 8 secondes,
-// sans ouvrir l'application (pour vérifier que Windows les laisse passer sur ce poste).
-static int testNotification(HINSTANCE inst) {
-  dataDir = localAppData() + L"\\KeoLive";
-  CreateDirectoryW(dataDir.c_str(), nullptr);
-  win = CreateWindowExW(0, L"STATIC", L"KeoLive", WS_OVERLAPPED, 0, 0, 0, 0, nullptr, nullptr, inst, nullptr);
-  HICON icon = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
-  const bool added = win && addTray(icon);
-  const bool shown = notify(L"Métro 1 : trafic interrompu", L"Essai de notification de KeoLive.");
-  if (FILE* f = _wfopen((dataDir + L"\\essai-notification.txt").c_str(), L"w")) {
-    fprintf(f, "icone=%d notification=%d\n", added ? 1 : 0, shown ? 1 : 0);
-    fclose(f);
-  }
-  const DWORD end = GetTickCount() + 8000;
-  MSG msg;
-  while (GetTickCount() < end) {
-    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-      TranslateMessage(&msg);
-      DispatchMessageW(&msg);
-    }
-    Sleep(30);
-  }
-  removeTray();
-  if (win) DestroyWindow(win);
-  return added && shown ? 0 : 1;
-}
-
 // ---- Démarrage -----------------------------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
-  if (wcsstr(GetCommandLineW(), L"--essai-notification")) return testNotification(inst);
-
   // Une seule fenêtre : un second lancement ramène la première au premier plan
   HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\KeoLivePourWindows");
   if (single && GetLastError() == ERROR_ALREADY_EXISTS) {
@@ -379,18 +414,12 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     return 0;
   }
 
-  dataDir = localAppData() + L"\\KeoLive";
-  // Réglages de l'ancienne version (dossier « Metro ») : repris tels quels
-  const std::wstring oldDir = localAppData() + L"\\Metro";
-  if (GetFileAttributesW(dataDir.c_str()) == INVALID_FILE_ATTRIBUTES &&
-      GetFileAttributesW(oldDir.c_str()) != INVALID_FILE_ATTRIBUTES && !MoveFileW(oldDir.c_str(), dataDir.c_str()))
-    dataDir = oldDir;  // déplacement impossible : on continue dans l'ancien dossier
-  CreateDirectoryW(dataDir.c_str(), nullptr);
-  const std::wstring pageDir = dataDir + L"\\app";
-  if (!extractPage(pageDir)) {
-    MessageBoxW(nullptr, L"Impossible de préparer l'application (dossier %LOCALAPPDATA%\\KeoLive).", L"KeoLive", MB_ICONERROR);
+  if (!loadPage()) {
+    MessageBoxW(nullptr, L"Ce fichier KeoLive.exe est incomplet : téléchargez-le à nouveau.", L"KeoLive", MB_ICONERROR);
     return 1;
   }
+  dataDir = localAppData() + L"\\KeoLive";
+  CreateDirectoryW(dataDir.c_str(), nullptr);
   // Données de WebView2 (réglages de la page, cache) : à côté, plutôt qu'à côté de l'exécutable
   SetEnvironmentVariableW(L"WEBVIEW2_USER_DATA_FOLDER", (dataDir + L"\\WebView2").c_str());
   // Le carillon des alertes doit sonner même si personne n'a encore cliqué dans la fenêtre
@@ -426,15 +455,12 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     }
     if (maximized && !compact) ShowWindow(win, SW_MAXIMIZE);
 
-    // Page servie par WebView2 depuis le dossier local, sous une adresse fixe
+    // Page servie depuis la mémoire, sous une adresse fixe
     controller = (ICoreWebView2Controller*)w.browser_controller().value();
     ICoreWebView2* core = nullptr;
+    bool served = false;
     if (controller && SUCCEEDED(controller->get_CoreWebView2(&core)) && core) {
-      ICoreWebView2_3* core3 = nullptr;
-      if (SUCCEEDED(core->QueryInterface(IID_ICoreWebView2_3, (void**)&core3)) && core3) {
-        core3->SetVirtualHostNameToFolderMapping(HOST, pageDir.c_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_DENY_CORS);
-        core3->Release();
-      }
+      served = servePage(core);
       ICoreWebView2Settings* s = nullptr;
       if (SUCCEEDED(core->get_Settings(&s)) && s) {
         s->put_IsStatusBarEnabled(FALSE);
@@ -449,6 +475,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
       c2->put_DefaultBackgroundColor(bg);
       c2->Release();
     }
+
+    if (!served) throw std::runtime_error("WebView2 trop ancien");
 
     w.bind("metroNative", nativeCall);
     w.navigate("https://app.metro.example/index.html");
