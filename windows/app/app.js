@@ -3,7 +3,7 @@
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '1.4.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.5.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -87,7 +87,7 @@ function whenText(begin, end) {
 // =============================================================================
 //  Réglages, quota, fenêtre native
 // =============================================================================
-const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto', fullscreen: false, alerts: 'all', followed: [] };
+const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto', fullscreen: false, alerts: 'all', followed: [], sound: true };
 const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
 const saveSettings = () => store.set('settings', settings);
 
@@ -910,9 +910,8 @@ function resetAlerts() { alertsUi.known = traffic.updated ? incidents() : null; 
 
 function checkAlerts() {   // après chaque lecture de l'info trafic
   const cur = incidents();
-  if (alertsUi.known === null) {   // au lancement : un seul résumé de ce qui est en cours
+  if (alertsUi.known === null) {   // au lancement : rien (les incidents déjà en cours sont dans la colonne Trafic)
     alertsUi.known = cur;
-    if (cur.size) showSummary([...cur.values()]);
     return;
   }
   for (const [id, g] of cur) {
@@ -944,11 +943,42 @@ function popup(key, cls, ttl, build, keep) {
   if (old) { clearTimeout(old.timer); if (keep) { node.style.animation = 'none'; old.el.replaceWith(node); } else old.el.remove(); }
   if (!node.isConnected) box.prepend(node);
   alertsUi.cards.set(key, card);
-  [...alertsUi.cards].slice(0, -4).forEach(([k, c]) => { clearTimeout(c.timer); c.el.remove(); alertsUi.cards.delete(k); });   // 4 au plus
+  [...alertsUi.cards].slice(0, -3).forEach(([k, c]) => { clearTimeout(c.timer); c.el.remove(); alertsUi.cards.delete(k); });   // 3 au plus
+}
+
+// ---- Son des alertes : court carillon synthétisé (aucun fichier audio) ----------------------
+let audioCtx = null;
+const audio = () => (audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)());
+['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { try { audio().resume(); } catch { /* pas de son */ } }, { once: true }));
+function chime(kind, force) {
+  if (!settings.sound && !force) return;
+  try {
+    const ctx = audio();
+    if (ctx.state === 'suspended') ctx.resume();
+    // incident : trois notes descendantes ; aggravation : deux fois deux notes ; rétabli : deux notes montantes, plus douces
+    const notes = kind === 'end' ? [[659.3, 0, .16], [880, .17, .16]]
+      : kind === 'worse' ? [[880, 0, .26], [659.3, .15, .26], [880, .34, .26], [659.3, .49, .26]]
+        : [[987.8, 0, .26], [784, .19, .26], [587.3, .38, .26]];
+    const t0 = ctx.currentTime + .03;
+    for (const [f, dt, vol] of notes) {
+      for (const [mult, v] of [[1, 1], [2.01, .18], [3, .06]]) {   // fondamentale + harmoniques : timbre de cloche
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = f * mult;
+        g.gain.setValueAtTime(.0001, t0 + dt);
+        g.gain.exponentialRampToValueAtTime(vol * v, t0 + dt + .012);
+        g.gain.exponentialRampToValueAtTime(.0001, t0 + dt + (kind === 'end' ? .7 : 1.1));
+        o.connect(g).connect(ctx.destination);
+        o.start(t0 + dt);
+        o.stop(t0 + dt + 1.2);
+      }
+    }
+  } catch { /* son indisponible */ }
 }
 
 function showIncident(g, kind, keep) {
   const end = kind === 'end';
+  if (!keep) chime(kind);
   popup(g.id, `${kind} l${end ? 0 : g.level}`, end ? 20e3 : 75e3, close => [
     el('header', { class: 'alert-head' }, el('div', { class: 'lbs' }, g.lines.slice(0, 6).map(id => badge(id, 'lg'))),
       el('div', { class: 'alert-tag' }, end ? 'Trafic rétabli' : (kind === 'worse' ? 'Aggravation · ' : '') + incidentTag(g)),
@@ -960,18 +990,6 @@ function showIncident(g, kind, keep) {
   ], keep);
 }
 
-function showSummary(list) {
-  list.sort((a, b) => b.level - a.level);
-  popup('résumé', 'sum', 30e3, close => [
-    el('header', { class: 'alert-head' }, icon('i-warn'),
-      el('div', { class: 'alert-tag' }, `${list.length} incident${list.length > 1 ? 's' : ''} en cours`),
-      el('button', { class: 'ibtn', title: 'Fermer', onclick: close }, icon('i-close'))),
-    el('div', { style: 'margin-top:8px' }, list.slice(0, 6).map(g => el('button', { class: 'alert-row', onclick: () => { close(); openLine(g.lines[0]); } },
-      g.lines.slice(0, 3).map(id => badge(id)), el('span', {}, g.short || g.title)))),
-    list.length > 6 ? el('div', { class: 'when', style: 'margin-top:6px' }, `+ ${list.length - 6} autre${list.length - 6 > 1 ? 's' : ''} dans la colonne Trafic`) : null,
-  ]);
-}
-
 // KeoLive n'est pas au premier plan : notification de Windows (ou du navigateur)
 function notifyOutside(g, prefix) {
   if (!document.hidden && document.hasFocus()) return;
@@ -980,7 +998,7 @@ function notifyOutside(g, prefix) {
   alertsUi.clickLine = g.lines[0];
   if (NATIVE) native('notify', title + '\n' + text);
   else if (window.Notification && Notification.permission === 'granted') {
-    const n = new Notification(title, { body: text, icon: $('.logo').src });
+    const n = new Notification(title, { body: text, icon: $('link[rel=icon]').href });
     n.onclick = () => { window.focus(); openLine(g.lines[0]); };
   }
 }
@@ -991,9 +1009,9 @@ function openAbout() {
   keolis.hidden = false;
   keolis.removeAttribute('id');
   openDialog('À propos', icon('i-info'), [
-    el('div', { class: 'about-top' }, el('img', { src: $('.logo').src, alt: '' }),
-      el('div', {}, el('div', { class: 'about-name', 'aria-label': APP.name }, icon('k-keolis', 'kmark'), el('span', { class: 'ktext' }, APP.name.slice(1))),
-        el('div', { class: 'about-ver' }, 'Version ' + APP.version))),
+    el('div', { class: 'about-top' },
+      el('div', { class: 'about-name', 'aria-label': APP.name }, icon('k-keolis', 'kmark'), el('span', { class: 'ktext' }, APP.name.slice(1))),
+      el('div', { class: 'about-ver' }, 'Version ' + APP.version)),
     el('dl', { class: 'about-rows' },
       el('dt', {}, 'Propriétaire'), el('dd', {}, APP.owner),
       el('dt', {}, 'Mise en place pour'), el('dd', {}, el('span', { class: 'plate', title: APP.company }, keolis))),
@@ -1044,6 +1062,9 @@ function openSettings() {
     el('div', { class: 'set' }, el('b', {}, 'Alertes d’incident'),
       el('span', {}, 'Une fenêtre s’ouvre dès qu’un incident touche une ligne, avec le détail ; si KeoLive n’est pas au premier plan, ',
         'Windows affiche une notification. « Mes lignes » : celles des arrêts épinglés et celles que vous suivez (bouton cloche de la fiche d’une ligne).'), alertSeg),
+    el('div', { class: 'set' }, el('b', {}, 'Son des alertes'),
+      el('span', {}, 'Un court carillon à chaque fenêtre d’alerte : trois notes pour un incident, quatre pour une aggravation, deux pour un trafic rétabli. ',
+        el('a', { href: '#', onclick: e => { e.preventDefault(); chime('new', true); } }, 'Écouter')), sw('sound')),
     el('div', { class: 'set' }, el('b', {}, 'Thème'),
       el('span', {}, 'Automatique : comme Windows (clair le jour si Windows est en mode clair). Touche L pour basculer.'), themeSeg),
     el('div', { class: 'set' }, el('b', {}, 'Trains : grandes lignes uniquement'),

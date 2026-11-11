@@ -216,7 +216,7 @@ static bool notify(const std::wstring& title, const std::wstring& text) {
   tray.szInfoTitle[ARRAYSIZE(tray.szInfoTitle) - 1] = 0;
   wcsncpy(tray.szInfo, text.empty() ? L" " : text.c_str(), ARRAYSIZE(tray.szInfo) - 1);
   tray.szInfo[ARRAYSIZE(tray.szInfo) - 1] = 0;
-  tray.dwInfoFlags = NIIF_WARNING;
+  tray.dwInfoFlags = NIIF_WARNING | NIIF_NOSOUND;  // le son vient de l'application (réglage « Son des alertes »)
   const bool ok = Shell_NotifyIconW(NIM_MODIFY, &tray) != FALSE;
   FLASHWINFO fw{sizeof(fw), win, FLASHW_TRAY | FLASHW_TIMERNOFG, 3, 0};  // le bouton de la barre des tâches clignote
   FlashWindowEx(&fw);
@@ -393,6 +393,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
   }
   // Données de WebView2 (réglages de la page, cache) : à côté, plutôt qu'à côté de l'exécutable
   SetEnvironmentVariableW(L"WEBVIEW2_USER_DATA_FOLDER", (dataDir + L"\\WebView2").c_str());
+  // Le carillon des alertes doit sonner même si personne n'a encore cliqué dans la fenêtre
+  SetEnvironmentVariableW(L"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", L"--autoplay-policy=no-user-gesture-required");
   loadState();
 
   try {

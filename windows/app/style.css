@@ -58,8 +58,7 @@ svg{width:20px;height:20px;flex:none}
 .top{display:flex;align-items:center;gap:22px;padding:12px 22px;border-bottom:1px solid var(--edge);
   background:linear-gradient(var(--top1),var(--top2));position:relative;z-index:20}
 .brand{display:flex;align-items:center;justify-content:flex-start;gap:12px;flex:none;padding:0;border-radius:12px}
-.logo{width:40px;height:40px;display:block;flex:none;border-radius:50%;box-shadow:0 4px 14px var(--shadow)}
-.brand-name{font:700 25px/1.1 var(--cond);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.brand-name{font:700 27px/1.1 var(--cond);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
 /* Le « K » du nom reprend celui du logo Keolis (hauteur des capitales, posé sur la ligne de base) */
 .kmark{height:1.12em;width:1.413em;vertical-align:baseline;margin-right:.2em;color:#41a8be;overflow:visible}
 .ktext{font-size:.66em;font-weight:600;letter-spacing:.2em}   /* le reste du nom, plus petit, sur la même ligne de base */
@@ -288,34 +287,34 @@ body.compact .gtab{font-size:14px;padding:6px 9px 5px}
 .about{font-size:12.5px;color:var(--dim);line-height:1.5;margin-top:14px}
 
 /* ---- Alertes d'incident (fenêtres pop-up, en haut à droite) --------------------------------- */
-.alerts{position:fixed;top:84px;right:18px;width:min(420px,calc(100vw - 36px));display:flex;flex-direction:column;gap:12px;z-index:40;pointer-events:none}
-.alert{pointer-events:auto;background:var(--panel);border:1px solid var(--edge2);border-left:6px solid var(--orange);border-radius:16px;
-  box-shadow:0 22px 60px var(--shadow-lg);padding:14px 16px 12px;animation:alert-in .35s cubic-bezier(.2,.9,.3,1.2) both;overflow:hidden;position:relative}
-.alert.l3{border-left-color:var(--red)}.alert.end{border-left-color:var(--green)}.alert.sum{border-left-color:var(--amber)}
+.alerts{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(620px,calc(100vw - 40px));max-height:calc(100vh - 110px);
+  display:flex;flex-direction:column;gap:14px;z-index:40;pointer-events:none;border-radius:20px;transition:box-shadow .3s}
+.alerts:has(.alert){box-shadow:0 0 0 200vmax rgba(2,4,8,.42)}   /* voile sur le tableau (les clics passent) */
+:root[data-theme=light] .alerts:has(.alert){box-shadow:0 0 0 200vmax rgba(20,30,50,.22)}
+.alert{pointer-events:auto;background:var(--panel);border:1px solid var(--edge2);border-left:8px solid var(--orange);border-radius:20px;
+  box-shadow:0 30px 90px var(--shadow-lg);padding:18px 22px 16px;animation:alert-in .38s cubic-bezier(.2,.9,.3,1.15) both;overflow:hidden;position:relative;flex:none}
+.alert.l3{border-left-color:var(--red)}.alert.end{border-left-color:var(--green)}
 .alert.out{animation:alert-out .25s ease both}
-@keyframes alert-in{from{opacity:0;transform:translateX(40px)}}
-@keyframes alert-out{to{opacity:0;transform:translateX(40px)}}
+@keyframes alert-in{from{opacity:0;transform:scale(.9)}}
+@keyframes alert-out{to{opacity:0;transform:scale(.95)}}
 .alert-head{display:flex;align-items:center;gap:10px}
 .alert-head .lbs{display:flex;gap:5px;flex-wrap:wrap}
-.alert-tag{flex:1;font:700 12px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
-.alert.l3 .alert-tag{color:var(--red)}.alert.end .alert-tag{color:var(--green)}.alert.sum .alert-tag{color:var(--time)}
-.alert h4{margin:10px 0 4px;font:700 22px/1.12 var(--cond);letter-spacing:.02em}
+.alert-tag{flex:1;font:700 13px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+.alert.l3 .alert-tag{color:var(--red)}.alert.end .alert-tag{color:var(--green)}
+.alert h4{margin:12px 0 5px;font:700 30px/1.1 var(--cond);letter-spacing:.02em}
 .alert .when{font:600 12.5px var(--sans);color:var(--mut)}
-.alert-msg{margin:8px 0 0;font-size:14px;line-height:1.45;color:var(--txt2);white-space:pre-line;max-height:8.8em;overflow:auto;user-select:text}
+.alert-msg{margin:10px 0 0;font-size:15.5px;line-height:1.5;color:var(--txt2);white-space:pre-line;max-height:11em;overflow:auto;user-select:text}
 .alert-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
-.alert-foot .btn{height:34px;padding:0 14px;font-size:13.5px}
-.alert-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:7px 6px;border-radius:10px;font:600 17px/1.15 var(--cond)}
-.alert-row:hover{background:var(--panel3)}
-.alert-row span:last-child{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alert-foot .btn{height:38px;padding:0 16px;font-size:14px}
 .alert-life{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--edge2);transform-origin:left;animation:life linear both}
 .alert:hover .alert-life{animation-play-state:paused}
 @keyframes life{to{transform:scaleX(0)}}
-body.compact .alerts{top:54px;right:8px;left:8px;width:auto}
+body.compact .alerts{width:calc(100vw - 16px)}
+body.compact .alert h4{font-size:22px}
 
 /* ---- À propos ---------------------------------------------------------------------------- */
-.about-top{display:flex;align-items:center;gap:18px;padding:6px 0 18px}
-.about-top img{width:84px;height:84px;border-radius:50%;box-shadow:0 8px 24px var(--shadow)}
-.about-name{font:700 44px/1 var(--cond);letter-spacing:.06em;text-transform:uppercase}
+.about-top{padding:10px 0 20px}
+.about-name{font:700 52px/1.1 var(--cond);letter-spacing:.06em;text-transform:uppercase}
 .about-ver{margin-top:6px;font:600 15px var(--sans);color:var(--mut)}
 .about-rows{display:grid;grid-template-columns:auto 1fr;gap:14px 22px;align-items:center;padding:18px 0;border-top:1px solid var(--edge);border-bottom:1px solid var(--edge)}
 .about-rows dt{font:700 12px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
@@ -333,9 +332,8 @@ body.compact .alerts{top:54px;right:8px;left:8px;width:auto}
 body.fs.idle,body.fs.idle *{cursor:none!important}
 body.compact{--r:0px}
 body.compact .top{padding:8px 12px;gap:10px}
-body.compact .brand-name,body.compact .search,body.compact .traffic,body.compact .ticker,body.compact .banner{display:none}
+body.compact .ktext,body.compact .search,body.compact .traffic,body.compact .ticker,body.compact .banner{display:none}
 body.compact .brand{flex:1}
-body.compact .logo{width:30px;height:30px}
 body.compact .clock{font-size:30px;min-width:0}
 body.compact .tool{width:34px;height:34px}
 body.compact .layout{grid-template-columns:1fr}
