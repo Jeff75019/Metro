@@ -13,6 +13,7 @@
 - **À propos (bouton ⓘ, ou clic sur le logo) :** version de l'application, propriétaire et entreprise.
 - **Thème clair ou sombre (`L`) :** le bouton soleil ou lune de l'en-tête bascule entre les deux. Dans les réglages, « Automatique » suit le thème de Windows.
 - **Plein écran (`F11`) :** tout l'écran, par-dessus la barre des tâches, sans bordure ni barre de titre (bouton à quatre coins de l'en-tête), pour un écran dédié. Le curseur se cache après 3 secondes sans bouger la souris. On en sort par `F11`, `Échap` ou le même bouton. Si vous fermez l'application en plein écran, elle se rouvre ainsi.
+- **Toutes les tailles de fenêtre :** la recherche reste au centre de l'en-tête, avec KeoLive à sa gauche. Dans une fenêtre étroite (moins de 960 pixels de large, ou un écran réglé à 150 %), l'en-tête passe sur deux lignes : KeoLive, l'horloge et les boutons en haut, la recherche dessous. Les cartes, le bandeau de la clé et les réglages se mettent sur une seule colonne.
 - **Mode compact (`M`) :** une petite fenêtre en haut à droite de l'écran, une carte à la fois (flèches ← →). L'option « toujours au premier plan » (`T`) la garde visible par-dessus vos autres fenêtres.
 
 | Thème clair | Recherche | Détail d'une ligne |
@@ -123,6 +124,6 @@ dist/           KeoLive.exe et KeoLive.html, prêts à l'emploi
 
 ## Limites
 
-- **Pas encore lancée sur un vrai Windows.** L'interface a été essayée dans Chromium, le moteur de WebView2, avec des réponses PRIM réelles enregistrées et les données SNCF en direct. L'exécutable a été démarré sous Wine (sans WebView2) : il trouve la page embarquée et affiche correctement le message prévu quand le moteur manque. Le premier essai réel se fera sur votre PC. La version 1.5.2 sert la page depuis la mémoire, par la méthode décrite par Microsoft (« WebResourceRequested ») : si la fenêtre restait vide, dites-le-moi.
+- **Essais :** l'interface a été essayée dans Chromium, le moteur de WebView2, de 360 à 1920 pixels de large, avec des réponses PRIM réelles enregistrées et les données SNCF en direct. L'exécutable tourne sur Windows 11 (version 1.5.4 : la page servie depuis la mémoire s'affiche). Les notifications de Windows et le son n'ont pas encore été vérifiés sur un vrai poste.
 - PRIM est protégé par un filtre anti-robots (Cloudflare). Depuis un poste normal, il laisse passer l'application comme le navigateur ; s'il bloquait un réseau d'entreprise, les cartes afficheraient « PRIM injoignable ».
 - Données : Île-de-France Mobilités (PRIM, open data), SNCF (ODbL), Train Nomade.
