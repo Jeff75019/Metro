@@ -287,6 +287,31 @@ body.compact .gtab{font-size:14px;padding:6px 9px 5px}
 .meter i{display:block;height:100%;background:var(--amber)}
 .about{font-size:12.5px;color:var(--dim);line-height:1.5;margin-top:14px}
 
+/* ---- Alertes d'incident (fenêtres pop-up, en haut à droite) --------------------------------- */
+.alerts{position:fixed;top:84px;right:18px;width:min(420px,calc(100vw - 36px));display:flex;flex-direction:column;gap:12px;z-index:40;pointer-events:none}
+.alert{pointer-events:auto;background:var(--panel);border:1px solid var(--edge2);border-left:6px solid var(--orange);border-radius:16px;
+  box-shadow:0 22px 60px var(--shadow-lg);padding:14px 16px 12px;animation:alert-in .35s cubic-bezier(.2,.9,.3,1.2) both;overflow:hidden;position:relative}
+.alert.l3{border-left-color:var(--red)}.alert.end{border-left-color:var(--green)}.alert.sum{border-left-color:var(--amber)}
+.alert.out{animation:alert-out .25s ease both}
+@keyframes alert-in{from{opacity:0;transform:translateX(40px)}}
+@keyframes alert-out{to{opacity:0;transform:translateX(40px)}}
+.alert-head{display:flex;align-items:center;gap:10px}
+.alert-head .lbs{display:flex;gap:5px;flex-wrap:wrap}
+.alert-tag{flex:1;font:700 12px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+.alert.l3 .alert-tag{color:var(--red)}.alert.end .alert-tag{color:var(--green)}.alert.sum .alert-tag{color:var(--time)}
+.alert h4{margin:10px 0 4px;font:700 22px/1.12 var(--cond);letter-spacing:.02em}
+.alert .when{font:600 12.5px var(--sans);color:var(--mut)}
+.alert-msg{margin:8px 0 0;font-size:14px;line-height:1.45;color:var(--txt2);white-space:pre-line;max-height:8.8em;overflow:auto;user-select:text}
+.alert-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.alert-foot .btn{height:34px;padding:0 14px;font-size:13.5px}
+.alert-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:7px 6px;border-radius:10px;font:600 17px/1.15 var(--cond)}
+.alert-row:hover{background:var(--panel3)}
+.alert-row span:last-child{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alert-life{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--edge2);transform-origin:left;animation:life linear both}
+.alert:hover .alert-life{animation-play-state:paused}
+@keyframes life{to{transform:scaleX(0)}}
+body.compact .alerts{top:54px;right:8px;left:8px;width:auto}
+
 /* ---- À propos ---------------------------------------------------------------------------- */
 .about-top{display:flex;align-items:center;gap:18px;padding:6px 0 18px}
 .about-top img{width:84px;height:84px;border-radius:50%;box-shadow:0 8px 24px var(--shadow)}

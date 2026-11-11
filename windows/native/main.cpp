@@ -184,8 +184,61 @@ static void setOnTop(bool on) {
   SetWindowPos(win, on ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
+// ---- Zone de notification : icône près de l'horloge, et notification de Windows -------------------
+// Quand KeoLive n'est pas au premier plan, un incident est annoncé par une notification
+// de Windows ; un clic dessus ramène la fenêtre et ouvre la fiche de la ligne.
+static const UINT WM_TRAY = WM_APP + 7;
+static NOTIFYICONDATAW tray{};
+static bool trayAdded = false;
+static webview::webview* view = nullptr;
+
+static bool addTray(HICON icon) {
+  tray.cbSize = sizeof(tray);
+  tray.hWnd = win;
+  tray.uID = 1;
+  tray.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+  tray.uCallbackMessage = WM_TRAY;
+  tray.hIcon = icon;
+  wcscpy(tray.szTip, L"KeoLive");
+  trayAdded = Shell_NotifyIconW(NIM_ADD, &tray) != FALSE;
+  return trayAdded;
+}
+
+static void removeTray() {
+  if (trayAdded) Shell_NotifyIconW(NIM_DELETE, &tray);
+  trayAdded = false;
+}
+
+static bool notify(const std::wstring& title, const std::wstring& text) {
+  if (!trayAdded) return false;
+  tray.uFlags = NIF_INFO;
+  wcsncpy(tray.szInfoTitle, title.c_str(), ARRAYSIZE(tray.szInfoTitle) - 1);
+  tray.szInfoTitle[ARRAYSIZE(tray.szInfoTitle) - 1] = 0;
+  wcsncpy(tray.szInfo, text.empty() ? L" " : text.c_str(), ARRAYSIZE(tray.szInfo) - 1);
+  tray.szInfo[ARRAYSIZE(tray.szInfo) - 1] = 0;
+  tray.dwInfoFlags = NIIF_WARNING;
+  const bool ok = Shell_NotifyIconW(NIM_MODIFY, &tray) != FALSE;
+  FLASHWINFO fw{sizeof(fw), win, FLASHW_TRAY | FLASHW_TIMERNOFG, 3, 0};  // le bouton de la barre des tâches clignote
+  FlashWindowEx(&fw);
+  return ok;
+}
+
+static void showMain() {
+  if (IsIconic(win)) ShowWindow(win, SW_RESTORE);
+  SetForegroundWindow(win);
+}
+
 static LRESULT CALLBACK subclass(HWND h, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR) {
   if (msg == WM_CLOSE || msg == WM_EXITSIZEMOVE) saveState();
+  if (msg == WM_DESTROY) removeTray();
+  if (msg == WM_TRAY) {
+    const UINT ev = LOWORD(lp);
+    if (ev == NIN_BALLOONUSERCLICK) {  // clic sur la notification : la fiche de la ligne
+      showMain();
+      if (view) view->eval("window.keoNotifyClick&&window.keoNotifyClick()");
+    } else if (ev == WM_LBUTTONUP || ev == WM_LBUTTONDBLCLK) showMain();
+    return 0;
+  }
   // Fenêtre réduite : la page passe en arrière-plan (plus d'appels à l'API)
   if (msg == WM_SIZE && controller) controller->put_IsVisible(wp == SIZE_MINIMIZED ? FALSE : TRUE);
   if (msg == WM_GETMINMAXINFO) {  // taille minimale : celle du mode compact
@@ -233,6 +286,34 @@ static std::wstring widen(const std::string& s) {
   return w;
 }
 
+// Chaîne JSON ("…", avec ses échappements) -> texte
+static std::wstring jsonText(const std::string& j) {
+  std::string o;
+  if (j.size() < 2 || j.front() != '"') return std::wstring();
+  for (size_t i = 1; i + 1 < j.size(); i++) {
+    char c = j[i];
+    if (c != '\\') { o += c; continue; }
+    if (++i + 1 >= j.size()) break;
+    switch (j[i]) {
+      case 'n': o += '\n'; break;
+      case 't': o += ' '; break;
+      case 'r': break;
+      case 'u': {
+        if (i + 4 < j.size()) {
+          unsigned cp = (unsigned)strtoul(j.substr(i + 1, 4).c_str(), nullptr, 16);
+          i += 4;
+          if (cp < 0x80) o += (char)cp;
+          else if (cp < 0x800) { o += (char)(0xC0 | (cp >> 6)); o += (char)(0x80 | (cp & 0x3F)); }
+          else { o += (char)(0xE0 | (cp >> 12)); o += (char)(0x80 | ((cp >> 6) & 0x3F)); o += (char)(0x80 | (cp & 0x3F)); }
+        }
+        break;
+      }
+      default: o += j[i]; break;  // \" \\ \/
+    }
+  }
+  return widen(o);
+}
+
 static std::string nativeCall(const std::string& req) {
   std::string cmd, arg;
   parseRequest(req, cmd, arg);
@@ -243,6 +324,11 @@ static std::string nativeCall(const std::string& req) {
     return fullscreen ? "true" : "false";
   }
   else if (cmd == "theme") titleBar(arg == "\"light\"");
+  else if (cmd == "notify") {  // "titre\ntexte"
+    const std::wstring all = jsonText(arg);
+    const size_t nl = all.find(L'\n');
+    notify(all.substr(0, nl), nl == std::wstring::npos ? std::wstring() : all.substr(nl + 1));
+  }
   else if (cmd == "open" && arg.size() > 2 && arg.front() == '"' && arg.back() == '"') {
     std::string url = arg.substr(1, arg.size() - 2);  // adresse web seulement
     if (url.rfind("https://", 0) == 0 || url.rfind("http://", 0) == 0)
@@ -251,8 +337,37 @@ static std::string nativeCall(const std::string& req) {
   return "true";
 }
 
+// « KeoLive.exe --essai-notification » : affiche une notification d'essai pendant 8 secondes,
+// sans ouvrir l'application (pour vérifier que Windows les laisse passer sur ce poste).
+static int testNotification(HINSTANCE inst) {
+  dataDir = localAppData() + L"\\KeoLive";
+  CreateDirectoryW(dataDir.c_str(), nullptr);
+  win = CreateWindowExW(0, L"STATIC", L"KeoLive", WS_OVERLAPPED, 0, 0, 0, 0, nullptr, nullptr, inst, nullptr);
+  HICON icon = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
+  const bool added = win && addTray(icon);
+  const bool shown = notify(L"Métro 1 : trafic interrompu", L"Essai de notification de KeoLive.");
+  if (FILE* f = _wfopen((dataDir + L"\\essai-notification.txt").c_str(), L"w")) {
+    fprintf(f, "icone=%d notification=%d\n", added ? 1 : 0, shown ? 1 : 0);
+    fclose(f);
+  }
+  const DWORD end = GetTickCount() + 8000;
+  MSG msg;
+  while (GetTickCount() < end) {
+    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+      TranslateMessage(&msg);
+      DispatchMessageW(&msg);
+    }
+    Sleep(30);
+  }
+  removeTray();
+  if (win) DestroyWindow(win);
+  return added && shown ? 0 : 1;
+}
+
 // ---- Démarrage -----------------------------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
+  if (wcsstr(GetCommandLineW(), L"--essai-notification")) return testNotification(inst);
+
   // Une seule fenêtre : un second lancement ramène la première au premier plan
   HANDLE single = CreateMutexW(nullptr, TRUE, L"Local\\KeoLivePourWindows");
   if (single && GetLastError() == ERROR_ALREADY_EXISTS) {
@@ -290,6 +405,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     if (small) SendMessageW(win, WM_SETICON, ICON_SMALL, (LPARAM)small);
     titleBar(false);
     SetWindowSubclass(win, subclass, 1, 0);
+    addTray(small ? small : big);  // icône près de l'horloge : notifications d'incident
+    view = &w;
 
     // Taille et position : celles de la dernière fois, sinon 1360 x 860 au centre
     if (startCompact) {  // fermée en mode compact : rouverte ainsi
@@ -334,6 +451,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     w.bind("metroNative", nativeCall);
     w.navigate("https://app.metro.example/index.html");
     w.run();
+    view = nullptr;
+    removeTray();
   } catch (const std::exception&) {
     if (MessageBoxW(nullptr,
                     L"Le moteur WebView2 de Microsoft est introuvable sur cet ordinateur.\n\n"

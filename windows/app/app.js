@@ -3,7 +3,7 @@
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '1.3.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.4.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -87,7 +87,7 @@ function whenText(begin, end) {
 // =============================================================================
 //  Réglages, quota, fenêtre native
 // =============================================================================
-const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto', fullscreen: false };
+const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto', fullscreen: false, alerts: 'all', followed: [] };
 const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
 const saveSettings = () => store.set('settings', settings);
 
@@ -279,13 +279,18 @@ function parseTraffic(json) {
   traffic.updated = Date.parse(json.lastUpdatedDate || '') || now();
 }
 
+// Info trafic relue toutes les 2 minutes quand les alertes sont actives (5 minutes sinon),
+// y compris fenêtre réduite : c'est ce qui permet de prévenir dès qu'un incident survient.
+const trafficEvery = () => settings.alerts === 'off' ? 300e3 : 120e3;
 async function loadTraffic(force) {
-  if (!settings.apiKey || traffic.loading || document.hidden) return;
-  if (!force && now() - traffic.fetchedAt < 300e3) return;
+  if (!settings.apiKey || traffic.loading) return;
+  if (document.hidden && settings.alerts === 'off') return;
+  if (!force && now() - traffic.fetchedAt < trafficEvery()) return;
   traffic.loading = true;
   try {
     parseTraffic(await primGet('/disruptions_bulk/disruptions/v2', 'trafic'));
     traffic.err = null;
+    checkAlerts();
   } catch (e) {
     traffic.err = e.message;
   }
@@ -599,6 +604,7 @@ function pin(model) {
   toast('Épinglé au tableau');
 }
 function unpin(key) {
+  if (settings.alerts === 'mine') setTimeout(resetAlerts);
   pins = pins.filter(p => p.key !== key);
   savePins();
   syncCards();
@@ -863,8 +869,122 @@ function openLine(id) {
       (it.works ? ' · Travaux' : it.level === 3 ? ' · Trafic interrompu' : it.level === 2 ? ' · Trafic perturbé' : ' · Information')),
     el('p', {}, it.msg || it.short)))
     : el('div', { class: 'state' }, icon('i-check'), el('b', {}, 'Trafic normal'), 'Aucune perturbation annoncée sur cette ligne.');
-  openDialog(`${MODE_LABEL[li.m] || ''} ${li.n}`, badge(id, 'lg'), body);
+  const followed = () => (settings.followed || []).includes(id);
+  const follow = el('button', { class: 'btn', title: 'Alertes d’incident pour cette ligne (réglage « Mes lignes »)', onclick: () => {
+    settings.followed = followed() ? settings.followed.filter(x => x !== id) : [...(settings.followed || []), id];
+    saveSettings();
+    resetAlerts();
+    follow.replaceChildren(icon('i-bell'), followed() ? 'Ligne suivie ✓' : 'Suivre cette ligne');
+  } }, icon('i-bell'), followed() ? 'Ligne suivie ✓' : 'Suivre cette ligne');
+  openDialog(`${MODE_LABEL[li.m] || ''} ${li.n}`, badge(id, 'lg'), body,
+    [follow, el('button', { class: 'btn pri', onclick: () => dlg.close() }, 'Fermer')]);
 }
+
+// =============================================================================
+//  Alertes : une fenêtre pop-up dès qu'un incident touche une ligne
+// =============================================================================
+const alertsUi = { known: null, cards: new Map(), clickLine: null };
+const lineLabel = id => { const li = lineInfo(id); return li ? `${MODE_LABEL[li.m] || 'Ligne'} ${li.n}` : 'Ligne'; };
+const incidentTag = g => (g.works ? 'Travaux · ' : 'Incident · ') + (g.level === 3 ? 'trafic interrompu' : 'trafic perturbé');
+
+// Incidents en cours (trafic perturbé ou interrompu) sur les lignes surveillées, par perturbation
+function incidents() {
+  const map = new Map();
+  if (settings.alerts === 'off') return map;
+  let mine = null;
+  if (settings.alerts === 'mine') {
+    mine = new Set(settings.followed || []);
+    for (const c of cards) for (const id of c.lineIds()) mine.add(id);
+  }
+  for (const it of traffic.items) {
+    if (!it.active || it.level < 2 || (mine && !mine.has(it.line))) continue;
+    const g = map.get(it.id) || map.set(it.id, { id: it.id, lines: [], level: it.level, works: it.works, title: it.title,
+      short: it.short, msg: it.msg, begin: it.begin, end: it.end }).get(it.id);
+    if (!g.lines.includes(it.line)) g.lines.push(it.line);
+    g.level = Math.max(g.level, it.level);
+  }
+  return map;
+}
+
+function resetAlerts() { alertsUi.known = traffic.updated ? incidents() : null; }   // réglage changé : pas de rappel
+
+function checkAlerts() {   // après chaque lecture de l'info trafic
+  const cur = incidents();
+  if (alertsUi.known === null) {   // au lancement : un seul résumé de ce qui est en cours
+    alertsUi.known = cur;
+    if (cur.size) showSummary([...cur.values()]);
+    return;
+  }
+  for (const [id, g] of cur) {
+    const old = alertsUi.known.get(id);
+    if (!old || g.level > old.level) {
+      showIncident(g, old ? 'worse' : 'new');
+      notifyOutside(g, old ? 'Aggravation' : '');
+    } else if (alertsUi.cards.has(id)) showIncident(g, alertsUi.cards.get(id).kind, true);   // détails mis à jour
+  }
+  for (const [id, g] of alertsUi.known) if (!cur.has(id)) { showIncident(g, 'end'); notifyOutside(g, 'Trafic rétabli'); }
+  alertsUi.known = cur;
+}
+
+function popup(key, cls, ttl, build, keep) {
+  const old = alertsUi.cards.get(key);
+  const box = $('#alerts');
+  const node = el('article', { class: 'alert ' + cls, role: 'alert' });
+  const card = { el: node, timer: 0, kind: cls.split(' ')[0] };
+  const close = () => {
+    clearTimeout(card.timer);
+    node.classList.add('out');
+    setTimeout(() => { node.remove(); if (alertsUi.cards.get(key) === card) alertsUi.cards.delete(key); }, 240);
+  };
+  node.append(...build(close).filter(Boolean), el('i', { class: 'alert-life', style: `animation-duration:${ttl}ms` }));
+  const arm = () => { clearTimeout(card.timer); card.timer = setTimeout(close, ttl); };
+  node.addEventListener('mouseenter', () => clearTimeout(card.timer));
+  node.addEventListener('mouseleave', arm);
+  arm();
+  if (old) { clearTimeout(old.timer); if (keep) { node.style.animation = 'none'; old.el.replaceWith(node); } else old.el.remove(); }
+  if (!node.isConnected) box.prepend(node);
+  alertsUi.cards.set(key, card);
+  [...alertsUi.cards].slice(0, -4).forEach(([k, c]) => { clearTimeout(c.timer); c.el.remove(); alertsUi.cards.delete(k); });   // 4 au plus
+}
+
+function showIncident(g, kind, keep) {
+  const end = kind === 'end';
+  popup(g.id, `${kind} l${end ? 0 : g.level}`, end ? 20e3 : 75e3, close => [
+    el('header', { class: 'alert-head' }, el('div', { class: 'lbs' }, g.lines.slice(0, 6).map(id => badge(id, 'lg'))),
+      el('div', { class: 'alert-tag' }, end ? 'Trafic rétabli' : (kind === 'worse' ? 'Aggravation · ' : '') + incidentTag(g)),
+      el('button', { class: 'ibtn', title: 'Fermer', onclick: close }, icon('i-close'))),
+    el('h4', {}, g.title || g.short || 'Perturbation'),
+    el('div', { class: 'when' }, end ? 'Fin de la perturbation · ' + hm(now()) : whenText(g.begin, g.end)),
+    end ? null : el('p', { class: 'alert-msg' }, g.msg || g.short),
+    end ? null : el('div', { class: 'alert-foot' }, el('button', { class: 'btn', onclick: () => { close(); openLine(g.lines[0]); } }, 'Voir la ligne')),
+  ], keep);
+}
+
+function showSummary(list) {
+  list.sort((a, b) => b.level - a.level);
+  popup('résumé', 'sum', 30e3, close => [
+    el('header', { class: 'alert-head' }, icon('i-warn'),
+      el('div', { class: 'alert-tag' }, `${list.length} incident${list.length > 1 ? 's' : ''} en cours`),
+      el('button', { class: 'ibtn', title: 'Fermer', onclick: close }, icon('i-close'))),
+    el('div', { style: 'margin-top:8px' }, list.slice(0, 6).map(g => el('button', { class: 'alert-row', onclick: () => { close(); openLine(g.lines[0]); } },
+      g.lines.slice(0, 3).map(id => badge(id)), el('span', {}, g.short || g.title)))),
+    list.length > 6 ? el('div', { class: 'when', style: 'margin-top:6px' }, `+ ${list.length - 6} autre${list.length - 6 > 1 ? 's' : ''} dans la colonne Trafic`) : null,
+  ]);
+}
+
+// KeoLive n'est pas au premier plan : notification de Windows (ou du navigateur)
+function notifyOutside(g, prefix) {
+  if (!document.hidden && document.hasFocus()) return;
+  const title = g.lines.slice(0, 3).map(lineLabel).join(', ') + ' : ' + (prefix || (g.level === 3 ? 'trafic interrompu' : 'trafic perturbé'));
+  const text = [g.title, g.short !== g.title ? g.short : ''].filter(Boolean).join(' · ').slice(0, 230);
+  alertsUi.clickLine = g.lines[0];
+  if (NATIVE) native('notify', title + '\n' + text);
+  else if (window.Notification && Notification.permission === 'granted') {
+    const n = new Notification(title, { body: text, icon: $('.logo').src });
+    n.onclick = () => { window.focus(); openLine(g.lines[0]); };
+  }
+}
+window.keoNotifyClick = () => { if (alertsUi.clickLine) openLine(alertsUi.clickLine); };
 
 function openAbout() {
   const keolis = $('#imgKeolis').cloneNode();
@@ -896,6 +1016,12 @@ function openSettings() {
       settings.theme = v;   // aperçu immédiat
       applyTheme();
     } }, label)));
+  const alertSeg = el('div', { class: 'seg ctl' }, [['all', 'Toutes'], ['mine', 'Mes lignes'], ['off', 'Aucune']].map(([v, label]) =>
+    el('button', { 'aria-pressed': String(s.alerts === v), onclick: e => {
+      s.alerts = v;
+      alertSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === e.currentTarget)));
+      if (v !== 'off' && !NATIVE && window.Notification && Notification.permission === 'default') Notification.requestPermission();
+    } }, label)));
   const themeBefore = settings.theme;
   let saved = false;
   const budget = el('input', { class: 'inp ctl', type: 'number', min: '50', max: '1000000', value: String(s.budget), style: 'min-width:0;width:130px' });
@@ -915,6 +1041,9 @@ function openSettings() {
     el('div', { class: 'set' }, el('b', {}, 'Quota d’appels par jour'),
       el('span', {}, `Passages : ${used} appel${used > 1 ? 's' : ''} aujourd’hui · info trafic : ${quota.used('trafic')}. Partagé avec l’afficheur si la clé est la même.`,
         el('div', { class: 'meter' }, el('i', { style: `width:${pct}%` }))), budget),
+    el('div', { class: 'set' }, el('b', {}, 'Alertes d’incident'),
+      el('span', {}, 'Une fenêtre s’ouvre dès qu’un incident touche une ligne, avec le détail ; si KeoLive n’est pas au premier plan, ',
+        'Windows affiche une notification. « Mes lignes » : celles des arrêts épinglés et celles que vous suivez (bouton cloche de la fiche d’une ligne).'), alertSeg),
     el('div', { class: 'set' }, el('b', {}, 'Thème'),
       el('span', {}, 'Automatique : comme Windows (clair le jour si Windows est en mode clair). Touche L pour basculer.'), themeSeg),
     el('div', { class: 'set' }, el('b', {}, 'Trains : grandes lignes uniquement'),
@@ -932,11 +1061,13 @@ function openSettings() {
       const b = Math.max(50, Math.min(1000000, parseInt(budget.value, 10) || DEFAULTS.budget));
       const keyChanged = k && k !== settings.apiKey;
       const trainsChanged = s.mainlineOnly !== settings.mainlineOnly;
+      const alertsChanged = s.alerts !== settings.alerts;
       Object.assign(settings, s, { budget: b });
       if (k) settings.apiKey = k;
       saveSettings();
       applyWindow();
       dlg.close();
+      if (alertsChanged) resetAlerts();
       if (keyChanged) setKey(k);
       if (trainsChanged) cards.forEach(c => { if (isTrainCard(c.m) && c.raw) { c.data = parseTrainNomade(c.raw, c.m.arrivals); c.render(); } });
       toast('Réglages enregistrés');
@@ -1129,7 +1260,8 @@ let busy = false;
 async function tick() {
   tickClock();
   if (tick.n++ % 2 === 0) { cards.forEach(c => { if (c.data) c.render(); }); if (preview && preview.data) preview.render(); }
-  if (busy || document.hidden) return;
+  if (busy) return;
+  if (document.hidden) { loadTraffic(); return; }   // fenêtre réduite : seules les alertes continuent
   busy = true;
   try {
     const list = preview ? [preview, ...cards] : cards;
@@ -1183,6 +1315,7 @@ async function demoMode() {
     j.lastUpdatedDate = new Date().toISOString();
     return JSON.stringify(j);
   })();
+  let infoNow = info2;
   const realFetch = window.fetch.bind(window);
   window.fetch = async (url, opts) => {
     const u = String(url);
@@ -1192,11 +1325,28 @@ async function demoMode() {
       const ref = decodeURIComponent(u);
       return ok(prim(/:(470548|470549|462395):/.test(ref) ? ld : /:58718:/.test(ref) ? rerE : bas));
     }
-    if (u.includes('/disruptions_bulk/')) return ok(info2);
+    if (u.includes('/disruptions_bulk/')) return ok(infoNow);
     if (u.includes('referentiel-des-lignes')) return ok(ref);
     return realFetch(url, opts);
   };
   if (!settings.apiKey) settings.apiKey = 'demo';
+  // incident simulé sur la ligne 1 (essais des alertes) : demoIncident(true) puis demoIncident(false)
+  window.demoIncident = on => {
+    const j = JSON.parse(infoNow);
+    j.disruptions = j.disruptions.filter(d => d.id !== 'demo');
+    j.lines = j.lines.filter(l => !(l.impactedObjects || []).some(o => (o.disruptionIds || []).includes('demo')));
+    if (on) {
+      const z = n => String(n).padStart(2, '0');
+      const cmp = t => { const p = parisParts(t); return `${p.y}${z(p.mo)}${z(p.d)}T${z(p.h)}${z(p.m)}${z(p.s)}`; };
+      j.disruptions.push({ id: 'demo', applicationPeriods: [{ begin: cmp(Date.now() - 120e3), end: cmp(Date.now() + 5400e3) }],
+        cause: 'PERTURBATION', severity: on === 2 ? 'BLOQUANTE' : 'PERTURBEE', title: 'Métro 1 : Colis suspect - ' + (on === 2 ? 'Trafic interrompu' : 'Trafic perturbé'),
+        shortMessage: on === 2 ? 'Trafic interrompu' : 'Trafic perturbé',
+        message: '<p>Le trafic est ' + (on === 2 ? 'interrompu' : 'ralenti') + ' entre Châtelet et Nation en raison d’un colis suspect à Gare de Lyon.</p><p>Reprise estimée à 09h30. Empruntez la ligne 14 ou le RER A.</p>' });
+      j.lines.push({ id: 'line:IDFM:C01371', name: '1', shortName: '1', mode: 'Metro', impactedObjects: [{ type: 'line', id: 'line:IDFM:C01371', name: '1', disruptionIds: ['demo'] }] });
+    }
+    infoNow = JSON.stringify(j);
+    return loadTraffic(true);
+  };
 }
 
 start();

@@ -9,6 +9,7 @@
 - **Grandes gares de Paris :** une carte, présente d'office sur le tableau, avec un onglet par gare (Lyon, Nord, Est, Montparnasse, Saint-Lazare, Austerlitz, Bercy). On y voit les départs ou les arrivées des grandes lignes : heure, destination ou provenance, train, voie, retard ou suppression. Elle ne demande pas de clé.
 - **Autres gares SNCF :** n'importe quelle gare, par la recherche, avec les mêmes informations.
 - **État du trafic :** toutes les lignes de métro, de RER, de Transilien et de tram, avec une pastille de couleur par ligne. Les lignes 16 et 17, en construction, y figurent en pointillés avec leur année d'ouverture prévue et leurs stations. Un clic donne le détail des messages. Un bandeau défilant rappelle les perturbations en cours.
+- **Alertes d'incident :** dès qu'un incident touche une ligne (trafic perturbé ou interrompu), une fenêtre s'ouvre en haut à droite avec les lignes concernées, le titre, la période et le message complet. Elle se met à jour si l'incident s'aggrave et annonce le retour à la normale. Si KeoLive n'est pas au premier plan, Windows affiche une notification ; un clic dessus ouvre la fiche de la ligne. Voir « Alertes » plus bas.
 - **À propos (bouton ⓘ, ou clic sur le logo) :** version de l'application, propriétaire et entreprise.
 - **Thème clair ou sombre (`L`) :** le bouton soleil ou lune de l'en-tête bascule entre les deux. Dans les réglages, « Automatique » suit le thème de Windows.
 - **Plein écran (`F11`) :** tout l'écran, par-dessus la barre des tâches, sans bordure ni barre de titre (bouton à quatre coins de l'en-tête), pour un écran dédié. Le curseur se cache après 3 secondes sans bouger la souris. On en sort par `F11`, `Échap` ou le même bouton. Si vous fermez l'application en plein écran, elle se rouvre ainsi.
@@ -50,12 +51,23 @@ Les passages en temps réel et l'état du trafic viennent de PRIM, la plateforme
 
 La même clé peut servir à l'afficheur ESP32 : le quota du jour est alors partagé.
 
+## Alertes d'incident
+
+![Alerte d'incident](apercus/alertes.png)
+
+- **Au lancement :** un résumé des incidents déjà en cours.
+- **Ensuite :** une fenêtre par nouvel incident, puis « Aggravation » s'il passe de perturbé à interrompu, et « Trafic rétabli » à la fin. Une fenêtre se ferme seule au bout d'environ une minute (elle attend tant que la souris est dessus) ; « Voir la ligne » ouvre tous les messages de la ligne.
+- **Quelles lignes :** dans ⚙ Réglages, « Alertes d'incident » : **Toutes** (par défaut), **Mes lignes** ou **Aucune**. « Mes lignes » regroupe les lignes des arrêts épinglés et celles que vous suivez : ouvrez la fiche d'une ligne (clic sur sa pastille dans la colonne Trafic) et cliquez sur **Suivre cette ligne**.
+- **En arrière-plan :** fenêtre réduite ou cachée derrière d'autres, KeoLive continue de lire l'info trafic et prévient par une notification de Windows ; son bouton clignote dans la barre des tâches. Une icône KeoLive reste près de l'horloge : un clic dessus ramène la fenêtre.
+- **Essai :** `KeoLive.exe --essai-notification` affiche une notification d'essai pendant 8 secondes, sans ouvrir l'application. Si rien n'apparaît, les notifications sont coupées dans Windows (Paramètres → Système → Notifications, ou mode « Ne pas déranger »).
+- **Délai :** l'info trafic est relue toutes les 2 minutes quand les alertes sont actives. Une alerte arrive donc au plus 2 minutes après la publication de l'incident par Île-de-France Mobilités.
+
 ## Quota et rafraîchissement
 
 - Chaque arrêt est mis à jour toutes les 60 secondes par défaut (30, 60 ou 120 s dans les réglages).
 - L'application compte ses appels du jour. Si le quota risque de manquer avant 20 h, elle ralentit d'elle-même, en répartissant ce qui reste sur la journée.
-- Quand la fenêtre est réduite, plus aucun appel n'est fait.
-- Le quota par défaut est de 1000 appels par jour ; mettez celui de votre abonnement PRIM dans les réglages. L'info trafic est relue toutes les 5 minutes, sur son propre quota.
+- Quand la fenêtre est réduite, les passages ne sont plus demandés ; seule l'info trafic continue, pour les alertes.
+- Le quota par défaut est de 1000 appels par jour ; mettez celui de votre abonnement PRIM dans les réglages. L'info trafic est relue toutes les 2 minutes (5 minutes si les alertes sont coupées), sur son propre quota, y compris fenêtre réduite.
 
 ## Raccourcis
 
