@@ -26,31 +26,31 @@
 
 ## Installation
 
-1. Téléchargez [`KeoLive.exe`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.exe) (environ 1 Mo, un seul fichier, sans installation ni droits d'administrateur).
-2. Avant le premier lancement, **débloquez le fichier** : clic droit sur `KeoLive.exe` → **Propriétés** → en bas de l'onglet Général, cochez **Débloquer** → **OK**. Windows ne l'affichera plus comme suspect (voir plus bas). Double-cliquez ensuite dessus.
-3. Collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous), puis cherchez une station.
+1. Téléchargez [`KeoLive.zip`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.zip) (environ 550 Ko, sans installation ni droits d'administrateur).
+2. Clic droit sur le fichier → **Extraire tout**, dans un dossier à vous (par exemple `Documents\KeoLive`). Il contient deux fichiers qui doivent rester **côte à côte** :
+   - `KeoLive.exe`, le **lanceur** : la fenêtre Windows ;
+   - `KeoLive.html`, l'**application** elle-même, que le lanceur affiche.
+3. Double-cliquez sur `KeoLive.exe`, puis collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous) et cherchez une station.
 
-L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive`. La page de l'application reste dans l'exécutable : rien d'autre n'est écrit sur le disque. Les versions précédentes y recopiaient la page, dans un sous-dossier `app` que vous pouvez supprimer.
+**Mettre à jour l'application :** remplacez seulement `KeoLive.html` par la nouvelle version ([lien direct](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.html), clic droit → « Enregistrer le lien sous »), puis appuyez sur `F5` dans KeoLive. Le lanceur ne change pas : Windows et l'antivirus le connaissent déjà (voir plus bas). La notice signale les rares fois où le lanceur lui-même change.
 
-**Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez [`KeoLive.html`](dist/KeoLive.html) dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan ».
+L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive` : remplacer les fichiers ne les efface pas. Les anciennes versions y recopiaient la page, dans un sous-dossier `app` que vous pouvez supprimer.
 
-## Pourquoi Windows se méfie, et comment l'éviter
+**Sans `.exe` :** si votre poste de travail interdit les programmes téléchargés, ouvrez `KeoLive.html` dans Edge. C'est la même application, dans le navigateur, sans le mode « premier plan » ni les notifications de Windows.
 
-Windows (SmartScreen) avertit pour tout programme **téléchargé** qui n'est pas **signé** par un éditeur connu. Cela ne veut pas dire qu'un virus a été trouvé : Windows ne connaît simplement pas ce programme. Trois solutions, de la plus simple à la plus complète :
+## Si Windows se méfie ou annonce un virus
 
-- **Débloquer le fichier** (pour vous, une fois pour toutes) : clic droit → Propriétés → cocher **Débloquer**. Ou, dans PowerShell, dans le dossier du fichier : `Unblock-File .\KeoLive.exe`. Windows retire alors la marque « téléchargé depuis Internet » de ce fichier. Sur un poste d'entreprise, ce réglage peut être interdit par le service informatique : il peut alors autoriser le programme, ou vous pouvez utiliser `KeoLive.html` dans Edge.
-- **Cliquer sur « Exécuter quand même »** dans l'avertissement (Informations complémentaires → Exécuter quand même) : Windows ne redemande pas pour ce fichier.
-- **Faire disparaître l'avertissement pour tout le monde** : signer l'exécutable avec un certificat de signature de code (payant, délivré après vérification d'identité, par exemple via le service de signature de Microsoft), ou publier l'application dans le Microsoft Store (compte développeur Microsoft). Même signé, un programme peu téléchargé peut encore être signalé quelque temps, le temps que sa réputation s'établisse.
+**Pourquoi.** Windows juge un programme d'abord sur sa **réputation** : un fichier `.exe` jamais vu, téléchargé et **non signé** par un éditeur connu est traité comme suspect. Les détections de Microsoft Defender dont le nom finit par `!ml` (par exemple `Trojan:Win32/Wacatac.H!ml`) sont des suppositions d'un modèle automatique sur ce genre de fichier, pas la reconnaissance d'un virus connu. Exemple : les versions 1.5.4 et 1.5.5 avaient exactement le même code ; seule la page embarquée changeait, et l'une est passée, l'autre a été détectée.
 
-### Si Windows annonce un virus
+**Ce qui a changé avec le lanceur (2.0.0).** Jusqu'à la 1.5.5, chaque retouche de l'interface produisait un nouvel `.exe`, donc un nouveau fichier inconnu de Windows. Désormais, l'exécutable ne contient plus la page et **ne change plus** quand l'interface évolue ; sa compilation est reproductible (les mêmes sources redonnent exactement le même fichier). Il suffit donc de le faire reconnaître **une seule fois** :
 
-Un message **« Menace détectée »** de Sécurité Windows (Microsoft Defender) est différent de l'avertissement SmartScreen ci-dessus : le fichier est mis en quarantaine. Pour un programme récent, non signé et peu téléchargé comme KeoLive, il s'agit presque toujours d'un **faux positif**. Le nom de la menace se termine alors souvent par `!ml` (par exemple `Trojan:Win32/Wacatac.H!ml`) : c'est une supposition d'un modèle automatique, pas la reconnaissance d'un virus connu.
+1. **Vérifiez que c'est bien le fichier publié :** dans PowerShell, `Get-FileHash .\KeoLive.exe` doit donner l'empreinte écrite dans [`dist/KeoLive.exe.sha256`](dist/KeoLive.exe.sha256).
+2. **Signalez le faux positif à Microsoft :** sur [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission), envoyez `KeoLive.exe` (« Incorrectly detected as malware ») en indiquant le nom de la détection : Sécurité Windows → Protection contre les virus et menaces → **Historique de protection**. Microsoft répond en général en quelques jours et retire la détection pour tout le monde. Comme le lanceur ne change plus, la démarche n'est pas à refaire à chaque mise à jour de l'interface.
+3. **Sur un poste Keolis,** l'antivirus est géré par le service informatique : il peut autoriser `KeoLive.exe` par son empreinte, ou le signer avec le certificat de code de l'entreprise, ce qui règle aussi l'avertissement SmartScreen. Ne désactivez pas l'antivirus.
 
-- **Ce que fait l'exécutable :** il ouvre une fenêtre, y affiche la page de l'application avec WebView2 et enregistre la position de la fenêtre. Il ne modifie ni le registre ni les autres programmes, et ne se lance pas au démarrage de Windows. Les seules adresses contactées sont celles de la section « Au travail : réseau et pare-feu », plus bas. Le code source complet est dans ce dossier (`native/main.cpp` et `app/`).
-- **Depuis la version 1.5.2,** l'exécutable évite ce qui ressemble à un logiciel malveillant pour un antivirus : il n'écrit plus sa page sur le disque (elle est lue directement en mémoire) et n'embarque plus de bibliothèque qui suspend des processus ou modifie leur contexte d'exécution.
-- **Vérifier que c'est bien le fichier publié :** dans PowerShell, `Get-FileHash .\KeoLive.exe` doit donner l'empreinte écrite dans [`dist/KeoLive.exe.sha256`](dist/KeoLive.exe.sha256).
-- **Signaler le faux positif à Microsoft :** sur [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/wdsi/filesubmission), envoyez `KeoLive.exe` en indiquant le nom de la détection (Sécurité Windows → Protection contre les virus et menaces → Historique de protection). Microsoft répond en général en quelques jours et retire la détection pour tout le monde. Chaque nouvelle version est un nouveau fichier : la démarche est à refaire.
-- **Sur un poste Keolis :** l'antivirus est géré par le service informatique. Lui seul peut autoriser KeoLive (par son empreinte) ou le signer avec le certificat de l'entreprise, ce qui règle aussi l'avertissement SmartScreen. Ne désactivez pas l'antivirus. En attendant, `KeoLive.html` dans Edge fonctionne sans exécutable.
+**L'avertissement SmartScreen** (« Windows a protégé votre ordinateur ») n'est pas une détection de virus : Windows ne connaît pas encore le programme. **Informations complémentaires → Exécuter quand même**, ou, avant le premier lancement, clic droit sur `KeoLive.exe` → Propriétés → cocher **Débloquer**. Il ne disparaît pour tout le monde qu'avec une signature de code (certificat payant, délivré après vérification d'identité) ou une publication dans le Microsoft Store.
+
+**Ce que fait le lanceur :** il ouvre une fenêtre, y affiche `KeoLive.html` avec WebView2 et enregistre la position de la fenêtre. Il ne modifie ni le registre ni les autres programmes, n'écrit aucun autre fichier et ne se lance pas au démarrage de Windows. Il n'embarque pas de bibliothèque capable de suspendre un processus ou de modifier son exécution. Les seules adresses contactées sont celles de la section « Au travail : réseau et pare-feu », plus bas. Le code source complet est dans ce dossier (`native/main.cpp` et `app/`).
 
 ## Clé PRIM (gratuite)
 
@@ -113,12 +113,12 @@ Si une carte affiche « PRIM injoignable (réseau ou pare-feu) », c'est que le 
 ```
 app/            l'application (HTML, CSS, JavaScript, polices Barlow sous licence OFL)
   data.js       lignes, stations et gares, générées depuis le projet (tools/)
-native/         la fenêtre Windows (C++, WebView2) : icône, premier plan, mode compact
-tools/          bundle.py (application en un seul fichier), make_data.py, dump_reseau.cpp
-dist/           KeoLive.exe et KeoLive.html, prêts à l'emploi
+native/         le lanceur Windows (C++, WebView2) : fenêtre, icône, premier plan, mode compact
+tools/          bundle.py (application en un seul fichier), make_zip.py, make_data.py, dump_reseau.cpp
+dist/           KeoLive.zip (à distribuer) : KeoLive.exe, le lanceur, et KeoLive.html, l'application
 ```
 
-- **Compiler sous Linux :** `make`. Il faut MinGW-w64 en version « win32 » (`g++-mingw-w64-x86-64-win32`, et non « posix », dont la bibliothèque de threads ressemble pour les antivirus à un programme qui s'injecte dans d'autres), la bibliothèque [webview](https://github.com/webview/webview) 0.12 et le SDK WebView2 (paquet NuGet `Microsoft.Web.WebView2`). Les chemins sont en tête du `Makefile`.
+- **Compiler sous Linux :** `make`. Il faut MinGW-w64 en version « win32 » (`g++-mingw-w64-x86-64-win32`, et non « posix », dont la bibliothèque de threads ressemble pour les antivirus à un programme qui s'injecte dans d'autres), la bibliothèque [webview](https://github.com/webview/webview) 0.12 et le SDK WebView2 (paquet NuGet `Microsoft.Web.WebView2`). Les chemins sont en tête du `Makefile`. Une modification de `app/` ne reconstruit que `KeoLive.html` et le zip ; `KeoLive.exe` n'est recompilé que si `native/` change, et toujours à l'identique (date fixée par `SOURCE_DATE_EPOCH`, sans horodatage).
 - **Essayer l'interface dans un navigateur :** servez la racine du dépôt (`python3 -m http.server`) et ouvrez `windows/app/index.html`. Avec `?demo`, les réponses PRIM sont remplacées par des réponses réelles enregistrées (`test/data/`) et remises à l'heure.
 - **Mettre à jour les stations :** `g++ -I../Metro -I<ArduinoJson>/src tools/dump_reseau.cpp ../Metro/reseau.cpp ../Metro/lines.cpp ../Metro/siri.cpp -o dump`, puis `./dump | python3 tools/make_data.py ../Metro/lines.cpp > app/data.js`.
 

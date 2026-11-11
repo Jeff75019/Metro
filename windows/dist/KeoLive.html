@@ -530,7 +530,7 @@ const SNCF_STATIONS = [["Gare de Lyon","87686006,87686030"],["Gare du Nord","872
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '1.5.5', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.6.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -1532,13 +1532,15 @@ function notifyOutside(g, prefix) {
 window.keoNotifyClick = () => { if (alertsUi.clickLine) openLine(alertsUi.clickLine); };
 
 function openAbout() {
+  const ver = el('div', { class: 'about-ver' }, 'Version ' + APP.version);
+  native('version').then(v => { if (v) ver.textContent = `Version ${APP.version} · lanceur ${v}`; });
   const keolis = $('#imgKeolis').cloneNode();
   keolis.hidden = false;
   keolis.removeAttribute('id');
   openDialog('À propos', icon('i-info'), [
     el('div', { class: 'about-top' },
       el('div', { class: 'about-name', 'aria-label': APP.name }, icon('k-keolis', 'kmark'), el('span', { class: 'ktext' }, APP.name.slice(1))),
-      el('div', { class: 'about-ver' }, 'Version ' + APP.version)),
+      ver),
     el('dl', { class: 'about-rows' },
       el('dt', {}, 'Propriétaire'), el('dd', {}, APP.owner),
       el('dt', {}, 'Mise en place pour'), el('dd', {}, el('span', { class: 'plate', title: APP.company }, keolis))),
