@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0a0f19">
+<title>KeoLive</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg hidden xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.7 7.7 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.7 7.7 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.7 7.7 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.7 7.7 0 0 0 2.6-1.5l2.4 1 2-3.4-2-1.6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z" fill="currentColor"/><path d="M12 9v5" stroke="#05070c" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="17" r="1.4" fill="#05070c"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7 12.5 3.2 3L17 9" fill="none" stroke="#05070c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 7h12l-3-3M17 17H5l3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13.5" y="4.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="14" width="17" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.4" fill="currentColor"/></symbol>
+  <symbol id="k-keolis" viewBox="0 0 386 306"><rect x="0" y="7" width="54" height="292" fill="currentColor"/><path d="M376 26L124.3 115.6A39.7 39.7 0 0 0 124.3 190.4L376 280" fill="none" stroke="currentColor" stroke-width="51.8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m11.5 12 8-8m-3 3 2.5 2.5M14 9.5l2 2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="18.5" r="2" fill="currentColor"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14m6-6-6 6-6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 11v6m4-6v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6Z" fill="currentColor"/><path d="M12 14v7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-drag" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="m-metro" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="15" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 11h14" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="14.5" r="1.2" fill="currentColor"/><circle cx="15" cy="14.5" r="1.2" fill="currentColor"/><path d="m8 18-2 3m10-3 2 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="m-rer" viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16M12 4v6" stroke="currentColor" stroke-width="2"/><path d="m8 18-2 3m10-3 2 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="m-tram" viewBox="0 0 24 24"><path d="M9 2h6M12 2v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="5" width="14" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 11h14" stroke="currentColor" stroke-width="2"/><path d="m8 18-2 3m10-3 2 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="m-bus" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 10h16" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="14.5" r="1.2" fill="currentColor"/><circle cx="16" cy="14.5" r="1.2" fill="currentColor"/><path d="M7 18v3m10-3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="m-train" viewBox="0 0 24 24"><path d="M7 3h10a3 3 0 0 1 3 3v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V6a3 3 0 0 1 3-3Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 9h16" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="13.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="13.5" r="1.2" fill="currentColor"/><path d="m8 18-3 3m11-3 3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="top">
+  <button class="brand" id="bBrand" title="À propos de KeoLive"><span class="brand-name" aria-label="KeoLive"><svg class="kmark" aria-hidden="true"><use href="#k-keolis"/></svg><span class="ktext" aria-hidden="true">eoLive</span></span></button>
+  <div class="top-end">
+    <button class="tool" id="bRefresh" title="Actualiser"><svg><use href="#i-swap"/></svg></button>
+    <button class="tool" id="bTheme" title="Thème clair ou sombre"><svg><use href="#i-sun"/></svg></button>
+    <button class="tool" id="bSettings" title="Réglages"><svg><use href="#i-gear"/></svg></button>
+  </div>
+</header>
+
+<main class="panes">
+  <section class="pane" id="paneBoard">
+    <section id="keyBanner" class="banner" hidden></section>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty" hidden></div>
+  </section>
+  <section class="pane" id="paneTraffic" hidden>
+    <div id="traffic" class="traffic"></div>
+  </section>
+  <section class="pane" id="paneSearch" hidden>
+    <div class="search" role="combobox" aria-expanded="false" aria-owns="results">
+      <svg class="ico"><use href="#i-search"/></svg>
+      <input id="q" type="search" placeholder="Station, gare ou arrêt de bus…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Rechercher une station, une gare ou un arrêt">
+      <button class="ibtn" id="qClear" title="Effacer" hidden><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div id="results" class="results" role="listbox"></div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Sections">
+  <button class="tab" data-pane="board" aria-pressed="true"><svg><use href="#i-board"/></svg><span>Tableau</span></button>
+  <button class="tab" data-pane="traffic" aria-pressed="false"><svg><use href="#i-warn"/></svg><span>Trafic</span><i class="tbadge" id="trafficBadge" hidden></i></button>
+  <button class="tab" data-pane="search" aria-pressed="false"><svg><use href="#i-search"/></svg><span>Recherche</span></button>
+</nav>
+
+<div id="alerts" class="alerts" aria-live="assertive"></div>
+<div id="status" class="status" role="status"></div>
+<dialog id="dlg" class="sheet"></dialog>
+<img id="imgKeolis" src="keolis.png" alt="Keolis" hidden>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

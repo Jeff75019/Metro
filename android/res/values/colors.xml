@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="bg">#05070C</color>        <!-- fond de la page (thème sombre) -->
+  <color name="bar">#0A0F19</color>       <!-- en-tête et barre d'onglets, derrière les barres système -->
+  <color name="ic_bg">#0B1220</color>     <!-- fond de l'icône adaptative -->
+  <color name="keolis">#41A8BE</color>
+  <color name="signal">#E8262B</color>
+</resources>

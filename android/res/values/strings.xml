@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">KeoLive</string>
+  <string name="channel_incidents">Incidents</string>
+  <string name="channel_incidents_desc">Trafic perturbé ou interrompu sur une ligne</string>
+  <string name="channel_end">Trafic rétabli</string>
+  <string name="channel_end_desc">Fin d’un incident</string>
+</resources>

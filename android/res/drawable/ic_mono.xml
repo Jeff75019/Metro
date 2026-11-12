@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Calque monochrome de l'icône adaptative (icônes « thématiques » d'Android 13 et plus) :
+     le « K » dans la zone sûre de 66 dp au centre du canevas de 108 dp -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+  <group android:scaleX="0.1244" android:scaleY="0.1244" android:translateX="30" android:translateY="35">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M0,7h54v292H0z"/>
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="51.8"
+        android:pathData="M376,26L124.3,115.6A39.7,39.7 0 0 0 124.3,190.4L376,280"/>
+  </group>
+</vector>

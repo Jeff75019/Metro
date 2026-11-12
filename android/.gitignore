@@ -1,0 +1,4 @@
+build/
+# Clé de signature du propriétaire et son mot de passe : jamais dans le dépôt (voir build.sh)
+keystore/
+dist/*.idsig

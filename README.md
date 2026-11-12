@@ -196,9 +196,11 @@ Au réveil, l'afficheur reprend l'écran laissé (la station ou la gare choisie,
 
 Journal de fonctionnement : moniteur série à 115200 bauds.
 
-## Application Windows : KeoLive
+## Applications Windows et Android : KeoLive
 
 **KeoLive** est un tableau de bord pour l'écran de l'ordinateur, conçu à part, avec une interface neuve inspirée des écrans de quai. On y épingle des arrêts trouvés par la recherche libre (métro, RER, tram, bus, gares SNCF), avec les grandes gares de Paris, l'état du trafic de toutes les lignes, des alertes dès qu'un incident touche une ligne, un plein écran et un mode compact toujours au premier plan. C'est un seul fichier `KeoLive.exe` d'environ 750 Ko, sans installation : voir [`windows/`](windows/).
+
+**KeoLive pour Android** : la même application sur le téléphone, avec une interface conçue pour l'écran tactile (trois onglets : Tableau, Trafic, Recherche, cartes déplaçables au doigt) et des **alertes d'incident par notification, même application fermée** (vérification toutes les 15 minutes). Un fichier `KeoLive.apk` d'environ 300 Ko à installer hors Play Store : voir [`android/`](android/).
 
 ![KeoLive](windows/apercus/tableau.png)
 

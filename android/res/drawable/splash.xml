@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fond de la fenêtre pendant le chargement de la page : le « K » sur le fond sombre -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:drawable="@color/bar"/>
+  <item android:gravity="center" android:width="160dp" android:height="160dp" android:drawable="@mipmap/ic_fg"/>
+</layer-list>

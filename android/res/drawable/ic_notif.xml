@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône de notification : le « K » de Keolis, blanc sur transparent (Android n'en garde que la forme) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="386" android:viewportHeight="386">
+  <path android:fillColor="#FFFFFFFF" android:pathData="M0,47h54v292H0z"/>
+  <path android:strokeColor="#FFFFFFFF" android:strokeWidth="51.8"
+      android:pathData="M376,66L124.3,155.6A39.7,39.7 0 0 0 124.3,230.4L376,320"/>
+</vector>
