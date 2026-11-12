@@ -6,7 +6,8 @@
 //    - le support : plaque clipsée dans la coque, derrière les broches de la carte ;
 //                   ses 4 plots appuient sur les entretoises M2 et tiennent la carte
 //                   contre la vitre, une fenêtre laisse passer le câble de la batterie ;
-//    - le fond    : se clipse par les petits côtés et cale la batterie.
+//    - le fond    : un rebord suit tout le tour intérieur de la coque et le cale dans
+//                   les deux sens ; cinq languettes à ergot le clipsent ; il cale la batterie.
 //  La batterie se pose derrière le support : la plaque la sépare des pointes des
 //  broches. Côté USB-C, une place est laissée pour le surplus de câble.
 //
@@ -97,22 +98,33 @@ lang_l = 13.0;                          // longueur (bout libre sur le bouton)
 lang_x0 = btn_cx - 2.5;                 // bout libre, côté USB-C
 fente = 0.7;
 creux = 0.6;                            // amincissement : languette de 1 mm
-levre = 3.0;                            // pattes du fond qui entrent dans la coque
-clip_z = coque_ep - levre / 2;          // hauteur des clips du fond
 jl = 0.15;                              // jeu des pièces glissées dans la coque
-patte = 1.2;                            // épaisseur des pattes du fond
-rainure_l = 16;                         // rainures des clips du fond (petits côtés)
-clip_l = rainure_l - 0.6;               // ergots des pattes : 0,3 mm de jeu à chaque bout
-// butées du fond contre les grands côtés, dans la place libre côté USB-C
-but_x0 = paroi + jl + patte + 1.0;
-// Batterie contre le petit côté opposé à l'USB-C (place pour une patte du fond) ;
+// Fond : un rebord (lèvre) suit tout le tour intérieur de la coque, à 0,15 mm des parois,
+// et cale le fond en long et en travers. Il s'interrompt seulement le long de la batterie,
+// qui touche presque les grands côtés. Cinq languettes découpées dans ce rebord portent
+// un ergot près de leur bout, qui se clipse dans une rainure de la coque : deux sur les
+// grands côtés (côté USB-C), deux sur le petit côté USB-C (de part et d'autre de la rainure
+// de la prise), une au milieu du petit côté opposé.
+levre = 6.0;                            // hauteur du rebord dans la coque
+lv = 1.2;                               // épaisseur du rebord et des languettes
+ergot = 0.4;                            // saillie des ergots (0,5 : tient plus fort ; 0,3 : s'ouvre plus facilement)
+ergot_z = 3.5;                          // face de retenue de l'ergot, depuis la face intérieure du fond
+fente_r = 0.8;                          // fentes qui libèrent les languettes
+rainure_z0 = coque_ep - (ergot_z + 1.5);   // rainures de la coque, de l'avant...
+rainure_z1 = coque_ep - (ergot_z - 0.05);  // ...au bord du fond (l'ergot y arrive avec 0,05 mm d'avance)
+lip_fin = 13.4;                         // fin du rebord sur les grands côtés (début de la zone de la batterie)
+cy = ext_h / 2;                         // milieu des petits côtés
+tab_long = [paroi + jl + 2.9, lip_fin];                                  // languettes des grands côtés (X)
+tab_usb = [[cy - 12.4, cy - 5.4], [cy + 5.4, cy + 12.4]];                // petit côté USB-C (Y)
+tab_far = [cy - 7, cy + 7];                                              // petit côté opposé (Y)
+// Batterie contre le rebord du petit côté opposé à l'USB-C (0,6 mm de jeu) ;
 // le surplus de câble se range côté USB-C
-bat_x = paroi + int_l - (jl + patte + 0.3) - bat_long;
+bat_x = paroi + int_l - (jl + lv + 0.6) - bat_long;
 bat_y = paroi + (int_h - bat_larg) / 2;
 conn_x = x0 + retrait_carte + bat_conn_x;  // connecteur de la batterie (X)
 
 assert(bat_larg <= int_h - 0.4, "batterie trop large pour le boîtier");
-assert(bat_x >= paroi + jl + patte + 4, "batterie trop longue pour le boîtier");
+assert(bat_x >= lip_fin + 1.0, "batterie trop longue pour le boîtier");
 
 module rrect(l, h, r, ep) {  // rectangle arrondi extrudé
   r2 = min(r, l / 2, h / 2);
@@ -156,11 +168,14 @@ module coque() {
     // rainures des clips du support (grands côtés)
     for (y = [paroi - 0.5, ext_h - paroi - 0.01])
       translate([ext_l / 2 - 9, y, z_support + support_ep / 2 - 0.6]) cube([18, 0.51, 1.2]);
-    // rainures des clips du fond (petits côtés)
-    for (x = [paroi - 0.5, ext_l - paroi - 0.01])
-      translate([x, ext_h / 2 - rainure_l / 2, clip_z - 0.6]) cube([0.51, rainure_l, 1.2]);
-    // encoche pour ouvrir (grand côté, au ras du fond)
-    translate([ext_l - 22, -0.01, coque_ep - 1.2]) cube([10, paroi + 0.02, 1.21]);
+    // rainures des clips du fond : en face de chaque languette du rebord (0,2 mm de plus à chaque bout)
+    rz = rainure_z1 - rainure_z0;
+    for (t = tab_usb) translate([paroi - 0.5, t[0] - 0.2, rainure_z0]) cube([0.51, t[1] - t[0] + 0.4, rz]);
+    translate([ext_l - paroi - 0.01, tab_far[0] - 0.2, rainure_z0]) cube([0.51, tab_far[1] - tab_far[0] + 0.4, rz]);
+    for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0])
+      translate([tab_long[0] - 0.2, paroi - 0.5, rainure_z0]) cube([tab_long[1] - tab_long[0] + 0.4, 0.51, rz]);
+    // encoche pour ouvrir (grand côté, au ras du fond, là où le rebord s'interrompt)
+    translate([ext_l - 23, -0.01, coque_ep - 1.6]) cube([12, paroi + 0.02, 1.61]);
   }
   // boutons intégrés : pastille sous le doigt (affleurante). La languette est au ras
   // de la paroi à l'intérieur : en appuyant, elle pousse le bouton de la carte.
@@ -207,6 +222,14 @@ module support() {
 }
 
 // ---- Fond ----------------------------------------------------------------------
+// Ergot d'une languette : x vers l'extérieur de la coque, y le long de la languette (0..len),
+// z depuis la face intérieure du fond. Ancré de 0,3 mm dans la languette.
+module crochet(len) {
+  translate([0, len, 0]) rotate([90, 0, 0]) linear_extrude(len)
+    polygon([[-0.3, ergot_z - 0.3], [0, ergot_z], [ergot, ergot_z + 0.4], [ergot, ergot_z + 0.95],
+             [0, ergot_z + 1.4], [-0.3, ergot_z + 1.4]]);
+}
+
 module fond() {
   ancr = 0.5;  // pattes et nervures ancrées dans la plaque : une seule pièce
   // plaque extérieure, « USB-C » gravé du côté de la prise
@@ -215,23 +238,36 @@ module fond() {
     translate([11, ext_h / 2, -0.01]) mirror([0, 1, 0]) linear_extrude(0.6)
       text("USB-C", size = 4.5, halign = "center", valign = "center", font = "Liberation Sans:style=Bold");
   }
-  // pattes de clipsage (petits côtés) : elles calent le fond en longueur, et leur
-  // ergot remplit la rainure de la coque sur toute sa longueur, ce qui le cale en travers
-  for (s = [0, 1]) {
-    px = s ? ext_l - paroi - jl - patte : paroi + jl;
-    translate([px, ext_h / 2 - clip_l / 2, fond_ep - ancr]) cube([patte, clip_l, levre + ancr]);
-    translate([s ? ext_l - paroi - jl - 0.01 : paroi + jl - 0.39, ext_h / 2 - clip_l / 2, fond_ep + levre / 2 - 0.4])
-      cube([0.4, clip_l, 0.8]);
-  }
-  // butées contre les grands côtés (côté USB-C, où la batterie laisse de la place),
-  // chanfreinées pour guider le fond : il ne glisse plus en travers
-  but_l = min(8.5, bat_x - 1.6 - 0.8 - but_x0);
-  for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0])
-    hull() {
-      translate([but_x0, paroi + jl, fond_ep - ancr]) cube([but_l, 1.6, levre - 0.6 + ancr]);
-      translate([but_x0, paroi + jl + 0.6, fond_ep - ancr]) cube([but_l, 1.0, levre + ancr]);
+  // rebord : anneau qui suit l'intérieur de la coque, bout biseauté, interrompu le long de
+  // la batterie, fendu de part et d'autre de chaque languette
+  r_o = verre_r + jeu - jl;        // rayon extérieur du rebord (celui de l'intérieur de la coque)
+  bande = paroi + jl + lv + 0.6;   // profondeur des découpes depuis le bord
+  translate([0, 0, fond_ep - ancr]) difference() {
+    difference() {
+      hull() {
+        translate([paroi + jl, paroi + jl, 0]) rrect(int_l - 2 * jl, int_h - 2 * jl, r_o, levre + ancr - 0.5);
+        translate([paroi + jl + 0.5, paroi + jl + 0.5, levre + ancr - 0.01])
+          rrect(int_l - 2 * jl - 1, int_h - 2 * jl - 1, max(0.3, r_o - 0.5), 0.01);
+      }
+      translate([paroi + jl + lv, paroi + jl + lv, -0.1])
+        rrect(int_l - 2 * (jl + lv), int_h - 2 * (jl + lv), max(0.01, r_o - lv), levre + ancr + 0.2);
     }
-  // nervures qui calent la batterie (côté câble, et en haut et en bas)
+    for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0]) {
+      // zone de la batterie : pas de rebord le long des grands côtés (jusqu'à l'arrondi opposé)
+      translate([lip_fin, -0.1, -0.1]) cube([ext_l - paroi - jl - r_o - lip_fin, bande, levre + ancr + 0.2]);
+      // fente côté USB-C de la languette du grand côté (son autre bout est libre)
+      translate([tab_long[0] - fente_r, -0.1, ancr]) cube([fente_r, bande, levre + 0.2]);
+    }
+    for (t = tab_usb, y = [t[0] - fente_r, t[1]]) translate([-0.1, y, ancr]) cube([bande, fente_r, levre + 0.2]);
+    for (y = [tab_far[0] - fente_r, tab_far[1]]) translate([ext_l - bande, y, ancr]) cube([bande + 0.1, fente_r, levre + 0.2]);
+  }
+  // ergots au bout des languettes : face de retenue inclinée côté fond (le fond s'ouvre en
+  // forçant un peu dans l'encoche), biseau à 45° côté bout (le fond s'enfonce tout seul)
+  for (t = tab_usb) translate([paroi + jl, t[0] + 0.3, fond_ep]) mirror([1, 0, 0]) crochet(t[1] - t[0] - 0.6);
+  translate([ext_l - paroi - jl, tab_far[0] + 0.3, fond_ep]) crochet(tab_far[1] - tab_far[0] - 0.6);
+  for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0])
+    translate([tab_long[0] + 0.3, paroi + jl, fond_ep]) rotate([0, 0, -90]) crochet(tab_long[1] - tab_long[0] - 0.6);
+  // nervures qui calent la batterie (côté câble, et en haut et en bas quand il reste de la place)
   translate([0, 0, fond_ep - ancr]) {
     translate([bat_x - 1.6, ext_h / 2 - 6, 0]) cube([1.2, 12, 2.5 + ancr]);
     for (y = [bat_y - 1.4, bat_y + bat_larg + 0.2])

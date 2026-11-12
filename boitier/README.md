@@ -4,7 +4,7 @@ Boîtier de poche pour la carte **Waveshare ESP32-S3-Touch-LCD-1.9** (livrée av
 
 - la **coque** (avant et côtés) ;
 - le **support**, une plaque clipsée dans la coque derrière les broches de la carte : ses 4 plots appuient sur les entretoises M2 et tiennent la carte contre la vitre, une fenêtre laisse passer le câble de la batterie ;
-- le **fond**, qui se clipse par les petits côtés et cale la batterie. Ses pattes le calent en longueur ; en travers, leurs ergots remplissent les rainures de la coque et deux butées appuient contre les grands côtés : il ne bouge plus une fois clipsé.
+- le **fond**, tenu par un rebord qui suit tout le tour intérieur de la coque (à 0,15 mm des parois) et le cale en long comme en travers. Cinq languettes découpées dans ce rebord portent un ergot près de leur bout, qui se clipse dans une rainure de la coque : deux sur les grands côtés (côté USB-C), deux sur le petit côté USB-C, une au milieu du petit côté opposé. Le rebord ne s'interrompt que le long de la batterie, qui touche presque les grands côtés. Le fond cale aussi la batterie.
 
 ![Aperçus : monté, vue éclatée, support, dos, intérieur de la coque, fond](apercus/planche.png)
 
@@ -41,6 +41,7 @@ Les STL sont prévus pour la carte telle que Waveshare la livre (broches et entr
 | `dos_carte` | 7,8 | de la face avant de la vitre au dos du circuit (hors prise USB-C) |
 | `jeu` | 0,25 | jeu autour de la vitre : 0,3 si votre imprimante « gonfle » les trous |
 | `course` | 0 | poussoir sous les languettes des boutons (voir ci-dessous) |
+| `ergot` | 0,4 | saillie des ergots du fond : 0,5 s'il se déclipse trop facilement, 0,3 s'il est trop dur à ouvrir (coque et fond à réimprimer) |
 | `boutons_souples` | true | `false` pour revenir à de simples trous (appui avec une pointe) |
 
 **Boîtier plus fin** : les broches ne servent pas dans ce montage. Si vous les coupez à la pince coupante au ras de leur support en plastique noir, mettez `broches = 3` : le boîtier perd près de 6 mm d'épaisseur (25,0 mm). Les entretoises restent.
@@ -68,13 +69,13 @@ openscad -D 'piece="fond"'    -o fond.stl    boitier.scad
 2. Posez la carte dans la coque, écran en premier, la prise USB-C en face de son ouverture. Elle doit descendre seule jusqu'au rebord de la fenêtre et y rester à plat : si un bout reste en l'air, quelque chose frotte, ne forcez pas.
 3. Branchez la batterie sur la carte et passez son câble par la fenêtre du support.
 4. Enfoncez le support, plots vers la carte : les plots viennent sur le bout des entretoises (il ne se monte que dans un sens) et la plaque se clipse dans la coque, juste derrière les pointes des broches.
-5. Posez la batterie à plat sur le support, **le côté des fils vers l'USB-C** : le surplus de câble se range dans la place libre de ce côté, au milieu, pour ne pas être pincé par les butées du fond le long des grands côtés.
-6. Clipsez le fond, « USB-C » gravé du côté de la prise.
-7. Pour ouvrir : glissez un ongle ou un tournevis plat dans l'encoche du grand côté.
+5. Posez la batterie à plat sur le support, **le côté des fils vers l'USB-C** : le surplus de câble se range dans la place libre de ce côté, au milieu, entre les languettes du fond.
+6. Présentez le fond, « USB-C » gravé du côté de la prise : son rebord entre dans la coque et le centre tout seul. Appuyez sur les bords jusqu'au clic des cinq languettes (les deux du petit côté USB-C, celle du côté opposé et les deux des grands côtés). Bien clipsé, il affleure la coque et ne bouge plus.
+7. Pour ouvrir : glissez un ongle ou un tournevis plat dans l'encoche du grand côté et soulevez ; les ergots ont une face inclinée côté fond, ils se déclipsent en forçant un peu.
 
 BOOT et RST s'actionnent du doigt, par les pastilles rondes des grands côtés (côté USB-C).
 
 ## Limites
 
-- Version 2, corrigée après un premier essai (broches et entretoises au dos, carte de travers à cause des poussoirs des boutons, fond qui glissait en travers). Établie d'après le plan du fabricant et des photos de la carte : la longueur des broches (9,6 mm) et la position des boutons sont mesurées sur ces images, à quelques dixièmes de millimètre près.
+- Version 3 : fixation du fond refaite après essai (il jouait en travers et se déclipsait : les deux pattes de 3 mm ne pouvaient presque pas fléchir). Le rebord sur tout le tour et les cinq languettes de 6 mm, dont les ergots sont près du bout, remplacent les pattes et les butées. Coque et fond sont à réimprimer, le support est inchangé. Version 2 : broches et entretoises au dos, carte de travers à cause des poussoirs des boutons, fond qui glissait en travers. Établie d'après le plan du fabricant et des photos de la carte : la longueur des broches (9,6 mm) et la position des boutons sont mesurées sur ces images, à quelques dixièmes de millimètre près.
 - Ne comprimez pas et ne percez pas la batterie : laissez-lui un peu de jeu (prévu : 0,6 mm), et ne la posez jamais directement contre les pointes des broches.
