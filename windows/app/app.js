@@ -3,7 +3,7 @@
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '2.4.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '2.5.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils

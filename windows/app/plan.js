@@ -413,10 +413,13 @@ const FLEET = {
   dwellMin: 15e3,    // arrêt minimal à quai
   gap: 0.12,         // écart minimal entre deux rames sur un même intervalle (part de l'intervalle)
   step: 1000,        // réglage des rames : une fois par seconde
-  spawnDelay: 5e3,   // une rame vue par les annonces depuis moins de 5 s n'est pas encore créée
-  lost: 75e3,        // une rame que rien ne confirme depuis 75 s est retirée
+  spawnDelay: 8e3,   // une rame vue par les annonces depuis moins de 8 s n'est pas encore créée
+  lost: 60e3,        // une rame que rien ne confirme depuis 60 s est retirée
+  maxDwell: 60e3,    // arrêt le plus long en station (une rame repart toujours)
+  maxDwellOrigin: 180e3,  // attente la plus longue au terminus de départ
   slew: 6e3,         // l'heure d'arrivée visée bouge d'au plus 6 s à chaque réglage
-  headway: 8e3,      // entre le départ d'une rame et l'arrivée de la suivante à la même station
+  headway: 45e3,     // entre le départ d'une rame et l'arrivée de la suivante à la même station
+  unseen: 40e3,      // une rame que les annonces ne montrent plus depuis 40 s est retirée
 };
 
 // Rame repartie sur un nouvel horaire en cours de route : vitesse constante, puis freinage
@@ -438,6 +441,11 @@ class PlanFleet {
     this.started = 0;
   }
   run(a, b) { return this.tr.runTime(a, b); }
+  // heure de départ la plus tardive : une rame ne reste jamais à quai indéfiniment
+  latest(T) {
+    const origin = !(this.topo.prev[T.dir].get(T.at.i) || []).length;
+    return T.arrAt + (origin ? FLEET.maxDwellOrigin : FLEET.maxDwell);
+  }
 
   // Part de la distance parcourue entre la station quittée et la suivante
   prog(T, t) {
@@ -485,7 +493,7 @@ class PlanFleet {
       T.arrAt = o.depart ? t : t - 5e3;
       T.to = o.held || this.nextOf(T);
       T.dep = o.depart ? t + o.depart
-        : o.held ? t + Math.max(5e3, o.eta - this.run(o.node, o.held)) : t + Math.max(5e3, this.dwell / 2);
+        : o.held ? t + Math.min(FLEET.maxDwell / 2, Math.max(5e3, o.eta - this.run(o.node, o.held))) : t + Math.max(5e3, this.dwell / 2);
       T.t0 = T.dep;
       T.g0 = 0;
       T.tArr = T.to ? T.dep + this.run(T.at, T.to) : T.dep;
@@ -505,7 +513,7 @@ class PlanFleet {
   // Les annonces d'une station, attribuées dans l'ordre aux rames qui s'y rendent : alignement
   // des deux suites (une annonce peut rester sans rame, une rame sans annonce), au moindre écart
   align(trains, preds, t) {
-    const n = trains.length, m = preds.length, INF = 1e12, SKT = 90, SKP = 60;
+    const n = trains.length, m = preds.length, INF = 1e12, SKT = 60, SKP = 40;
     const cost = (T, v) => {
       const run = this.run(T.at, T.to);
       const early = t < T.dep ? Math.max(t, T.arrAt + FLEET.dwellMin) + FLEET.minRun * run
@@ -514,8 +522,11 @@ class PlanFleet {
       // se hâter (forte pénalité) ; en retard sur l'horaire : plus vraisemblable qu'en avance
       // (à quai, une rame peut attendre ; presque arrivée, elle ne s'arrête pas des minutes en route)
       const late = (early - 15e3 - v.arr) / 1e3;
-      const d = (v.arr - T.tArr) / 1e3, g = t < T.dep ? 0 : this.prog(T, t);
-      return (late > 0 ? 3 * late : 0) + (d < 0 ? -d * 1.5 : d * (0.4 + 1.2 * g));
+      const natural = t < T.dep ? Math.max(t, T.arrAt + this.dwell) + run : t + (1 - this.prog(T, t)) * run;
+      const d = (v.arr - natural) / 1e3;   // écart à l'arrivée normale (sans retard)
+      if (d < 0) return (late > 0 ? 3 * late : 0) - d * 1.5;
+      if (t < T.dep) return 0.3 * Math.min(d, 60) + 3 * Math.max(0, d - 60);   // à quai : attendre un peu, pas des minutes
+      return d * (0.6 + 1.5 * this.prog(T, t));
     };
     const D = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(INF));
     const B = Array.from({ length: n + 1 }, () => new Int8Array(m + 1));
@@ -544,8 +555,8 @@ class PlanFleet {
     if (v.dn) { T.dest = v.dn; T.destName = v.dest; }
     const run = this.run(T.at, T.to), slew = FLEET.slew;
     if (t < T.dep) {   // à quai : départ réglé sur l'arrivée annoncée à la suivante
-      const want = Math.max(T.arrAt + FLEET.dwellMin, v.arr - run, t);
-      T.dep = Math.max(t, T.dep + Math.max(-slew, Math.min(slew, want - T.dep)));
+      const want = Math.min(this.latest(T), Math.max(T.arrAt + FLEET.dwellMin, v.arr - run, t));
+      T.dep = Math.max(t, Math.min(this.latest(T), T.dep + Math.max(-slew, Math.min(slew, want - T.dep))));
       T.t0 = T.dep;
       T.g0 = 0;
       T.tArr = Math.max(v.arr, T.dep + FLEET.minRun * run);
@@ -579,27 +590,48 @@ class PlanFleet {
     }
   }
 
-  // Pas de dépassement : une rame n'arrive à une station qu'après le départ de celle qui la précède
+  // Pas de dépassement : sur un même intervalle, la rame de devant arrive la première ; à une
+  // station, une rame n'arrive qu'après le départ de celle qui la précède
   order(t) {
     for (const [k, list] of this.groups()) {
       const [bi, d] = k.split('|').map(Number);
+      // rang de chaque rame : celles qui roulent, de la plus avancée à la moins avancée, puis
+      // celles encore à quai à la station précédente, par heure de départ
+      const key = T => t >= T.dep ? -this.prog(T, t) : 1 + (T.dep - t) / 1e7;
+      const bySeg = new Map();
+      for (const T of list) {
+        const s = T.at.i;
+        if (!bySeg.has(s)) bySeg.set(s, []);
+        bySeg.get(s).push(T);
+      }
+      for (const seg of bySeg.values()) {
+        seg.sort((a, b) => key(a) - key(b));
+        for (let i = 1; i < seg.length; i++) {
+          const L = seg[i - 1], T = seg[i], allowed = L.tArr + FLEET.dwellMin + FLEET.headway;
+          if (T.tArr < allowed) this.delay(T, allowed, t);
+        }
+      }
+      // à la station : une à la fois, la suivante 25 s après le départ de la précédente
       list.sort((x, y) => x.tArr - y.tArr);
       let free = 0;
       for (const T of this.trains) if (T.at.i === bi && T.dir === d && (T.to ? t < T.dep : true)) free = Math.max(free, T.to ? T.dep : T.endAt);
       for (const T of list) {
         const allowed = free + FLEET.headway;
-        if (T.tArr < allowed) {
-          if (t < T.dep) {   // encore à quai : elle y reste le temps qu'il faut
-            const run = this.run(T.at, T.to);
-            T.dep = Math.max(T.dep, allowed - run);
-            T.t0 = T.dep;
-            T.g0 = 0;
-          } else { T.g0 = this.prog(T, t); T.t0 = t; }
-          T.tArr = Math.max(allowed, T.t0 + (1 - T.g0) * FLEET.minRun * this.run(T.at, T.to));
-        }
+        if (T.tArr < allowed) this.delay(T, allowed, t);
         free = T.tArr + FLEET.dwellMin;
       }
     }
+  }
+  // Retarde l'arrivée d'une rame : encore à quai, elle y reste (dans la limite de l'arrêt maximal) ;
+  // en route, elle ralentit
+  delay(T, allowed, t) {
+    const run = this.run(T.at, T.to);
+    if (t < T.dep) {
+      T.dep = Math.max(T.dep, Math.min(this.latest(T), allowed - run));
+      T.t0 = T.dep;
+      T.g0 = 0;
+    } else { T.g0 = this.prog(T, t); T.t0 = t; }
+    T.tArr = Math.max(allowed, T.t0 + (1 - T.g0) * FLEET.minRun * run);
   }
 
   // Distance le long de la voie (en stations, positive si b est devant a) entre deux positions
@@ -640,16 +672,17 @@ class PlanFleet {
       for (const T of this.trains) {
         if (T.dir !== o.dir) continue;
         const d = this.along(this.posOf(T, t), po, o.dir);
-        if (d !== null && Math.abs(d) <= 1.2) pairs.push({ i, T, d: Math.abs(d) });
+        if (d !== null && Math.abs(d) <= 1.8) pairs.push({ i, T, d: Math.abs(d), sd: d });
       }
     });
     pairs.sort((a, b) => a.d - b.d);
     const usedO = new Set(), usedT = new Set();
-    for (const { i, T } of pairs) {
+    for (const { i, T, sd } of pairs) {
       if (usedO.has(i) || usedT.has(T)) continue;
       usedO.add(i);
       usedT.add(T);
       T.seen = t;
+      if (sd > 0.6) this.hurry(T, t);   // en retard sur ce que montrent les annonces : elle se hâte
       const o = obs[i];
       if (!T.destName && o.dest) { T.destName = o.dest; T.dest = this.tr.destNode(o.dest); }
     }
@@ -657,26 +690,29 @@ class PlanFleet {
       if (usedO.has(i)) return;
       // à moins de 0,6 station d'une rame du plan : c'est elle, vue autrement par une annonce
       const po = this.obsPos(o);
-      if (this.trains.some(T => { if (T.dir !== o.dir) return false; const d = this.along(this.posOf(T, t), po, o.dir); return d !== null && Math.abs(d) < 0.6; })) return;
+      if (this.trains.some(T => { if (T.dir !== o.dir) return false; const d = this.along(this.posOf(T, t), po, o.dir); return d !== null && Math.abs(d) < 0.8; })) return;
       const k = o.dir + '|' + (o.prev ? o.prev.i : '') + '|' + o.node.i + '|' + (o.quai ? 'q' : 'r');
       seen.add(k);
       if (!this.cands.has(k)) this.cands.set(k, t);
       if (init || t - this.cands.get(k) >= FLEET.spawnDelay) { this.spawn(o, t); this.cands.delete(k); }
     });
     for (const k of [...this.cands.keys()]) if (!seen.has(k)) this.cands.delete(k);
-    // deux rames à moins d'une demi-station l'une de l'autre pendant 15 s : un doublon ; on garde
-    // celle que les annonces montrent
-    const dup = new Set();
-    for (let a = 0; a < this.trains.length; a++) for (let b = a + 1; b < this.trains.length; b++) {
-      const A = this.trains[a], B = this.trains[b];
-      if (A.dir !== B.dir) continue;
-      const d = this.along(this.posOf(A, t), this.posOf(B, t), A.dir);
-      if (d === null || Math.abs(d) >= 0.5) continue;
-      dup.add(A.seen < B.seen || (A.seen === B.seen && A.id > B.id) ? A : B);
-    }
-    for (const T of this.trains) T.dupSince = dup.has(T) ? T.dupSince || t : 0;
     this.trains = this.trains.filter(T => !(T.endAt && t >= T.endAt) && t - Math.max(T.conf, T.seen) < FLEET.lost
-      && !(T.dupSince && t - T.dupSince >= 15e3));
+      && t - T.seen < FLEET.unseen);
+  }
+  // Rame en retard sur les annonces : elle repart dès que possible et roule au plus vite
+  hurry(T, t) {
+    if (!T.to) return;
+    const run = this.run(T.at, T.to);
+    if (t < T.dep) {
+      T.dep = Math.max(t, T.arrAt + FLEET.dwellMin);
+      T.t0 = T.dep;
+      T.g0 = 0;
+      T.tArr = Math.min(T.tArr, T.dep + FLEET.minRun * run);
+    } else {
+      const g = this.prog(T, t), fast = t + (1 - g) * FLEET.minRun * run;
+      if (fast < T.tArr - 2e3) { T.g0 = g; T.t0 = t; T.tArr = fast; }
+    }
   }
 
   step(t) {
@@ -690,8 +726,8 @@ class PlanFleet {
       }
     }
     this.plan(t);
-    this.order(t);
     this.reconcile(t);
+    this.order(t);
   }
 
   positions(t) {
@@ -719,7 +755,7 @@ class PlanFleet {
     const busy = new Set(out.filter(p => p.quai).map(p => p.node.i + '|' + p.dir));
     for (const list of runners.values()) {
       list.sort((a, b) => b.f - a.f);
-      let lim = busy.has(list[0].node.i + '|' + list[0].dir) ? 1 - FLEET.gap : 1;
+      let lim = busy.has(list[0].node.i + '|' + list[0].dir) ? 0.8 : 1;
       for (const p of list) {
         if (p.f > lim) p.f = Math.max(0, lim);
         lim = p.f - FLEET.gap;
