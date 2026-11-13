@@ -3,7 +3,7 @@
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '2.2.1', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '2.3.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -87,8 +87,17 @@ function whenText(begin, end) {
 // =============================================================================
 //  Réglages, quota, fenêtre native
 // =============================================================================
-const DEFAULTS = { apiKey: '', refresh: 60, budget: 1000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto', fullscreen: false, alerts: 'all', followed: [], sound: true };
-const settings = Object.assign({}, DEFAULTS, store.get('settings', {}));
+const DEFAULTS = { rev: 2, apiKey: '', refresh: 30, budget: 1000000, mainlineOnly: true, onTop: false, compact: false, compactIdx: 0, theme: 'auto', fullscreen: false, alerts: 'all', followed: [], sound: true };
+const savedSettings = store.get('settings', {});
+const settings = Object.assign({}, DEFAULTS, savedSettings);
+// Réglages enregistrés avant la version 2 avec les anciennes valeurs par défaut (60 s, 1 000 appels) :
+// passés une fois aux nouvelles
+if (!(savedSettings.rev >= 2)) {
+  if (settings.refresh === 60) settings.refresh = DEFAULTS.refresh;
+  if (settings.budget === 1000) settings.budget = DEFAULTS.budget;
+  settings.rev = 2;
+  store.set('settings', settings);
+}
 const saveSettings = () => store.set('settings', settings);
 
 const quota = {
@@ -182,8 +191,13 @@ class ApiError extends Error {
   constructor(kind, msg) { super(msg); this.kind = kind; }
 }
 
+// PRIM refuse les appels (429 : quota de la clé atteint, ou trop d'appels à la seconde) : plus
+// aucun appel pendant une pause de plus en plus longue (15 s, 1 min, 4 min, puis 15 min)
+const primPause = { until: 0, ms: 0 };
+const PRIM_429 = 'PRIM refuse les appels (quota de la clé atteint ?) : réglez le quota de votre abonnement dans ⚙ Réglages';
 async function primGet(path, kind = 'prim') {
   if (!settings.apiKey) throw new ApiError('nokey', 'Clé PRIM manquante');
+  if (Date.now() < primPause.until) throw new ApiError('quota', PRIM_429);
   if (kind === 'prim' && quota.used('prim') >= settings.budget) throw new ApiError('quota', 'Quota du jour atteint');
   let r;
   try {
@@ -193,7 +207,12 @@ async function primGet(path, kind = 'prim') {
   }
   quota.add(kind);
   if (r.status === 401 || r.status === 403) throw new ApiError('key', `Clé PRIM refusée (${r.status})`);
-  if (r.status === 429) throw new ApiError('quota', 'Quota PRIM dépassé (429)');
+  if (r.status === 429) {
+    primPause.ms = Math.min(15 * 60e3, primPause.ms ? primPause.ms * 4 : 15e3);
+    primPause.until = Date.now() + primPause.ms;
+    throw new ApiError('quota', PRIM_429);
+  }
+  primPause.ms = 0;
   if (r.status === 400) throw new ApiError('http', 'Arrêt inconnu de PRIM');
   if (!r.ok) throw new ApiError('http', `PRIM indisponible (${r.status})`);
   try { return await r.json(); } catch { throw new ApiError('http', 'Réponse PRIM illisible'); }
@@ -1062,9 +1081,9 @@ function openSettings() {
         ', abonnez-vous aux API « Prochains passages (requête unitaire) » et « Messages Info Trafic », puis générez un jeton.'),
       el('div', { class: 'ctl' }, key)),
     el('div', { class: 'set' }, el('b', {}, 'Rafraîchissement'),
-      el('span', {}, 'Intervalle minimum entre deux mises à jour d’un arrêt. Il s’allonge tout seul si le quota du jour risque de manquer.'), seg),
+      el('span', {}, 'Intervalle minimum entre deux mises à jour d’un arrêt. PRIM ne renouvelle ses données que toutes les 30 s. Il s’allonge tout seul si le quota du jour risque de manquer.'), seg),
     el('div', { class: 'set' }, el('b', {}, 'Quota d’appels par jour'),
-      el('span', {}, `Passages : ${used} appel${used > 1 ? 's' : ''} aujourd’hui · info trafic : ${quota.used('trafic')}. Partagé avec l’afficheur si la clé est la même.`,
+      el('span', {}, `Passages : ${used} appel${used > 1 ? 's' : ''} aujourd’hui · info trafic : ${quota.used('trafic')}. Partagé avec l’afficheur si la clé est la même. 1 000 000 par défaut : mettez 1 000 si votre clé PRIM n’a que le quota de base.`,
         el('div', { class: 'meter' }, el('i', { style: `width:${pct}%` }))), budget),
     el('div', { class: 'set' }, el('b', {}, 'Alertes d’incident'),
       el('span', {}, 'Une fenêtre s’ouvre dès qu’un incident touche une ligne, avec le détail ; si KeoLive n’est pas au premier plan, ',

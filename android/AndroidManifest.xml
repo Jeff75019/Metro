@@ -3,8 +3,8 @@
      et un travail périodique qui lit l'info trafic en arrière-plan pour les alertes. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="fr.jflambin.keolive"
-    android:versionCode="3"
-    android:versionName="1.1.1">
+    android:versionCode="4"
+    android:versionName="1.2.0">
 
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
 

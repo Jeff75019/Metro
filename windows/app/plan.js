@@ -44,7 +44,8 @@ const PLAN_SPECS = {
 };
 const PLAN_MODES = ['metro', 'tram'];
 const PLAN_DEMO = /[?&]demo\b/.test(location.search);
-const PLAN_DWELL = 20e3;   // arrêt en station supposé quand les données ne donnent pas l’heure de départ
+// arrêt en station supposé quand les données ne donnent pas l’heure de départ
+const planDwell = lineId => (LINES[lineId] || {}).m === 'tram' ? 20e3 : 25e3;
 const planTopos = new Map();
 
 function planTopo(lineId) {
@@ -158,7 +159,7 @@ function planTermini(topo) {
 // =============================================================================
 function parsePlanVisits(json, lineId) {
   const del = (((json || {}).Siri || {}).ServiceDelivery || {}).StopMonitoringDelivery || [];
-  const out = [];
+  const out = [], dwell = planDwell(lineId);
   for (const d of del) for (const v of d.MonitoredStopVisit || []) {
     const j = v.MonitoredVehicleJourney || {}, c = j.MonitoredCall || {};
     if (lineIdOf(val(j.LineRef) || (j.LineRef && j.LineRef.value)) !== lineId) continue;
@@ -168,9 +169,9 @@ function parsePlanVisits(json, lineId) {
     const tD = Date.parse(c.ExpectedDepartureTime || c.AimedDepartureTime || '');
     if (isNaN(tA) && isNaN(tD)) continue;
     // Le métro (RATP) ne donne qu'une heure par station, celle de l'arrivée à quai : on compte alors
-    // un arrêt de 20 secondes. Une heure de départ seule : départ d'un terminus, en général.
-    const arr = isNaN(tA) ? tD - PLAN_DWELL : tA;
-    const dep = isNaN(tD) || tD <= tA ? arr + PLAN_DWELL : tD;
+    // un arrêt de 25 secondes (20 en tram). Une heure de départ seule : départ d'un terminus, en général.
+    const arr = isNaN(tA) ? tD - dwell : tA;
+    const dep = isNaN(tD) || tD <= tA ? arr + dwell : tD;
     out.push({ jid: (j.FramedVehicleJourneyRef || {}).DatedVehicleJourneyRef || v.ItemIdentifier || '',
       arr, dep, atStop: c.VehicleAtStop === true,
       dest: val(c.DestinationDisplay) || val(j.DestinationName) || '' });
@@ -350,9 +351,16 @@ class PlanTracker {
         const a = (m && cands.find(c => c.i === m.i || (m.i === b.i && c.i === m.from)))
           || cands.find(c => c.row === b.row) || cands[0];
         if (open.get(a.i)) open.delete(a.i); else open.set(a.i, 1);
-        const f = Math.max(0, Math.min(1, 1 - (x.arr - t) / this.runTime(a, b)));
-        out.push({ ...base, jid: x.jid, dest: x.dest, prev: a, f, quai: false, eta: x.arr - t });
+        const f = 1 - (x.arr - t) / this.runTime(a, b);
+        // pas encore partie (plus loin que le parcours) : elle attend à quai à la station précédente
+        if (f <= 0) out.push({ dir, node: a, jid: x.jid, dest: x.dest, prev: null, f: 1, quai: true, eta: x.arr - t, held: b });
+        else out.push({ ...base, jid: x.jid, dest: x.dest, prev: a, f: Math.min(1, f), quai: false, eta: x.arr - t });
       }
+    }
+    // une rame en attente à quai déjà vue à quai par la station elle-même : la même, une seule fois
+    for (let k = out.length - 1; k >= 0; k--) {
+      const p = out[k];
+      if (p.held && out.some(o => o !== p && !o.held && o.quai && o.node === p.node && o.dir === p.dir)) out.splice(k, 1);
     }
     // embranchements : où chaque course a été vue en dernier, et d'où elle venait
     for (const p of out) if (p.jid) {
@@ -617,8 +625,9 @@ const PLAN_CSS = `
 .pl-name:hover{fill:var(--amber)}
 .pl-st{fill:var(--panel2);stroke:var(--edge2);stroke-width:2}
 .pl-st.term{stroke-width:3}
-.pl-tr{transition:transform 1s linear;cursor:pointer}
-.pl-tr.nt{transition:none}
+.pl-tr{cursor:pointer;transition:opacity .4s}
+.pl-tr.nt,.pl-tr.gone{opacity:0}
+.pl-tr.gone{pointer-events:none}
 .pl-tr .halo{display:none}
 .pl-tr.quai .halo{display:block}
 .pl-tr.quai .body{stroke:#fff;stroke-width:2}
@@ -649,6 +658,13 @@ function svBadge(id, x, y, r) {
   g.append(sv('text', { x, y: y + r * .38, 'text-anchor': 'middle', 'font-size': r * (l.n.length > 2 ? .85 : 1.1), 'font-weight': 700,
     fill: l.t, 'font-family': 'var(--cond)' }, l.n));
   return g;
+}
+
+// Mouvement entre deux stations : accélération au départ, vitesse constante, freinage à l'arrivée
+// (profil de vitesse en trapèze ; f : part du temps de parcours écoulée -> part de la distance)
+function planEase(f) {
+  const t = Math.min(1, Math.max(0, f)), a = 0.22, v = 1 / (1 - a);
+  return t < a ? v * t * t / (2 * a) : t <= 1 - a ? v * (t - a / 2) : 1 - v * (1 - t) ** 2 / (2 * a);
 }
 
 // Disposition : coordonnées d'écran de chaque station, et position d'une rame
@@ -712,12 +728,12 @@ class PlanLayout {
     let x, y;
     if (!a || p.quai) { x = q.x; y = q.y; }
     else {
-      const o = this.pt(a, sec);
-      x = o.x + (q.x - o.x) * p.f;
-      y = o.y + (q.y - o.y) * p.f;
+      const o = this.pt(a, sec), g = planEase(p.f);
+      x = o.x + (q.x - o.x) * g;
+      y = o.y + (q.y - o.y) * g;
     }
-    if (this.orient === 'wide') return { x, y: y + s * this.T, s, horiz: true };
-    return { x: s > 0 ? this.xDown : this.xUp, y, s, horiz: false };
+    if (this.orient === 'wide') return { x, y: y + s * this.T, s, sec, horiz: true };
+    return { x: s > 0 ? this.xDown : this.xUp, y, s, sec, horiz: false };
   }
 }
 
@@ -805,13 +821,42 @@ class PlanView {
     }
     this.host.replaceChildren(svg, this.tip);
     this.els.clear();
+    this.ghosts = [];
   }
 
-  // Rames : un groupe par identifiant d'affichage, déplacé en douceur (transition d'une seconde)
-  update(list) {
-    const C = this.topo.li.c, seen = new Set();
-    for (const p of list) {
-      const q = this.L.train(p);
+  // Rames : un groupe par identifiant d'affichage, redessiné à chaque image. La rame suit sa
+  // position calculée ; quand une nouvelle prévision la déplace, elle ne saute pas : elle glisse
+  // vers sa nouvelle place en une à deux secondes, et ne recule pas (elle attend d'être rattrapée).
+  update(list, dt = 0) {
+    const C = this.topo.li.c, L = this.L;
+    const far = 1.5 * (L.orient === 'wide' ? L.step : L.RH), k = dt ? 1 - Math.exp(-dt / 600) : 1;
+    const items = list.map(p => ({ p, q: L.train(p) }));
+    // Une rame absente des données à cet instant (prévisions bruitées, numéro changé) garde son
+    // dessin 10 s à sa place ; si une rame apparaît tout près sur la même voie, elle le reprend
+    // (il glisse jusqu'à elle). Sinon il s'efface en fondu, et une rame nouvelle apparaît en fondu.
+    const keys = new Set(list.map(p => p.key)), tnow = performance.now();
+    for (const [key, e] of this.els) if (!keys.has(key)) {
+      this.els.delete(key);
+      e.lost = tnow;
+      this.ghosts.push(e);
+      if (this.tipFor === key) this.hideTip(true);
+    }
+    for (const { p, q } of items) {
+      if (this.els.has(p.key) || !this.ghosts.length) continue;
+      let best = -1, bd = far;
+      this.ghosts.forEach((e, i) => {
+        const d = Math.hypot(e.x - q.x, e.y - q.y);
+        if (e.s === q.s && e.sec === q.sec && d < bd) { bd = d; best = i; }
+      });
+      if (best >= 0) this.els.set(p.key, this.ghosts.splice(best, 1)[0]);
+    }
+    this.ghosts = this.ghosts.filter(e => {
+      if (tnow - e.lost < 10e3) return true;
+      e.g.classList.add('gone');
+      setTimeout(() => e.g.remove(), 450);
+      return false;
+    });
+    for (const { p, q } of items) {
       let e = this.els.get(p.key);
       if (!e) {
         const g = sv('g', { class: 'pl-tr nt' });
@@ -821,26 +866,33 @@ class PlanView {
           : sv('rect', { class: 'halo', x: -9.5, y: -16, width: 19, height: 32, rx: 9.5, fill: 'none', stroke: C, 'stroke-width': 3, filter: 'url(#plGlow)', opacity: .9 });
         const arrow = sv('path', { fill: 'none', stroke: this.topo.li.t === '#ffffff' ? '#fff' : '#111', 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
         g.append(halo, body, arrow);
-        g.addEventListener('mouseenter', () => this.showTip(p.key));
+        // l'identifiant d'une rame peut changer : on cherche celui de son dessin au moment du geste
+        const keyOf = () => { for (const [key, x] of this.els) if (x.g === g) return key; return null; };
+        g.addEventListener('mouseenter', () => this.showTip(keyOf()));
         g.addEventListener('mouseleave', () => this.hideTip());
-        g.addEventListener('click', ev => { ev.stopPropagation(); this.showTip(p.key, true); });
+        g.addEventListener('click', ev => { ev.stopPropagation(); this.showTip(keyOf(), true); });
         this.gTrains.append(g);
-        e = { g, arrow, s: 0 };
+        e = { g, arrow, s: 0, x: q.x, y: q.y, sec: q.sec };
         this.els.set(p.key, e);
         requestAnimationFrame(() => requestAnimationFrame(() => g.classList.remove('nt')));
       }
+      const dx = q.x - e.x, dy = q.y - e.y, d = Math.hypot(dx, dy);
+      if (!q.horiz && q.sec !== e.sec) { e.x = q.x; e.y = q.y; }   // vers une autre section (vertical) : sans glisser
+      else if (d <= 4) { e.x = q.x; e.y = q.y; }                    // mouvement ordinaire : la rame suit
+      else if ((q.horiz ? dx : dy) * q.s < 0 && d < far) { /* en arrière : elle attend */ }
+      else { e.x += dx * k; e.y += dy * k; }                        // correction : elle glisse
+      e.sec = q.sec;
       if (e.s !== q.s) {   // flèche dans le sens de marche
         e.arrow.setAttribute('d', q.horiz ? (q.s > 0 ? 'M-3 -4 L4 0 L-3 4' : 'M3 -4 L-4 0 L3 4') : (q.s > 0 ? 'M-4 -3 L0 4 L4 -3' : 'M-4 3 L0 -4 L4 3'));
         e.s = q.s;
       }
-      e.g.setAttribute('transform', `translate(${q.x.toFixed(1)} ${q.y.toFixed(1)})`);
-      e.g.classList.toggle('quai', !!p.quai);
+      e.g.setAttribute('transform', `translate(${e.x.toFixed(1)} ${e.y.toFixed(1)})`);
+      if (e.quai !== !!p.quai) { e.quai = !!p.quai; e.g.classList.toggle('quai', e.quai); }
       e.p = p;
-      seen.add(p.key);
     }
-    for (const [k, e] of this.els) if (!seen.has(k)) { e.g.remove(); this.els.delete(k); }
-    if (this.tipFor && this.els.has(this.tipFor)) this.showTip(this.tipFor, this.tipSticky);
-    else if (this.tipFor) this.hideTip();
+    // info-bulle : suit sa rame, quatre fois par seconde
+    if (this.tipFor && this.els.has(this.tipFor)) { if (performance.now() - (this.tipAt || 0) > 250) this.showTip(this.tipFor, this.tipSticky); }
+    else if (this.tipFor) this.hideTip(true);
   }
 
   showTip(key, sticky) {
@@ -851,7 +903,9 @@ class PlanView {
       : `${p.node.name} ${min ? 'dans ' + min + ' min' : 'à l’approche'}`;
     this.tip.replaceChildren(el('b', {}, '→ ' + (p.dest || 'Destination inconnue')), el('span', {}, where));
     this.tip.hidden = false;
-    const q = this.L.train(p), hostR = this.host.getBoundingClientRect(), svgR = this.svg.getBoundingClientRect();
+    const q0 = this.L.train(p), q = { ...q0, x: e.x != null ? e.x : q0.x, y: e.y != null ? e.y : q0.y };
+    const hostR = this.host.getBoundingClientRect(), svgR = this.svg.getBoundingClientRect();
+    this.tipAt = performance.now();
     const sx = svgR.width / this.L.W, x = (svgR.left - hostR.left) + q.x * sx + this.host.scrollLeft, y = (svgR.top - hostR.top) + q.y * sx + this.host.scrollTop;
     const tw = this.tip.offsetWidth;
     this.tip.style.left = Math.max(8, Math.min(x - tw / 2, this.host.scrollLeft + this.host.clientWidth - tw - 8)) + 'px';
@@ -919,6 +973,10 @@ function openPlan(lineId) {
   planTick();
   clearInterval(plan.timer);
   plan.timer = setInterval(planTick, 1000);
+  cancelAnimationFrame(plan.raf);
+  plan.lastFrame = 0;
+  plan.list = null;
+  plan.raf = requestAnimationFrame(planFrame);
   plan.onResize = debounce(() => {
     if (!planIsOpen()) return;
     const o = wide() ? 'wide' : 'tall';
@@ -931,11 +989,21 @@ function openPlan(lineId) {
   if (PLAN_DEMO) window.__plan = { topo, tracker, feed, sim: feed.sim };
 }
 
+// Une image : la position des rames à cet instant, dessinée (30 images par seconde)
+function planFrame(ts) {
+  if (!planIsOpen()) return;
+  plan.raf = requestAnimationFrame(planFrame);
+  if (plan.lastFrame && ts - plan.lastFrame < 30) return;
+  const dt = plan.lastFrame ? Math.min(250, ts - plan.lastFrame) : 0;
+  plan.lastFrame = ts;
+  plan.list = plan.tracker.positions(now());
+  plan.view.update(plan.list, dt);
+}
+
+// Une fois par seconde : nombre de rames, barre de chargement
 function planTick() {
   if (!planIsOpen()) return;
-  const t = now();
-  const list = plan.tracker.positions(t);
-  plan.view.update(list);
+  const list = plan.list || plan.tracker.positions(now());
   const right = list.filter(p => p.dir > 0).length, left = list.length - right;
   plan.count.replaceChildren(el('b', {}, String(list.length)), list.length > 1 ? 'rames' : 'rame', el('br'), `◀ ${left} · ${right} ▶`);
   const f = plan.feed;
@@ -973,6 +1041,7 @@ function closePlan() {
   if (!plan.ov) return;
   if (plan.feed) plan.feed.stop();
   clearInterval(plan.timer);
+  cancelAnimationFrame(plan.raf);
   window.removeEventListener('resize', plan.onResize);
   plan.ov.remove();
   Object.assign(plan, { ov: null, id: null, feed: null, tracker: null, view: null });
