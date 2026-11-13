@@ -19,7 +19,8 @@
 - **Lecture :** la ligne se lit de haut en bas. Voie de gauche : rames qui montent (vers le terminus du haut) ; voie de droite : rames qui descendent (rappel en bas de l'écran). Les branches (lignes 7 et 13, T4, T8) sont dessinées à la suite, sous la ligne principale, avec leur station de jonction en tête. Faites défiler pour voir toute la ligne. Si l'écran est assez large pour la ligne (tablette, ou téléphone en paysage pour une ligne courte), le plan passe à l'horizontale, comme sur Windows.
 - **Les rames :** une capsule à la couleur de la ligne, flèche dans le sens de marche. Entourée de blanc : **à quai** ; pleine : **entre deux stations**, placée selon le temps qui lui reste avant la suivante. Touchez une rame : sa destination et sa prochaine station ; touchez le nom d'une station : ses prochains passages.
 - **D'où viennent les positions :** PRIM ne donne pas la position des rames, seulement les heures des prochains passages à chaque station. KeoLive lit toutes les stations de la ligne et en déduit où se trouvent les rames : c'est une position **déduite des annonces**, pas un relevé GPS (détails dans la [notice Windows](../windows/README.md#plan-de-ligne)).
-- **Quota :** une lecture coûte un appel par station (25 pour la ligne 1). Avec le quota de 1 000 appels par jour, une ligne n'est relue que toutes les 10 à 30 minutes et le plan se vide peu à peu entre deux lectures ; il l'indique. Une clé PRIM créée avant le 13 mars 2024 a droit à 1 000 000 d'appels par jour : indiquez ce quota dans ⚙ Réglages. Application en arrière-plan, le plan ne lit rien.
+- **En direct :** chaque station est relue dès que PRIM renouvelle ses données, toutes les 30 secondes ; PRIM ne les met pas à jour plus souvent. Entre deux mises à jour, les rames avancent seconde par seconde.
+- **Quota :** en direct, deux appels par station et par minute (3 000 par heure pour la ligne 1). Avec le quota par défaut de 1 000 appels par jour, chaque station n'est relue que toutes les 10 à 30 minutes et le plan se vide peu à peu ; il l'indique. Une clé PRIM peut avoir droit à 1 000 000 d'appels par jour (d'office si elle a été créée avant le 13 mars 2024, sinon sur demande à PRIM) : indiquez ce quota dans ⚙ Réglages. Application en arrière-plan, le plan ne lit rien.
 
 ## Installation (hors Play Store)
 
@@ -60,7 +61,7 @@ L'application contacte uniquement : `prim.iledefrance-mobilites.fr` (passages, i
 ## État des essais et limites
 
 - **Pas encore lancée sur un vrai téléphone.** L'interface a été essayée dans Chromium (le moteur de la WebView d'Android) en taille de téléphone, avec des réponses PRIM réelles enregistrées et les données SNCF en direct ; le décodage de l'info trafic de la partie native a été testé sur ordinateur avec les mêmes réponses ; l'APK est vérifié (manifeste, signature, contenu). Le premier essai réel se fera sur votre téléphone : si l'application se ferme au lancement ou reste sur un écran vide, dites-le-moi, avec le modèle du téléphone et la version d'Android.
-- **Plan de ligne :** essayé avec de vraies données de PRIM enregistrées sur les lignes 1 et 13, et avec des rames simulées sur toutes les lignes (voir la notice Windows) ; pas encore en direct sur un téléphone.
+- **Plan de ligne :** essayé en direct sur la ligne 1 (dans Chromium), avec de vraies données de PRIM enregistrées sur les lignes 1 et 13, et avec des rames simulées sur toutes les lignes (voir la notice Windows) ; pas encore en direct sur un téléphone.
 - Il faut une **WebView Android à jour** (« Android System WebView » ou Chrome, mis à jour par le Play Store).
 - PRIM est protégé par un filtre anti-robots (Cloudflare) ; depuis un téléphone, il laisse passer l'application comme le navigateur.
 - Pas de widget d'écran d'accueil pour l'instant.

@@ -4,7 +4,7 @@
    version Windows (windows/app/app.js) ; l'interface est propre au téléphone. */
 'use strict';
 
-const APP = { name: 'KeoLive', version: '1.1.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.1.1', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils

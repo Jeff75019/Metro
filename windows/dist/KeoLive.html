@@ -526,7 +526,7 @@ const SNCF_STATIONS = [["Gare de Lyon","87686006,87686030"],["Gare du Nord","872
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '2.2.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '2.2.1', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -2363,6 +2363,11 @@ class PlanSim {
 // =============================================================================
 //  Lecture périodique de toutes les stations de la ligne
 // =============================================================================
+// PRIM garde chaque réponse 30 secondes en cache (mesuré : en-tête X-Cache-Status « Hit », même
+// ResponseTimestamp) : relire une station plus souvent redonne la même réponse.
+const PLAN_PRIM_CACHE = 30e3;
+const planHMS = (() => { const f = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' }); return ms => f.format(new Date(ms)); })();
+
 class PlanFeed {
   constructor(topo, tracker, onChange) {
     this.topo = topo;
@@ -2370,22 +2375,31 @@ class PlanFeed {
     this.onChange = onChange;
     this.sim = PLAN_DEMO ? new PlanSim(topo) : null;
     this.running = false;
-    this.cycleAt = 0;
+    this.due = new Map();      // zone d'arrêt -> heure de sa prochaine lecture
+    this.rt = new Map();       // zone d'arrêt -> horodatage PRIM de sa dernière réponse
+    this.early = new Map();    // zone d'arrêt -> relectures arrivées avant le renouvellement
+    this.skews = [];           // âge des réponses à leur arrivée (horloge locale − horloge de PRIM)
+    this.got = new Set();      // stations lues au moins une fois
+    this.fails = new Set();    // stations dont la dernière lecture a échoué
     this.err = null;
+    this.lastAt = 0;
     this.progress = 0;
+    this.notified = 0;
   }
   get cost() { return this.topo.zdas.length; }
 
-  // Intervalle entre deux lectures complètes : le réglage « Rafraîchissement », allongé si le
-  // quota du jour risque de manquer d'ici 20 h (même règle que les cartes du tableau)
-  interval() {
+  // Période de relecture d'une station : en direct, au rythme où PRIM renouvelle ses données
+  // (30 s) ; plus lente si le quota du jour risque de manquer d'ici 20 h (même règle que les cartes
+  // du tableau)
+  period() {
     if (this.sim) return 20;
     const left = settings.budget - quota.used('prim');
     if (left < this.cost) return 3600;
     const p = parisParts(now()), sec = p.h * 3600 + p.m * 60 + p.s;
     const end = sec < 20 * 3600 ? 20 * 3600 : 24 * 3600;
-    return Math.max(settings.refresh, Math.ceil((end - sec) * this.cost / left));
+    return Math.max(PLAN_PRIM_CACHE / 1e3, Math.ceil((end - sec) * this.cost / left));
   }
+  get live() { return this.period() * 1e3 <= PLAN_PRIM_CACHE; }
 
   start() {
     if (this.running) return;
@@ -2398,33 +2412,70 @@ class PlanFeed {
   }
   wait(ms) { return new Promise(r => { this.wake = r; setTimeout(r, ms); }); }
 
+  // Une station à la fois : celle dont l'heure de relecture est la plus ancienne
   async loop() {
     while (this.running) {
-      const t0 = now();
-      if (!this.sim && !settings.apiKey) { this.err = { kind: 'nokey', message: 'Clé PRIM nécessaire (réglages)' }; this.onChange(); await this.wait(5e3); continue; }
+      if (!this.sim && !settings.apiKey) { this.err = { kind: 'nokey', message: 'Clé PRIM nécessaire (réglages)' }; this.changed(true); await this.wait(5e3); continue; }
       if (document.hidden) { await this.wait(3e3); continue; }
-      let ok = 0, last = null;
-      this.progress = 0;
-      for (const zda of this.topo.zdas) {
-        if (!this.running) return;
-        try {
-          const visits = this.sim ? this.sim.visits(zda, now())
-            : parsePlanVisits(await primGet('/stop-monitoring?MonitoringRef=' + encodeURIComponent(`STIF:StopArea:SP:${zda}:`)), this.topo.id);
-          this.tracker.ingest(zda, visits, now());
-          ok++;
-        } catch (e) {
-          last = e;
-          if (['quota', 'key', 'nokey'].includes(e.kind)) break;
-        }
-        this.progress = (ok + (last ? 1 : 0)) / this.cost;
-        await sleep(this.sim ? 10 : 300);   // PRIM : 5 appels par seconde au plus
-      }
+      let zda = null, d = Infinity;
+      for (const z of this.topo.zdas) { const u = this.due.get(z) || 0; if (u < d) { d = u; zda = z; } }
+      const t = now();
+      if (d > t) { await this.wait(Math.min(d - t, 5e3)); continue; }
+      await this.read(zda);
       if (!this.running) return;
-      this.cycleAt = now();
-      this.err = ok ? (last ? { kind: 'partial', message: `${this.cost - ok} station(s) sans réponse` } : null) : last;
-      this.onChange();
-      await this.wait(Math.max(2e3, this.interval() * 1e3 - (now() - t0)));
+      await sleep(this.sim ? 10 : 250);   // 4 appels par seconde au plus (PRIM en accepte 5 sur une clé ordinaire)
     }
+  }
+
+  async read(zda) {
+    try {
+      let visits, rt = 0;
+      if (this.sim) visits = this.sim.visits(zda, now());
+      else {
+        const json = await primGet('/stop-monitoring?MonitoringRef=' + encodeURIComponent(`STIF:StopArea:SP:${zda}:`));
+        visits = parsePlanVisits(json, this.topo.id);
+        rt = Date.parse((((json || {}).Siri || {}).ServiceDelivery || {}).ResponseTimestamp || '') || 0;
+      }
+      const t = now();
+      this.tracker.ingest(zda, visits, t);
+      this.got.add(zda);
+      this.fails.delete(zda);
+      this.err = null;
+      this.lastAt = t;
+      this.due.set(zda, this.nextRead(zda, rt, t));
+    } catch (e) {
+      this.fails.add(zda);
+      this.err = e;
+      this.due.set(zda, now() + (['quota', 'key', 'nokey'].includes(e.kind) ? 60e3 : 15e3));
+    }
+    this.progress = this.got.size / this.cost;
+    this.changed();
+  }
+
+  // Prochaine lecture d'une station : juste après que PRIM a renouvelé sa réponse (30 s après
+  // l'horodatage de la réponse en cache), ou plus tard si le quota l'exige
+  nextRead(zda, rt, t) {
+    const per = this.period() * 1e3;
+    if (!rt || per > PLAN_PRIM_CACHE) return t + per;
+    // écart entre les deux horloges : le plus petit âge relevé (une réponse fraîche n'a que
+    // le temps du transfert)
+    this.skews.push(t - rt);
+    if (this.skews.length > 60) this.skews.shift();
+    const skew = Math.min(...this.skews);
+    // relue trop tôt (même réponse qu'avant) : on réessaie un peu plus tard, de plus en plus
+    const same = this.rt.get(zda) === rt, n = same ? (this.early.get(zda) || 0) + 1 : 0;
+    this.rt.set(zda, rt);
+    this.early.set(zda, n);
+    const fresh = rt + skew + PLAN_PRIM_CACHE + 1e3;
+    return Math.max(fresh, t + (n ? Math.min(PLAN_PRIM_CACHE, 4e3 * 2 ** (n - 1)) : 5e3));
+  }
+
+  // pied de la fenêtre : redessiné au plus une fois par seconde
+  changed(force) {
+    const t = Date.now();
+    if (!force && t - this.notified < 1000) return;
+    this.notified = t;
+    this.onChange();
   }
 }
 
@@ -2800,7 +2851,7 @@ function planTick() {
 
 function renderPlanFoot() {
   if (!planIsOpen()) return;
-  const f = plan.feed, iv = f.interval(), C = plan.topo.li.c;
+  const f = plan.feed, iv = f.period(), C = plan.topo.li.c;
   const [toA, toB] = planTermini(plan.topo).split(' ⇄ ');
   const wide = plan.view.orient === 'wide';
   const kids = [
@@ -2809,17 +2860,19 @@ function renderPlanFoot() {
     el('span', {}, wide ? `◀ voie du haut : vers ${toA} · voie du bas : vers ${toB} ▶` : `▲ voie de gauche : vers ${toA} · voie de droite : vers ${toB} ▼`),
     el('span', { class: 'grow' }),
   ];
-  if (f.err && f.err.kind !== 'partial') kids.push(el('span', { class: 'warn' }, '⚠ ' + f.err.message));
-  else if (f.cycleAt) kids.push(el('span', {}, `Lu à ${hm(f.cycleAt)} · ${f.cost} stations par lecture, toutes les ${iv >= 120 ? Math.round(iv / 60) + ' min' : iv + ' s'}`
-    + (f.sim ? ' · démonstration (rames simulées)' : '') + (f.err ? ` · ${f.err.message}` : '')));
+  const all = f.fails.size >= f.cost || (f.err && ['quota', 'key', 'nokey'].includes(f.err.kind));
+  if (f.err && all) kids.push(el('span', { class: 'warn' }, '⚠ ' + f.err.message));
+  else if (f.lastAt) kids.push(el('span', {}, (f.live ? (f.sim ? 'Démonstration (rames simulées)' : 'En direct : chaque station relue dès que PRIM renouvelle ses données (toutes les 30 s)')
+    : `Chaque station relue toutes les ${iv >= 120 ? Math.round(iv / 60) + ' min' : iv + ' s'} (quota du jour)`)
+    + ` · dernière réponse à ${planHMS(f.lastAt)}` + (f.fails.size ? ` · ${f.fails.size} station(s) sans réponse` : '')));
   else kids.push(el('span', {}, f.sim ? 'Démonstration : rames simulées' : `Lecture des ${f.cost} stations…`));
   plan.foot.replaceChildren(...kids);
-  // quota trop juste pour suivre la ligne : on le dit, avec le moyen d'y remédier
-  if (!f.sim && iv > Math.max(180, settings.refresh * 2) && settings.apiKey)
+  // quota trop juste pour suivre la ligne en direct : on le dit, avec le moyen d'y remédier
+  if (!f.sim && iv > 120 && settings.apiKey)
     plan.notice.replaceChildren(
-      `Avec le quota réglé (${settings.budget.toLocaleString('fr-FR')} appels par jour), cette ligne n'est relue que toutes les ${Math.round(iv / 60)} min : `,
-      `chaque lecture interroge ses ${f.cost} stations. Si votre clé PRIM a été créée avant le 13 mars 2024, elle a droit à 1 000 000 d'appels par jour : `,
-      'indiquez ce quota dans les réglages. Sinon, PRIM l’augmente sur demande.');
+      `Avec le quota réglé (${settings.budget.toLocaleString('fr-FR')} appels par jour), chaque station de cette ligne n'est relue que toutes les ${Math.round(iv / 60)} min, au lieu de toutes les 30 s en direct : `,
+      `le plan interroge ses ${f.cost} stations. Si votre clé PRIM a droit à plus (jusqu'à 1 000 000 d'appels par jour, sur demande à PRIM ; d'office pour une clé créée avant le 13 mars 2024), `,
+      'indiquez ce quota dans les réglages.');
   else plan.notice.replaceChildren();
 }
 

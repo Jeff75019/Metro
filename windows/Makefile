@@ -24,8 +24,8 @@ MINGW     ?= x86_64-w64-mingw32-
 CXX       := $(MINGW)g++-win32
 LLD       ?= ld.lld
 
-# Date inscrite dans KeoLive.exe (13/11/2026 12:00 UTC) : à avancer à chaque nouvelle version.
-export SOURCE_DATE_EPOCH ?= 1794571200
+# Date inscrite dans KeoLive.exe (13/11/2026 15:00 UTC) : à avancer à chaque nouvelle version.
+export SOURCE_DATE_EPOCH ?= 1794582000
 
 GCCLIB   := $(patsubst %/,%,$(dir $(shell $(CXX) -print-libgcc-file-name)))
 MINGWLIB := $(GCCLIB)/../../../../x86_64-w64-mingw32/lib
