@@ -210,7 +210,9 @@ body.compact .gtab{font-size:14px;padding:6px 9px 5px}
 .field{display:flex;gap:8px;align-items:center}
 .inp{height:42px;border-radius:11px;border:1px solid var(--edge2);background:var(--field);padding:0 12px;min-width:260px;outline:0}
 .inp:focus{border-color:var(--amber)}
-.btn{height:42px;padding:0 18px;border-radius:11px;font:700 15px var(--sans);background:var(--panel3);border:1px solid var(--edge2)}
+.btn{height:42px;padding:0 18px;border-radius:11px;font:700 15px var(--sans);background:var(--panel3);border:1px solid var(--edge2);
+  display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn svg{width:18px;height:18px}
 .btn:hover{border-color:var(--mut)}
 .btn.pri{background:var(--amber);color:#111;border-color:var(--amber)}
 .btn.pri:hover{background:var(--amber-soft)}

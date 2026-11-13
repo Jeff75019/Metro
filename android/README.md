@@ -2,15 +2,24 @@
 
 **KeoLive** sur le téléphone : les prochains passages en Île-de-France et l'état du trafic, dans le style des écrans de quai, avec une interface conçue pour l'écran tactile et des **alertes d'incident par notification, même application fermée**.
 
-| Tableau | Trafic | Alerte | Thème clair |
-|---|---|---|---|
-| ![Tableau](apercus/tableau.png) | ![Trafic](apercus/trafic.png) | ![Alerte](apercus/alerte.png) | ![Thème clair](apercus/clair.png) |
+| Tableau | Trafic | Plan de ligne | Alerte | Thème clair |
+|---|---|---|---|---|
+| ![Tableau](apercus/tableau.png) | ![Trafic](apercus/trafic.png) | ![Plan de ligne](apercus/plan.png) | ![Alerte](apercus/alerte.png) | ![Thème clair](apercus/clair.png) |
 
 - **Tableau :** les arrêts épinglés, une carte sous l'autre, avec les minutes avant chaque passage, les missions et les voies, « À QUAI », « APPROCHE », « SUPPRIMÉ ». La carte **Grandes gares de Paris** (Lyon, Nord, Est, Montparnasse, Saint-Lazare, Austerlitz, Bercy) donne les départs ou les arrivées des grandes lignes : heure, destination, train, voie, retard. Pour déplacer une carte : appui long sur son titre, puis glissez ; le bouton ⋮ d'une carte propose aussi Actualiser, Monter, Descendre, Retirer.
 - **Trafic :** toutes les lignes de métro, de RER, de Transilien et de tram, avec une pastille par ligne (les lignes 16, 17 et 18 du Grand Paris Express, pas encore ouvertes, sont grisées). Un toucher ouvre le détail des messages, et le bouton **Suivre** retient la ligne pour les alertes « Mes lignes ». Le nombre de lignes perturbées s'affiche sur l'onglet.
+- **Plan de ligne :** une ligne de métro ou de tram à la fois, de haut en bas, une voie par sens, avec ses rames placées en station ou entre deux stations, qui avancent en temps réel. Voir « Plan de ligne » plus bas.
 - **Recherche :** n'importe quelle station de métro, de RER ou de tram, une gare SNCF ou un arrêt de bus. Un aperçu s'ouvre, et **Épingler au tableau** l'ajoute.
 - **Thème :** sombre ou clair (bouton soleil ou lune), ou **Automatique** comme le téléphone.
-- **Bouton Retour du téléphone :** ferme la feuille ou l'alerte ouverte, revient au Tableau, puis laisse Android faire.
+- **Bouton Retour du téléphone :** ferme la feuille, l'alerte ou le plan ouvert, revient au Tableau, puis laisse Android faire.
+
+## Plan de ligne
+
+- **Ouvrir :** onglet Trafic, touchez une ligne de métro (1 à 14, 3bis, 7bis) ou de tram (T1 à T14), puis **Plan**. Le menu en haut passe à une autre ligne ; le bouton Retour ferme le plan.
+- **Lecture :** la ligne se lit de haut en bas. Voie de gauche : rames qui montent (vers le terminus du haut) ; voie de droite : rames qui descendent (rappel en bas de l'écran). Les branches (lignes 7 et 13, T4, T8) sont dessinées à la suite, sous la ligne principale, avec leur station de jonction en tête. Faites défiler pour voir toute la ligne. Si l'écran est assez large pour la ligne (tablette, ou téléphone en paysage pour une ligne courte), le plan passe à l'horizontale, comme sur Windows.
+- **Les rames :** une capsule à la couleur de la ligne, flèche dans le sens de marche. Entourée de blanc : **à quai** ; pleine : **entre deux stations**, placée selon le temps qui lui reste avant la suivante. Touchez une rame : sa destination et sa prochaine station ; touchez le nom d'une station : ses prochains passages.
+- **D'où viennent les positions :** PRIM ne donne pas la position des rames, seulement les heures des prochains passages à chaque station. KeoLive lit toutes les stations de la ligne et en déduit où se trouvent les rames : c'est une position **déduite des annonces**, pas un relevé GPS (détails dans la [notice Windows](../windows/README.md#plan-de-ligne)).
+- **Quota :** une lecture coûte un appel par station (25 pour la ligne 1). Avec le quota de 1 000 appels par jour, une ligne n'est relue que toutes les 10 à 30 minutes et le plan se vide peu à peu entre deux lectures ; il l'indique. Une clé PRIM créée avant le 13 mars 2024 a droit à 1 000 000 d'appels par jour : indiquez ce quota dans ⚙ Réglages. Application en arrière-plan, le plan ne lit rien.
 
 ## Installation (hors Play Store)
 
@@ -51,6 +60,7 @@ L'application contacte uniquement : `prim.iledefrance-mobilites.fr` (passages, i
 ## État des essais et limites
 
 - **Pas encore lancée sur un vrai téléphone.** L'interface a été essayée dans Chromium (le moteur de la WebView d'Android) en taille de téléphone, avec des réponses PRIM réelles enregistrées et les données SNCF en direct ; le décodage de l'info trafic de la partie native a été testé sur ordinateur avec les mêmes réponses ; l'APK est vérifié (manifeste, signature, contenu). Le premier essai réel se fera sur votre téléphone : si l'application se ferme au lancement ou reste sur un écran vide, dites-le-moi, avec le modèle du téléphone et la version d'Android.
+- **Plan de ligne :** essayé avec de vraies données de PRIM enregistrées sur les lignes 1 et 13, et avec des rames simulées sur toutes les lignes (voir la notice Windows) ; pas encore en direct sur un téléphone.
 - Il faut une **WebView Android à jour** (« Android System WebView » ou Chrome, mis à jour par le Play Store).
 - PRIM est protégé par un filtre anti-robots (Cloudflare) ; depuis un téléphone, il laisse passer l'application comme le navigateur.
 - Pas de widget d'écran d'accueil pour l'instant.

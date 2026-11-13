@@ -9,6 +9,7 @@
 - **Grandes gares de Paris :** une carte, présente d'office sur le tableau, avec un onglet par gare (Lyon, Nord, Est, Montparnasse, Saint-Lazare, Austerlitz, Bercy). On y voit les départs ou les arrivées des grandes lignes : heure, destination ou provenance, train, voie, retard ou suppression. Elle ne demande pas de clé.
 - **Autres gares SNCF :** n'importe quelle gare, par la recherche, avec les mêmes informations.
 - **État du trafic :** toutes les lignes de métro, de RER, de Transilien et de tram, avec une pastille de couleur par ligne. Les lignes 16, 17 et 18 du Grand Paris Express, pas encore ouvertes, y figurent grisées en pointillés ; leur fiche donne l'ouverture prévue (18 : 2027 ; 16 et 17 : automne 2028), le premier tronçon et les stations. Un clic donne le détail des messages. Un bandeau défilant rappelle les perturbations en cours.
+- **Plan de ligne :** une ligne de métro ou de tram à la fois, une voie par sens, avec ses rames placées en station ou entre deux stations, qui avancent en temps réel. Voir « Plan de ligne » plus bas.
 - **Alertes d'incident :** dès qu'un incident touche une ligne (trafic perturbé ou interrompu), une fenêtre s'ouvre au centre de l'application, avec un carillon, et donne les lignes concernées, le titre, la période et le message complet. Elle se met à jour si l'incident s'aggrave et annonce le retour à la normale. Si KeoLive n'est pas au premier plan, Windows affiche une notification ; un clic dessus ouvre la fiche de la ligne. Voir « Alertes » plus bas.
 - **À propos (bouton ⓘ, ou clic sur le logo) :** version de l'application, propriétaire et entreprise.
 - **Thème clair ou sombre (`L`) :** le bouton soleil ou lune de l'en-tête bascule entre les deux. Dans les réglages, « Automatique » suit le thème de Windows.
@@ -26,7 +27,7 @@
 
 ## Installation
 
-1. Téléchargez [`KeoLive.exe`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.exe) : environ 750 Ko, **un seul fichier**, sans installation ni droits d'administrateur.
+1. Téléchargez [`KeoLive.exe`](https://github.com/Jeff75019/Metro/raw/claude/esp32-metro-display-app-72ncxo/windows/dist/KeoLive.exe) : environ 780 Ko, **un seul fichier**, sans installation ni droits d'administrateur.
 2. Double-cliquez dessus, puis collez votre **clé PRIM** dans le bandeau jaune (voir ci-dessous) et cherchez une station.
 
 L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows 11. Les réglages et la position de la fenêtre sont gardés dans `%LOCALAPPDATA%\KeoLive` : remplacer l'exécutable par une nouvelle version ne les efface pas. Les anciennes versions y recopiaient la page, dans un sous-dossier `app` que vous pouvez supprimer. Un fichier `KeoLive.html` laissé à côté de l'exécutable par la version 2.0.0 ne sert plus.
@@ -37,7 +38,7 @@ L'application utilise WebView2, le moteur d'Edge, présent d'office dans Windows
 
 **Pourquoi.** Windows juge un programme d'abord sur sa **réputation** : un `.exe` jamais vu, téléchargé et **non signé** par un éditeur connu est traité comme suspect. Les détections de Microsoft Defender dont le nom finit par `!ml` (par exemple `Trojan:Win32/Wacatac.H!ml`) sont des suppositions d'un modèle automatique sur ce genre de fichier, pas la reconnaissance d'un virus connu. Exemple : les versions 1.5.4 et 1.5.5 avaient exactement le même code ; seule la page incluse changeait, et l'une est passée, l'autre a été détectée.
 
-**Ce qui a été fait (version 2.1.0)** pour que l'exécutable ait la forme d'un programme Windows ordinaire :
+**Ce qui a été fait (depuis la version 2.1.0)** pour que l'exécutable ait la forme d'un programme Windows ordinaire :
 
 - **édition des liens par lld**, l'éditeur de liens de LLVM (celui de Chrome, Firefox ou Rust) : en-tête et sections comme les programmes Windows courants, au lieu de la disposition propre à l'outil GNU, fréquente chez les logiciels malveillants compilés sous Linux ;
 - **la page incluse comme une simple donnée**, et non plus comme une ressource opaque de 530 Ko (la forme habituelle des programmes qui en déposent un autre) ; elle est aussi **allégée** : 340 Ko, polices limitées à l'alphabet latin, images à la taille où elles s'affichent ;
@@ -79,6 +80,18 @@ La même clé peut servir à l'afficheur ESP32 : le quota du jour est alors part
 - **Pas de notification de Windows ?** Elles sont sans doute coupées : Paramètres → Système → Notifications, ou mode « Ne pas déranger ».
 - **Délai :** l'info trafic est relue toutes les 2 minutes quand les alertes sont actives. Une alerte arrive donc au plus 2 minutes après la publication de l'incident par Île-de-France Mobilités.
 
+## Plan de ligne
+
+![Plan de la ligne 13](apercus/plan.png)
+
+*La ligne 13 le 13 novembre 2026 à 13 h 47, d'après les vraies données de PRIM : 30 rames, branches comprises.*
+
+- **Ouvrir :** dans la colonne Trafic, cliquez sur la pastille d'une ligne de métro (1 à 14, 3bis, 7bis) ou de tram (T1 à T14), puis sur **Plan de la ligne**. Le menu en haut à droite, ou les flèches `←` `→`, passent à une autre ligne ; `Échap` ferme le plan.
+- **Les voies :** une par sens de circulation. Voie du haut : rames vers le terminus de gauche ; voie du bas : vers celui de droite (rappel en bas de la fenêtre). Les branches (lignes 7 et 13, T4, T8) sont dessinées à part, reliées à leur station de jonction. Les stations desservies dans un seul sens (boucle d'Auteuil sur la 10, boucle de la 7bis) n'ont de quai que sur la voie qui les dessert. Les correspondances sont sous chaque station. Dans une fenêtre trop étroite pour la ligne, le plan se lit de haut en bas : voie de gauche vers le terminus du haut, voie de droite vers celui du bas.
+- **Les rames :** une capsule à la couleur de la ligne, avec une flèche dans le sens de marche. Entourée de blanc : **à quai** ; pleine : **entre deux stations**, placée selon le temps qui lui reste avant la suivante. Elles glissent d'une seconde à l'autre. Au terminus de départ, une rame apparaît à quai dans les deux minutes et demie avant son départ. Survol ou clic sur une rame : sa destination et sa prochaine station, avec le temps d'attente. Clic sur le nom d'une station : ses prochains passages.
+- **D'où viennent les positions :** PRIM ne donne pas la position des rames, seulement, station par station, les heures des prochains passages. KeoLive lit toutes les stations de la ligne et en déduit la place de chaque rame : si la prochaine rame annoncée à une station arrive plus tôt que ne le pourrait la première rame annoncée à la station précédente, c'est qu'elle a déjà quitté celle-ci. Les numéros de course de la RATP ne suivent pas toujours la même rame d'une station à l'autre : ils ne servent que d'indice. C'est donc une **position déduite des annonces**, pas un relevé GPS : une rame retenue à quai (régulation) peut rester affichée un peu plus longtemps à la station qu'elle quitte, et une annonce manquante dans les données peut faire disparaître une rame un moment.
+- **Quota :** une lecture du plan coûte **un appel par station** (25 pour la ligne 1, 38 pour la 7). Le plan est relu à la cadence du réglage « Rafraîchissement », et ralentit pour tenir le quota du jour. Avec 1 000 appels par jour, une ligne n'est relue que toutes les 10 à 30 minutes, selon sa longueur et l'heure : entre deux lectures, les rames avancent d'après les heures annoncées, mais le plan se vide peu à peu. Il l'indique alors. Si votre clé PRIM a été créée avant le 13 mars 2024, elle a droit à 1 000 000 d'appels par jour : indiquez ce quota dans ⚙ Réglages. Fenêtre réduite, le plan ne lit rien.
+
 ## Quota et rafraîchissement
 
 - Chaque arrêt est mis à jour toutes les 60 secondes par défaut (30, 60 ou 120 s dans les réglages).
@@ -99,6 +112,7 @@ La même clé peut servir à l'afficheur ESP32 : le quota du jour est alors part
 | `T` | toujours au premier plan |
 | `L` | thème clair / sombre |
 | `F5` | actualiser |
+| `←` `→` | plan de ligne : ligne précédente / suivante |
 | `Ctrl` + molette | agrandir ou réduire l'affichage |
 
 ## Au travail : réseau et pare-feu
@@ -130,5 +144,6 @@ dist/           KeoLive.exe (l'application complète) et KeoLive.html (la même,
 ## Limites
 
 - **Essais :** l'interface a été essayée dans Chromium, le moteur de WebView2, de 360 à 1920 pixels de large, avec des réponses PRIM réelles enregistrées et les données SNCF en direct. L'exécutable tourne sur Windows 11 (version 1.5.4 : la page servie depuis la mémoire s'affiche). La version 2.1.0, fabriquée avec lld, a été lancée sous Wine (démarrage, page incluse vérifiée octet par octet, message prévu quand WebView2 manque), pas encore sur un vrai Windows. Les notifications de Windows et le son n'ont pas encore été vérifiés sur un vrai poste.
+- **Plan de ligne :** essayé avec de vraies données de PRIM, enregistrées sur toute la longueur des lignes 1 et 13 (deux lectures complètes de la ligne 1 à 30 secondes d'écart : les positions concordent à moins d'un dixième de station), et sur toutes les lignes avec des rames simulées (lignes à branches comprises : moins de 5 % de rames manquées). Pas encore suivi en direct pendant une longue durée, ni essayé sur les données réelles des tramways, qui peuvent différer de celles du métro.
 - PRIM est protégé par un filtre anti-robots (Cloudflare). Depuis un poste normal, il laisse passer l'application comme le navigateur ; s'il bloquait un réseau d'entreprise, les cartes afficheraient « PRIM injoignable ».
 - Données : Île-de-France Mobilités (PRIM, open data), SNCF (ODbL), Train Nomade.

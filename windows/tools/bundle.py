@@ -23,6 +23,7 @@ html = html.replace('<link rel="icon" href="favicon.png">', f'<link rel="icon" h
 html = re.sub(r'src="([\w.-]+\.png)"', lambda m: f'src="data:image/png;base64,{b64(m.group(1))}"', html)  # images
 html = html.replace('<script src="data.js"></script>', inline_script('data.js'))
 html = html.replace('<script src="app.js"></script>', inline_script('app.js'))
+html = html.replace('<script src="plan.js"></script>', inline_script('plan.js'))
 assert not re.search(r'src="(?!data:)', html) and 'href="style' not in html, 'ressource non incluse'
 os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
 open(out, 'w', encoding='utf-8').write(html)

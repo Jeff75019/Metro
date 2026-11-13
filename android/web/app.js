@@ -4,7 +4,7 @@
    version Windows (windows/app/app.js) ; l'interface est propre au téléphone. */
 'use strict';
 
-const APP = { name: 'KeoLive', version: '1.0.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '1.1.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -944,8 +944,10 @@ function openLine(id) {
     resetAlerts();
     follow.replaceChildren(icon('i-bell'), followed() ? 'Ligne suivie ✓' : 'Suivre');
   } }, icon('i-bell'), followed() ? 'Ligne suivie ✓' : 'Suivre');
+  const planBtn = typeof planAvailable === 'function' && planAvailable(id)
+    ? el('button', { class: 'btn', onclick: () => openPlan(id) }, icon('i-board'), 'Plan') : null;
   openSheet(`${MODE_LABEL[li.m] || ''} ${li.n}`, badge(id, 'lg'), body,
-    [follow, el('button', { class: 'btn pri', onclick: () => dlg.close() }, 'Fermer')]);
+    [planBtn, follow, el('button', { class: 'btn pri', onclick: () => dlg.close() }, 'Fermer')].filter(Boolean));
 }
 window.keoOpenLine = id => { if (traffic.updated || !settings.apiKey) openLine(id); else pendingOpenLine = id; };
 
@@ -1236,6 +1238,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e =
 // Bouton retour d'Android : ferme ce qui est ouvert, revient au tableau, sinon laisse Android agir
 window.keoBack = () => {
   if (dlg.open) { dlg.close(); return true; }
+  if (typeof planIsOpen === 'function' && planIsOpen()) { closePlan(); return true; }
   if (alertsUi.cards.size) { closeAlerts(); return true; }
   if (pane !== 'board') { showPane('board'); return true; }
   return false;

@@ -3,7 +3,7 @@
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '2.1.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '2.2.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -881,8 +881,10 @@ function openLine(id) {
     resetAlerts();
     follow.replaceChildren(icon('i-bell'), followed() ? 'Ligne suivie ✓' : 'Suivre cette ligne');
   } }, icon('i-bell'), followed() ? 'Ligne suivie ✓' : 'Suivre cette ligne');
+  const planBtn = typeof planAvailable === 'function' && planAvailable(id)
+    ? el('button', { class: 'btn', title: 'Les rames de la ligne en temps réel, une voie par sens', onclick: () => openPlan(id) }, icon('i-board'), 'Plan de la ligne') : null;
   openDialog(`${MODE_LABEL[li.m] || ''} ${li.n}`, badge(id, 'lg'), body,
-    [follow, el('button', { class: 'btn pri', onclick: () => dlg.close() }, 'Fermer')]);
+    [planBtn, follow, el('button', { class: 'btn pri', onclick: () => dlg.close() }, 'Fermer')].filter(Boolean));
 }
 
 // =============================================================================
@@ -1267,6 +1269,7 @@ function setupUi() {
   $('#bFull').addEventListener('click', () => setFullscreen(!fullscreen));
   if (!NATIVE) $('#bTop').hidden = true;
   document.addEventListener('keydown', e => {
+    if (typeof planIsOpen === 'function' && planIsOpen() && e.key !== 'F11') return;   // plan de ligne ouvert : ses propres touches
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
     if ((e.ctrlKey && e.key.toLowerCase() === 'k') || (!typing && e.key === '/')) { e.preventDefault(); if (settings.compact) toggleCompact(); q.focus(); q.select(); }
     else if (e.key === 'F11') { e.preventDefault(); setFullscreen(!fullscreen); }

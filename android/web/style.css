@@ -171,7 +171,9 @@ svg{width:22px;height:22px;flex:none}
 .field{display:flex;gap:8px;align-items:center;flex:1 1 100%}
 .inp{height:44px;border-radius:11px;border:1px solid var(--edge2);background:var(--field);padding:0 12px;flex:1;min-width:0;width:100%;outline:0;font-size:16px}
 .inp:focus{border-color:var(--amber)}
-.btn{height:44px;padding:0 16px;border-radius:11px;font:700 15px var(--sans);background:var(--panel3);border:1px solid var(--edge2);white-space:nowrap}
+.btn{height:44px;padding:0 16px;border-radius:11px;font:700 15px var(--sans);background:var(--panel3);border:1px solid var(--edge2);white-space:nowrap;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.btn svg{width:19px;height:19px}
 .btn:active{border-color:var(--mut)}
 .btn.pri{background:var(--amber);color:#111;border-color:var(--amber)}
 .btn:disabled{opacity:.5}

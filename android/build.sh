@@ -43,7 +43,7 @@ mkdir -p build/assets/www/fonts build/gen build/classes build/dex dist
 
 # 1. La page : interface mobile (web/), données et polices communes avec la version Windows
 cp web/index.html web/style.css web/app.js build/assets/www/
-cp ../windows/app/data.js ../windows/app/keolis.png build/assets/www/
+cp ../windows/app/data.js ../windows/app/plan.js ../windows/app/keolis.png build/assets/www/
 cp ../windows/app/fonts/*.woff2 build/assets/www/fonts/
 python3 tools/lines_json.py ../windows/app/data.js build/assets/lines.json
 
