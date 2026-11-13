@@ -1,6 +1,8 @@
 // =============================================================================
 //  Boîtier imprimable en 3D : Waveshare ESP32-S3-Touch-LCD-1.9 + batterie LiPo
 // =============================================================================
+//  Version 4 : jeux élargis pour une impression ordinaire (vitre, boutons, USB-C, rebord du
+//  fond, batterie), après un essai où la carte penchait côté USB-C et où le fond ne fermait pas.
 //  Trois pièces :
 //    - la coque   : l'avant (fenêtre de l'écran) et les côtés (USB-C, BOOT, RST) ;
 //    - le support : plaque clipsée dans la coque, derrière les broches de la carte ;
@@ -65,7 +67,10 @@ paroi = 1.6;       // épaisseur des côtés
 face = 1.2;        // épaisseur de la face avant (rebord sur la vitre)
 fond_ep = 1.6;     // épaisseur du fond
 support_ep = 1.4;  // épaisseur de la plaque de maintien
-jeu = 0.25;        // jeu autour de la vitre (ajustez selon votre imprimante)
+jeu = 0.35;        // jeu autour de la vitre (ajustez selon votre imprimante)
+jlf = 0.30;        // jeu du rebord du fond dans la coque
+bat_jeu = 1.0;     // jeu au-dessus de la batterie (une 803040 dépasse souvent un peu 8 mm)
+plot_jeu = 0.2;    // jeu entre les plots du support et le bout des entretoises
 recouvrement = 1.4;// rebord de la face avant sur la vitre
 rayon = 4.0;       // arrondi des angles extérieurs
 cordon = true;     // passant pour une dragonne, côté opposé à l'USB-C
@@ -84,9 +89,9 @@ y0 = paroi + jeu;
 z_dos = face + dos_carte;               // dos du circuit
 h_dos = max(broches + 0.6, entretoise + 0.4, composants + 0.6);  // place derrière le circuit
 z_support = z_dos + h_dos;              // face avant du support (côté carte)
-plot_h = z_support - (z_dos + entretoise + 0.1);  // plots : jusqu'aux entretoises (0,1 mm de jeu)
+plot_h = z_support - (z_dos + entretoise + plot_jeu);  // plots : jusqu'aux entretoises (avec du jeu)
 z_bat = z_support + support_ep;         // la batterie se pose ici
-coque_ep = z_bat + bat_ep + 0.6;        // face intérieure du fond (0,6 mm de jeu)
+coque_ep = z_bat + bat_ep + bat_jeu;    // face intérieure du fond
 usb_z = z_dos + usb_h / 2;              // centre de la prise USB-C
 bouton_z = z_dos + 0.9;                 // centre des boutons latéraux
 btn_cx = x0 + retrait_carte + bouton_x;  // centre des boutons (X)
@@ -107,7 +112,8 @@ jl = 0.15;                              // jeu des pièces glissées dans la coq
 // de la prise), une au milieu du petit côté opposé.
 levre = 6.0;                            // hauteur du rebord dans la coque
 lv = 1.2;                               // épaisseur du rebord et des languettes
-ergot = 0.4;                            // saillie des ergots (0,5 : tient plus fort ; 0,3 : s'ouvre plus facilement)
+ergot = 0.6;                            // saillie des ergots depuis le rebord (0,7 : tient plus fort ; 0,5 : s'ouvre plus facilement)
+rain_p = 0.75;                          // profondeur des rainures de la coque où se clipsent les ergots
 ergot_z = 3.5;                          // face de retenue de l'ergot, depuis la face intérieure du fond
 fente_r = 0.8;                          // fentes qui libèrent les languettes
 rainure_z0 = coque_ep - (ergot_z + 1.5);   // rainures de la coque, de l'avant...
@@ -119,7 +125,7 @@ tab_usb = [[cy - 12.4, cy - 5.4], [cy + 5.4, cy + 12.4]];                // peti
 tab_far = [cy - 7, cy + 7];                                              // petit côté opposé (Y)
 // Batterie contre le rebord du petit côté opposé à l'USB-C (0,6 mm de jeu) ;
 // le surplus de câble se range côté USB-C
-bat_x = paroi + int_l - (jl + lv + 0.6) - bat_long;
+bat_x = paroi + int_l - (jlf + lv + 0.6) - bat_long;
 bat_y = paroi + (int_h - bat_larg) / 2;
 conn_x = x0 + retrait_carte + bat_conn_x;  // connecteur de la batterie (X)
 
@@ -153,7 +159,7 @@ module coque() {
     }
     // rainure intérieure au-dessus de la prise : si elle dépasse un peu de la vitre,
     // elle glisse jusqu'à son ouverture sans frotter sur la paroi
-    translate([paroi - 0.4, y0 + verre_h / 2 - (usb_l + 1.0) / 2, usb_z]) cube([0.41, usb_l + 1.0, coque_ep]);
+    translate([paroi - 0.8, y0 + verre_h / 2 - (usb_l + 1.6) / 2, usb_z]) cube([0.81, usb_l + 1.6, coque_ep]);
     // BOOT et RST, un sur chaque grand côté : boutons intégrés ou simples trous
     for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0]) {
       if (boutons_souples) {
@@ -161,6 +167,8 @@ module coque() {
           translate([lang_x0 - fente, -0.01, z]) cube([lang_l + fente, paroi + 0.02, fente]);
         translate([lang_x0 - fente, -0.01, bouton_z - lang_h / 2 - fente]) cube([fente, paroi + 0.02, lang_h + 2 * fente]);
         translate([lang_x0, -0.01, bouton_z - lang_h / 2]) cube([lang_l, creux + 0.01, lang_h]);  // creux extérieur
+        // creux intérieur en face du poussoir blanc du bouton : la carte se pose sans le toucher
+        translate([btn_cx - 2.0, paroi - 0.45, bouton_z - 1.5]) cube([4.0, 0.46, 3.0]);
       } else {
         translate([btn_cx - 2.0, -0.01, bouton_z - 1.75]) cube([4.0, paroi + 0.02, 3.5]);
       }
@@ -170,10 +178,10 @@ module coque() {
       translate([ext_l / 2 - 9, y, z_support + support_ep / 2 - 0.6]) cube([18, 0.51, 1.2]);
     // rainures des clips du fond : en face de chaque languette du rebord (0,2 mm de plus à chaque bout)
     rz = rainure_z1 - rainure_z0;
-    for (t = tab_usb) translate([paroi - 0.5, t[0] - 0.2, rainure_z0]) cube([0.51, t[1] - t[0] + 0.4, rz]);
-    translate([ext_l - paroi - 0.01, tab_far[0] - 0.2, rainure_z0]) cube([0.51, tab_far[1] - tab_far[0] + 0.4, rz]);
+    for (t = tab_usb) translate([paroi - rain_p, t[0] - 0.2, rainure_z0]) cube([rain_p + 0.01, t[1] - t[0] + 0.4, rz]);
+    translate([ext_l - paroi - 0.01, tab_far[0] - 0.2, rainure_z0]) cube([rain_p + 0.01, tab_far[1] - tab_far[0] + 0.4, rz]);
     for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0])
-      translate([tab_long[0] - 0.2, paroi - 0.5, rainure_z0]) cube([tab_long[1] - tab_long[0] + 0.4, 0.51, rz]);
+      translate([tab_long[0] - 0.2, paroi - rain_p, rainure_z0]) cube([tab_long[1] - tab_long[0] + 0.4, rain_p + 0.01, rz]);
     // encoche pour ouvrir (grand côté, au ras du fond, là où le rebord s'interrompt)
     translate([ext_l - 23, -0.01, coque_ep - 1.6]) cube([12, paroi + 0.02, 1.61]);
   }
@@ -240,21 +248,21 @@ module fond() {
   }
   // rebord : anneau qui suit l'intérieur de la coque, bout biseauté, interrompu le long de
   // la batterie, fendu de part et d'autre de chaque languette
-  r_o = verre_r + jeu - jl;        // rayon extérieur du rebord (celui de l'intérieur de la coque)
-  bande = paroi + jl + lv + 0.6;   // profondeur des découpes depuis le bord
+  r_o = verre_r + jeu - jlf;       // rayon extérieur du rebord (celui de l'intérieur de la coque)
+  bande = paroi + jlf + lv + 0.6;  // profondeur des découpes depuis le bord
   translate([0, 0, fond_ep - ancr]) difference() {
     difference() {
       hull() {
-        translate([paroi + jl, paroi + jl, 0]) rrect(int_l - 2 * jl, int_h - 2 * jl, r_o, levre + ancr - 0.5);
-        translate([paroi + jl + 0.5, paroi + jl + 0.5, levre + ancr - 0.01])
-          rrect(int_l - 2 * jl - 1, int_h - 2 * jl - 1, max(0.3, r_o - 0.5), 0.01);
+        translate([paroi + jlf, paroi + jlf, 0]) rrect(int_l - 2 * jlf, int_h - 2 * jlf, r_o, levre + ancr - 0.5);
+        translate([paroi + jlf + 0.5, paroi + jlf + 0.5, levre + ancr - 0.01])
+          rrect(int_l - 2 * jlf - 1, int_h - 2 * jlf - 1, max(0.3, r_o - 0.5), 0.01);
       }
-      translate([paroi + jl + lv, paroi + jl + lv, -0.1])
-        rrect(int_l - 2 * (jl + lv), int_h - 2 * (jl + lv), max(0.01, r_o - lv), levre + ancr + 0.2);
+      translate([paroi + jlf + lv, paroi + jlf + lv, -0.1])
+        rrect(int_l - 2 * (jlf + lv), int_h - 2 * (jlf + lv), max(0.01, r_o - lv), levre + ancr + 0.2);
     }
     for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0]) {
       // zone de la batterie : pas de rebord le long des grands côtés (jusqu'à l'arrondi opposé)
-      translate([lip_fin, -0.1, -0.1]) cube([ext_l - paroi - jl - r_o - lip_fin, bande, levre + ancr + 0.2]);
+      translate([lip_fin, -0.1, -0.1]) cube([ext_l - paroi - jlf - r_o - lip_fin, bande, levre + ancr + 0.2]);
       // fente côté USB-C de la languette du grand côté (son autre bout est libre)
       translate([tab_long[0] - fente_r, -0.1, ancr]) cube([fente_r, bande, levre + 0.2]);
     }
@@ -263,16 +271,16 @@ module fond() {
   }
   // ergots au bout des languettes : face de retenue inclinée côté fond (le fond s'ouvre en
   // forçant un peu dans l'encoche), biseau à 45° côté bout (le fond s'enfonce tout seul)
-  for (t = tab_usb) translate([paroi + jl, t[0] + 0.3, fond_ep]) mirror([1, 0, 0]) crochet(t[1] - t[0] - 0.6);
-  translate([ext_l - paroi - jl, tab_far[0] + 0.3, fond_ep]) crochet(tab_far[1] - tab_far[0] - 0.6);
+  for (t = tab_usb) translate([paroi + jlf, t[0] + 0.3, fond_ep]) mirror([1, 0, 0]) crochet(t[1] - t[0] - 0.6);
+  translate([ext_l - paroi - jlf, tab_far[0] + 0.3, fond_ep]) crochet(tab_far[1] - tab_far[0] - 0.6);
   for (m = [0, 1]) translate([0, m ? ext_h : 0, 0]) mirror([0, m, 0])
-    translate([tab_long[0] + 0.3, paroi + jl, fond_ep]) rotate([0, 0, -90]) crochet(tab_long[1] - tab_long[0] - 0.6);
+    translate([tab_long[0] + 0.3, paroi + jlf, fond_ep]) rotate([0, 0, -90]) crochet(tab_long[1] - tab_long[0] - 0.6);
   // nervures qui calent la batterie (côté câble, et en haut et en bas quand il reste de la place)
   translate([0, 0, fond_ep - ancr]) {
-    translate([bat_x - 1.6, ext_h / 2 - 6, 0]) cube([1.2, 12, 2.5 + ancr]);
+    translate([bat_x - 3.0, ext_h / 2 - 6, 0]) cube([1.2, 12, 2.0 + ancr]);   // 2 mm de marge côté fils
     for (y = [bat_y - 1.4, bat_y + bat_larg + 0.2])
       if (y > paroi + jl && y + 1.2 < ext_h - paroi - jl)
-        translate([bat_x + bat_long / 2 - 6, y, 0]) cube([12, 1.2, 2.5 + ancr]);
+        translate([bat_x + bat_long / 2 - 6, y, 0]) cube([12, 1.2, 2.0 + ancr]);
   }
 }
 
