@@ -526,7 +526,7 @@ const SNCF_STATIONS = [["Gare de Lyon","87686006,87686030"],["Gare du Nord","872
 'use strict';
 
 // L'application : nom, version, propriétaire, entreprise (fenêtre « À propos »)
-const APP = { name: 'KeoLive', version: '2.3.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
+const APP = { name: 'KeoLive', version: '2.4.0', owner: 'Jean-François LAMBIN', company: 'Keolis' };
 
 // =============================================================================
 //  Outils
@@ -2188,6 +2188,7 @@ class PlanTracker {
       if (dir) vs.push({ ...v, dir, dn });
     }
     this.data.set(b.i, { at, visits: vs });
+    this.version = (this.version || 0) + 1;
     this.learn(b);
   }
 
@@ -2315,6 +2316,341 @@ class PlanTracker {
       keys.add(key);
     }
     this.last = out;
+    return out;
+  }
+}
+
+// =============================================================================
+//  Rames suivies dans la durée
+//
+//  La déduction station par station (PlanTracker) donne à chaque instant une image de la ligne,
+//  mais bruitée : d'une annonce à l'autre, une rame déduite peut sembler sauter plus loin, se
+//  dédoubler ou disparaître. PlanFleet en fait des rames qui durent, comme sur une vraie ligne :
+//  chacune roule de station en station sans sauter ni reculer, accélère, freine, s'arrête à quai,
+//  ne double pas celle de devant et n'entre pas dans une station encore occupée. Les annonces
+//  ne font que régler son allure : chaque rame vise l'heure d'arrivée annoncée à sa prochaine
+//  station, attribuée dans l'ordre des rames qui s'y rendent (une annonce trop tôt pour une rame
+//  appartient à une rame devant elle). Une rame n'apparaît qu'au terminus de départ, ou quand les
+//  annonces en montrent une, absente du plan, pendant plusieurs secondes ; elle disparaît au
+//  terminus, ou si plus aucune annonce ne la confirme.
+// =============================================================================
+const FLEET = {
+  minRun: 0.6,       // parcours au plus vite : 60 % du temps habituel entre deux stations
+  dwellMin: 15e3,    // arrêt minimal à quai
+  gap: 0.12,         // écart minimal entre deux rames sur un même intervalle (part de l'intervalle)
+  step: 1000,        // réglage des rames : une fois par seconde
+  spawnDelay: 5e3,   // une rame vue par les annonces depuis moins de 5 s n'est pas encore créée
+  lost: 75e3,        // une rame que rien ne confirme depuis 75 s est retirée
+  slew: 6e3,         // l'heure d'arrivée visée bouge d'au plus 6 s à chaque réglage
+  headway: 8e3,      // entre le départ d'une rame et l'arrivée de la suivante à la même station
+};
+
+// Rame repartie sur un nouvel horaire en cours de route : vitesse constante, puis freinage
+function planCruise(s) {
+  const t = Math.min(1, Math.max(0, s)), a = 0.22, v = 1 / (1 - a / 2);
+  return t <= 1 - a ? v * t : 1 - v * (1 - t) ** 2 / (2 * a);
+}
+
+class PlanFleet {
+  constructor(tracker) {
+    this.tr = tracker;
+    this.topo = tracker.topo;
+    this.trains = [];
+    this.seq = 0;
+    this.lastStep = 0;
+    this.ver = -1;
+    this.cands = new Map();
+    this.dwell = planDwell(this.topo.id);
+    this.started = 0;
+  }
+  run(a, b) { return this.tr.runTime(a, b); }
+
+  // Part de la distance parcourue entre la station quittée et la suivante
+  prog(T, t) {
+    if (!T.to || t <= T.dep) return 0;
+    if (t >= T.tArr) return 1;
+    if (T.g0 === 0 && T.t0 <= T.dep) return planEase((t - T.dep) / (T.tArr - T.dep));
+    return T.g0 + (1 - T.g0) * planCruise((t - T.t0) / (T.tArr - T.t0));
+  }
+
+  // Station suivante, vers la destination de la rame (embranchements)
+  nextOf(T) {
+    const s = (this.topo.next[T.dir].get(T.at.i) || []).map(i => this.topo.nodes[i]);
+    if (s.length < 2) return s[0] || null;
+    if (T.dest) {
+      const hit = s.find(n => n === T.dest || this.tr.reach(n, T.dir).has(T.dest.i));
+      if (hit) return hit;
+    }
+    return s.find(n => n.row === T.at.row) || s[0];
+  }
+
+  // Destination : d'après l'annonce de la rame à la station où elle est à quai
+  destFrom(T) {
+    const d = this.tr.data.get(T.at.i);
+    const v = d && d.visits.find(v => v.dir === T.dir && v.dn && Math.abs(v.arr - T.arrAt) < 40e3);
+    if (v) { T.dest = v.dn; T.destName = v.dest; }
+  }
+
+  // Arrivée : arrêt à quai, puis départ vers la station suivante (ou fin au terminus)
+  arrive(T, ta) {
+    T.at = T.to;
+    T.arrAt = ta;
+    this.destFrom(T);
+    T.to = this.nextOf(T);
+    T.dep = ta + this.dwell;
+    T.t0 = T.dep;
+    T.g0 = 0;
+    T.tArr = T.to ? T.dep + this.run(T.at, T.to) : T.dep;
+    T.endAt = T.to ? 0 : ta + this.dwell;
+  }
+
+  spawn(o, t) {
+    const T = { id: ++this.seq, dir: o.dir, dest: this.tr.destNode(o.dest), destName: o.dest || '', conf: t, seen: t, endAt: 0 };
+    if (o.quai) {
+      T.at = o.node;
+      T.arrAt = o.depart ? t : t - 5e3;
+      T.to = o.held || this.nextOf(T);
+      T.dep = o.depart ? t + o.depart
+        : o.held ? t + Math.max(5e3, o.eta - this.run(o.node, o.held)) : t + Math.max(5e3, this.dwell / 2);
+      T.t0 = T.dep;
+      T.g0 = 0;
+      T.tArr = T.to ? T.dep + this.run(T.at, T.to) : T.dep;
+      if (!T.to) T.endAt = t + this.dwell;
+    } else {
+      T.at = o.prev;
+      T.to = o.node;
+      T.arrAt = t - 60e3;
+      T.dep = t - 1;
+      T.t0 = t;
+      T.g0 = planEase(o.f);
+      T.tArr = t + Math.max(2e3, o.eta);
+    }
+    this.trains.push(T);
+  }
+
+  // Les annonces d'une station, attribuées dans l'ordre aux rames qui s'y rendent : alignement
+  // des deux suites (une annonce peut rester sans rame, une rame sans annonce), au moindre écart
+  align(trains, preds, t) {
+    const n = trains.length, m = preds.length, INF = 1e12, SKT = 90, SKP = 60;
+    const cost = (T, v) => {
+      const run = this.run(T.at, T.to);
+      const early = t < T.dep ? Math.max(t, T.arrAt + FLEET.dwellMin) + FLEET.minRun * run
+        : t + (1 - this.prog(T, t)) * FLEET.minRun * run;
+      // plus tôt qu'elle ne peut arriver : rame de devant, ou rame du plan en retard qui doit
+      // se hâter (forte pénalité) ; en retard sur l'horaire : plus vraisemblable qu'en avance
+      // (à quai, une rame peut attendre ; presque arrivée, elle ne s'arrête pas des minutes en route)
+      const late = (early - 15e3 - v.arr) / 1e3;
+      const d = (v.arr - T.tArr) / 1e3, g = t < T.dep ? 0 : this.prog(T, t);
+      return (late > 0 ? 3 * late : 0) + (d < 0 ? -d * 1.5 : d * (0.4 + 1.2 * g));
+    };
+    const D = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(INF));
+    const B = Array.from({ length: n + 1 }, () => new Int8Array(m + 1));
+    D[0][0] = 0;
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) {
+      if (i && D[i - 1][j] + SKT < D[i][j]) { D[i][j] = D[i - 1][j] + SKT; B[i][j] = 1; }
+      if (j && D[i][j - 1] + SKP < D[i][j]) { D[i][j] = D[i][j - 1] + SKP; B[i][j] = 2; }
+      if (i && j) {
+        const c = D[i - 1][j - 1] + cost(trains[i - 1], preds[j - 1]);
+        if (c < D[i][j]) { D[i][j] = c; B[i][j] = 3; }
+      }
+    }
+    const out = [];
+    for (let i = n, j = m; i || j;) {
+      const s = B[i][j];
+      if (s === 3) { out.push([trains[i - 1], preds[j - 1]]); i--; j--; }
+      else if (s === 1) i--;
+      else j--;
+    }
+    return out;
+  }
+
+  // Une rame vise l'heure d'arrivée annoncée à sa prochaine station, sans à-coup
+  aim(T, v, t) {
+    T.conf = t;
+    if (v.dn) { T.dest = v.dn; T.destName = v.dest; }
+    const run = this.run(T.at, T.to), slew = FLEET.slew;
+    if (t < T.dep) {   // à quai : départ réglé sur l'arrivée annoncée à la suivante
+      const want = Math.max(T.arrAt + FLEET.dwellMin, v.arr - run, t);
+      T.dep = Math.max(t, T.dep + Math.max(-slew, Math.min(slew, want - T.dep)));
+      T.t0 = T.dep;
+      T.g0 = 0;
+      T.tArr = Math.max(v.arr, T.dep + FLEET.minRun * run);
+    } else {
+      const g = this.prog(T, t), min = t + (1 - g) * FLEET.minRun * run;
+      const want = Math.max(v.arr, min);
+      if (Math.abs(want - T.tArr) < 2e3) return;
+      T.t0 = t;
+      T.g0 = g;
+      T.tArr = Math.max(min, T.tArr + Math.max(-slew, Math.min(slew, want - T.tArr)));
+    }
+  }
+
+  groups() {
+    const by = new Map();
+    for (const T of this.trains) if (T.to) {
+      const k = T.to.i + '|' + T.dir;
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(T);
+    }
+    return by;
+  }
+
+  plan(t) {
+    for (const [k, heading] of this.groups()) {
+      const [bi, d] = k.split('|').map(Number), dd = this.tr.data.get(bi);
+      if (!dd) continue;
+      const preds = dd.visits.filter(v => v.dir === d && v.arr > t - 2e3).sort((x, y) => x.arr - y.arr);
+      heading.sort((x, y) => x.tArr - y.tArr);
+      for (const [T, v] of this.align(heading, preds, t)) this.aim(T, v, t);
+    }
+  }
+
+  // Pas de dépassement : une rame n'arrive à une station qu'après le départ de celle qui la précède
+  order(t) {
+    for (const [k, list] of this.groups()) {
+      const [bi, d] = k.split('|').map(Number);
+      list.sort((x, y) => x.tArr - y.tArr);
+      let free = 0;
+      for (const T of this.trains) if (T.at.i === bi && T.dir === d && (T.to ? t < T.dep : true)) free = Math.max(free, T.to ? T.dep : T.endAt);
+      for (const T of list) {
+        const allowed = free + FLEET.headway;
+        if (T.tArr < allowed) {
+          if (t < T.dep) {   // encore à quai : elle y reste le temps qu'il faut
+            const run = this.run(T.at, T.to);
+            T.dep = Math.max(T.dep, allowed - run);
+            T.t0 = T.dep;
+            T.g0 = 0;
+          } else { T.g0 = this.prog(T, t); T.t0 = t; }
+          T.tArr = Math.max(allowed, T.t0 + (1 - T.g0) * FLEET.minRun * this.run(T.at, T.to));
+        }
+        free = T.tArr + FLEET.dwellMin;
+      }
+    }
+  }
+
+  // Distance le long de la voie (en stations, positive si b est devant a) entre deux positions
+  // { at: station, g: part de l'intervalle vers la suivante, to }, sur au plus 4 stations
+  along(a, b, dir) {
+    const next = this.topo.next[dir];
+    const walk = (from, target) => {
+      let front = [from], d = 0;
+      const seen = new Set([from.i]);
+      while (front.length && d <= 4) {
+        if (front.includes(target)) return d;
+        const nf = [];
+        for (const n of front) for (const j of next.get(n.i) || []) if (!seen.has(j)) { seen.add(j); nf.push(this.topo.nodes[j]); }
+        front = nf;
+        d++;
+      }
+      return null;
+    };
+    const f = walk(a.at, b.at);
+    if (f !== null) return f + b.g - a.g;
+    const r = walk(b.at, a.at);
+    return r !== null ? -(r + a.g - b.g) : null;
+  }
+  posOf(T, t) {
+    const running = T.to && t > T.dep;
+    return { at: T.at, g: running ? this.prog(T, t) : 0 };
+  }
+  obsPos(o) { return o.quai ? { at: o.node, g: 0 } : { at: o.prev, g: planEase(o.f) }; }
+
+  // Les rames que montrent les annonces, associées une à une aux rames du plan (la plus proche
+  // le long de la voie, à moins de 1,2 station) ; celles qui restent sans rame : créées après
+  // quelques secondes ; les rames du plan que rien ne confirme plus : retirées
+  reconcile(t) {
+    const init = t - this.started < 25e3, seen = new Set();
+    const obs = this.tr.positions(t), pairs = [];
+    obs.forEach((o, i) => {
+      const po = this.obsPos(o);
+      for (const T of this.trains) {
+        if (T.dir !== o.dir) continue;
+        const d = this.along(this.posOf(T, t), po, o.dir);
+        if (d !== null && Math.abs(d) <= 1.2) pairs.push({ i, T, d: Math.abs(d) });
+      }
+    });
+    pairs.sort((a, b) => a.d - b.d);
+    const usedO = new Set(), usedT = new Set();
+    for (const { i, T } of pairs) {
+      if (usedO.has(i) || usedT.has(T)) continue;
+      usedO.add(i);
+      usedT.add(T);
+      T.seen = t;
+      const o = obs[i];
+      if (!T.destName && o.dest) { T.destName = o.dest; T.dest = this.tr.destNode(o.dest); }
+    }
+    obs.forEach((o, i) => {
+      if (usedO.has(i)) return;
+      // à moins de 0,6 station d'une rame du plan : c'est elle, vue autrement par une annonce
+      const po = this.obsPos(o);
+      if (this.trains.some(T => { if (T.dir !== o.dir) return false; const d = this.along(this.posOf(T, t), po, o.dir); return d !== null && Math.abs(d) < 0.6; })) return;
+      const k = o.dir + '|' + (o.prev ? o.prev.i : '') + '|' + o.node.i + '|' + (o.quai ? 'q' : 'r');
+      seen.add(k);
+      if (!this.cands.has(k)) this.cands.set(k, t);
+      if (init || t - this.cands.get(k) >= FLEET.spawnDelay) { this.spawn(o, t); this.cands.delete(k); }
+    });
+    for (const k of [...this.cands.keys()]) if (!seen.has(k)) this.cands.delete(k);
+    // deux rames à moins d'une demi-station l'une de l'autre pendant 15 s : un doublon ; on garde
+    // celle que les annonces montrent
+    const dup = new Set();
+    for (let a = 0; a < this.trains.length; a++) for (let b = a + 1; b < this.trains.length; b++) {
+      const A = this.trains[a], B = this.trains[b];
+      if (A.dir !== B.dir) continue;
+      const d = this.along(this.posOf(A, t), this.posOf(B, t), A.dir);
+      if (d === null || Math.abs(d) >= 0.5) continue;
+      dup.add(A.seen < B.seen || (A.seen === B.seen && A.id > B.id) ? A : B);
+    }
+    for (const T of this.trains) T.dupSince = dup.has(T) ? T.dupSince || t : 0;
+    this.trains = this.trains.filter(T => !(T.endAt && t >= T.endAt) && t - Math.max(T.conf, T.seen) < FLEET.lost
+      && !(T.dupSince && t - T.dupSince >= 15e3));
+  }
+
+  step(t) {
+    for (const T of this.trains) {
+      let n = 0;
+      while (T.to && t >= T.tArr && n++ < 50) this.arrive(T, T.tArr);   // arrivées (et départs) échus
+      // à quai à un embranchement : la voie suivante, d'après la destination désormais connue
+      if (T.to && t < T.dep && (this.topo.next[T.dir].get(T.at.i) || []).length > 1) {
+        const nx = this.nextOf(T);
+        if (nx !== T.to) { T.to = nx; T.tArr = T.dep + this.run(T.at, T.to); }
+      }
+    }
+    this.plan(t);
+    this.order(t);
+    this.reconcile(t);
+  }
+
+  positions(t) {
+    if (!this.started) this.started = t;
+    if (t - this.lastStep >= FLEET.step || this.tr.version !== this.ver) {
+      this.ver = this.tr.version;
+      this.lastStep = t;
+      this.step(t);
+    }
+    const out = [], runners = new Map();
+    for (const T of this.trains) {
+      const base = { key: 'r' + T.id, jid: '', dir: T.dir, dest: T.destName || '' };
+      if (T.to && t > T.dep) {
+        const p = { ...base, node: T.to, prev: T.at, f: this.prog(T, t), dist: true, quai: false, eta: T.tArr - t };
+        out.push(p);
+        const k = T.at.i + '>' + T.to.i + '|' + T.dir;
+        if (!runners.has(k)) runners.set(k, []);
+        runners.get(k).push(p);
+      } else {
+        const origin = !(this.topo.prev[T.dir].get(T.at.i) || []).length;
+        out.push({ ...base, node: T.at, prev: null, f: 1, quai: true, eta: 0, depart: origin && T.dep > t ? T.dep - t : undefined });
+      }
+    }
+    // jamais deux rames l'une sur l'autre sur un même intervalle, ni d'entrée dans une station occupée
+    const busy = new Set(out.filter(p => p.quai).map(p => p.node.i + '|' + p.dir));
+    for (const list of runners.values()) {
+      list.sort((a, b) => b.f - a.f);
+      let lim = busy.has(list[0].node.i + '|' + list[0].dir) ? 1 - FLEET.gap : 1;
+      for (const p of list) {
+        if (p.f > lim) p.f = Math.max(0, lim);
+        lim = p.f - FLEET.gap;
+      }
+    }
     return out;
   }
 }
@@ -2654,7 +2990,7 @@ class PlanLayout {
     let x, y;
     if (!a || p.quai) { x = q.x; y = q.y; }
     else {
-      const o = this.pt(a, sec), g = planEase(p.f);
+      const o = this.pt(a, sec), g = p.dist ? p.f : planEase(p.f);
       x = o.x + (q.x - o.x) * g;
       y = o.y + (q.y - o.y) * g;
     }
@@ -2757,8 +3093,7 @@ class PlanView {
     const C = this.topo.li.c, L = this.L;
     const far = 1.5 * (L.orient === 'wide' ? L.step : L.RH), k = dt ? 1 - Math.exp(-dt / 600) : 1;
     const items = list.map(p => ({ p, q: L.train(p) }));
-    // Une rame absente des données à cet instant (prévisions bruitées, numéro changé) garde son
-    // dessin 10 s à sa place ; si une rame apparaît tout près sur la même voie, elle le reprend
+    // Une rame retirée du plan garde son dessin 3 s à sa place ; si une rame apparaît tout près sur la même voie, elle le reprend
     // (il glisse jusqu'à elle). Sinon il s'efface en fondu, et une rame nouvelle apparaît en fondu.
     const keys = new Set(list.map(p => p.key)), tnow = performance.now();
     for (const [key, e] of this.els) if (!keys.has(key)) {
@@ -2777,7 +3112,7 @@ class PlanView {
       if (best >= 0) this.els.set(p.key, this.ghosts.splice(best, 1)[0]);
     }
     this.ghosts = this.ghosts.filter(e => {
-      if (tnow - e.lost < 10e3) return true;
+      if (tnow - e.lost < 3e3) return true;
       e.g.classList.add('gone');
       setTimeout(() => e.g.remove(), 450);
       return false;
@@ -2889,9 +3224,9 @@ function openPlan(lineId) {
   document.body.classList.add('plan-open');
   // à l'horizontale s'il reste assez de place entre deux stations pour leurs noms, sinon de haut en bas
   const wide = () => body.clientWidth >= 760 && new PlanLayout(topo, 'wide', body.clientWidth).step >= 26;
-  const tracker = new PlanTracker(topo);
+  const tracker = new PlanTracker(topo), fleet = new PlanFleet(tracker);
   const view = new PlanView(body, topo, wide() ? 'wide' : 'tall');
-  Object.assign(plan, { ov, id: lineId, topo, tracker, view, count, foot, load, body, notice });
+  Object.assign(plan, { ov, id: lineId, topo, tracker, fleet, view, count, foot, load, body, notice });
   body.addEventListener('click', () => plan.view && plan.view.hideTip(true));
   const feed = plan.feed = new PlanFeed(topo, tracker, () => { renderPlanFoot(); planTick(); });
   feed.start();
@@ -2912,7 +3247,7 @@ function openPlan(lineId) {
     }
   }, 250);
   window.addEventListener('resize', plan.onResize);
-  if (PLAN_DEMO) window.__plan = { topo, tracker, feed, sim: feed.sim };
+  if (PLAN_DEMO) window.__plan = { topo, tracker, fleet, feed, sim: feed.sim };
 }
 
 // Une image : la position des rames à cet instant, dessinée (30 images par seconde)
@@ -2922,14 +3257,14 @@ function planFrame(ts) {
   if (plan.lastFrame && ts - plan.lastFrame < 30) return;
   const dt = plan.lastFrame ? Math.min(250, ts - plan.lastFrame) : 0;
   plan.lastFrame = ts;
-  plan.list = plan.tracker.positions(now());
+  plan.list = plan.fleet.positions(now());
   plan.view.update(plan.list, dt);
 }
 
 // Une fois par seconde : nombre de rames, barre de chargement
 function planTick() {
   if (!planIsOpen()) return;
-  const list = plan.list || plan.tracker.positions(now());
+  const list = plan.list || plan.fleet.positions(now());
   const right = list.filter(p => p.dir > 0).length, left = list.length - right;
   plan.count.replaceChildren(el('b', {}, String(list.length)), list.length > 1 ? 'rames' : 'rame', el('br'), `◀ ${left} · ${right} ▶`);
   const f = plan.feed;
@@ -2970,7 +3305,7 @@ function closePlan() {
   cancelAnimationFrame(plan.raf);
   window.removeEventListener('resize', plan.onResize);
   plan.ov.remove();
-  Object.assign(plan, { ov: null, id: null, feed: null, tracker: null, view: null });
+  Object.assign(plan, { ov: null, id: null, feed: null, tracker: null, fleet: null, view: null, list: null });
   document.body.classList.remove('plan-open');
 }
 

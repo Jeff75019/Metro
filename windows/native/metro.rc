@@ -3,8 +3,8 @@
 1 ICON "metro.ico"
 1 24 "metro.manifest"
 1 VERSIONINFO
-FILEVERSION 2,3,0,0
-PRODUCTVERSION 2,3,0,0
+FILEVERSION 2,4,0,0
+PRODUCTVERSION 2,4,0,0
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
@@ -15,8 +15,8 @@ BEGIN
       VALUE "CompanyName", "Jean-François LAMBIN"
       VALUE "FileDescription", "KeoLive - prochains passages et trafic en Île-de-France"
       VALUE "ProductName", "KeoLive"
-      VALUE "FileVersion", "2.3.0"
-      VALUE "ProductVersion", "2.3.0"
+      VALUE "FileVersion", "2.4.0"
+      VALUE "ProductVersion", "2.4.0"
       VALUE "OriginalFilename", "KeoLive.exe"
       VALUE "LegalCopyright", "© 2026 Jean-François LAMBIN - mise en place pour Keolis"
     END
